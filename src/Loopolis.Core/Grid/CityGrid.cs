@@ -48,6 +48,19 @@ public class CityGrid
         _tiles[x, y] = _tiles[x, y] with { Zone = zone };
     }
 
+    public void SetPower(int x, int y, bool hasPower)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { HasPower = hasPower };
+    }
+
+    public void ClearPower()
+    {
+        for (var x = 0; x < Width; x++)
+        for (var y = 0; y < Height; y++)
+            _tiles[x, y] = _tiles[x, y] with { HasPower = false };
+    }
+
     public bool IsInBounds(int x, int y) =>
         x >= 0 && x < Width && y >= 0 && y < Height;
 

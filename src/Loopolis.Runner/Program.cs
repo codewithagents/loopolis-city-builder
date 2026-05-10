@@ -13,6 +13,7 @@ var asciiMode = args.Contains("--ascii");
 var grid = new CityGrid(32, 32);
 var budget = new BudgetSystem(initialBalance: 10_000);
 var population = new PopulationSystem();
+var powerNetwork = new PowerNetwork();
 
 // --- Scenario Setup ---
 switch (scenario)
@@ -53,11 +54,15 @@ switch (scenario)
         break;
 
     default:
+        // Wired starter city: plant → road → zones (all connected)
         grid.SetZone(10, 10, ZoneType.PowerPlant);
-        grid.SetZone(10, 11, ZoneType.Road);
-        grid.SetZone(10, 12, ZoneType.Residential);
+        grid.SetZone(10, 11, ZoneType.Road);   // road connects plant to zones
+        grid.SetZone(10, 12, ZoneType.Road);
+        grid.SetZone(9,  12, ZoneType.Residential);
         grid.SetZone(11, 12, ZoneType.Residential);
-        grid.SetZone(10, 13, ZoneType.Commercial);
+        grid.SetZone(9,  13, ZoneType.Residential);
+        grid.SetZone(10, 13, ZoneType.Road);
+        grid.SetZone(11, 13, ZoneType.Commercial);
         break;
 }
 
@@ -66,6 +71,7 @@ var tickHistory = new List<TickSnapshot>();
 
 for (var tick = 0; tick < ticks; tick++)
 {
+    powerNetwork.Propagate(grid);
     population.Tick(grid);
     budget.SetPopulation(population.Population);
     budget.CollectTaxes();
@@ -90,6 +96,8 @@ if (asciiMode)
 }
 else
 {
+    var poweredResidential = grid.TilesOfType(ZoneType.Residential).Count(t => t.HasPower);
+
     var report = new SimulationReport(
         Scenario: scenario,
         TotalTicks: ticks,
@@ -97,6 +105,8 @@ else
         FinalBalance: Math.Round(budget.Balance, 2),
         Survived: !budget.IsInDeficit,
         ResidentialZones: grid.TilesOfType(ZoneType.Residential).Count(),
+        PoweredResidentialZones: poweredResidential,
+        PoweredTiles: powerNetwork.PoweredTileCount,
         CommercialZones: grid.TilesOfType(ZoneType.Commercial).Count(),
         IndustrialZones: grid.TilesOfType(ZoneType.Industrial).Count(),
         History: tickHistory
@@ -114,6 +124,8 @@ record SimulationReport(
     double FinalBalance,
     bool Survived,
     int ResidentialZones,
+    int PoweredResidentialZones,
+    int PoweredTiles,
     int CommercialZones,
     int IndustrialZones,
     List<TickSnapshot> History
