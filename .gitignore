@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+*.suo
+
+# Godot
+.godot/
+*.import
+export.cfg
+export_presets.cfg
+*.translation
+mono/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Planning (ephemeral)
+planning/
+
+# IDE
+.idea/
+.vscode/
+*.sln.DotSettings.user

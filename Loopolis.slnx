@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Loopolis.Core/Loopolis.Core.csproj" />
+    <Project Path="src/Loopolis.Runner/Loopolis.Runner.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Loopolis.Core.Tests/Loopolis.Core.Tests.csproj" />
+  </Folder>
+</Solution>
