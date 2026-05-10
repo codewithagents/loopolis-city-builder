@@ -5,25 +5,35 @@ namespace Loopolis.Core.Simulation;
 public class PopulationSystem
 {
     private const int ResidentsPerZone = 50;
-    private const double GrowthRate = 0.05;
-    private const double DeclineRate = 0.03;
+    private const double GrowthRate    = 0.05;
+    private const double DeclineRate   = 0.10; // faster than growth — losing services hurts
 
     public int Population { get; private set; }
 
     /// <summary>
-    /// Recalculates population based on current grid state.
-    /// Growth happens when residential zones have power and road access.
-    /// Decline happens when zones lack power.
+    /// Recalculates population each tick.
+    ///
+    /// Growth:  only from zones that are ready (powered + road access).
+    /// Decline: only when current population EXCEEDS capacity (services were lost).
+    ///          Zones that were never developed don't cause decline — they just sit empty.
+    ///
+    /// This means:
+    ///   - Inactive zones: no effect on population
+    ///   - Losing power or roads: population decays toward the new lower capacity
+    ///   - Building more ready zones: population grows toward the higher capacity
     /// </summary>
     public void Tick(CityGrid grid)
     {
         var residentialTiles = grid.TilesOfType(ZoneType.Residential).ToList();
-        var poweredResidential = residentialTiles.Count(t => t.HasPower);
-        var unpoweredResidential = residentialTiles.Count - poweredResidential;
+        var readyCount = residentialTiles.Count(t => t.IsReadyToDevelop);
+        var capacity   = readyCount * ResidentsPerZone;
 
-        var capacity = poweredResidential * ResidentsPerZone;
-        var growth = (int)(poweredResidential * GrowthRate * ResidentsPerZone);
-        var decline = (int)(unpoweredResidential * DeclineRate * ResidentsPerZone);
+        // Grow toward capacity from ready zones
+        var growth = (int)(readyCount * GrowthRate * ResidentsPerZone);
+
+        // Decline only when existing population exceeds new capacity (services lost)
+        var excess  = Math.Max(0, Population - capacity);
+        var decline = (int)(excess * DeclineRate);
 
         Population = Math.Max(0, Math.Min(capacity, Population + growth - decline));
     }

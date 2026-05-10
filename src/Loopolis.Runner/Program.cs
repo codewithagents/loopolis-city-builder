@@ -14,20 +14,26 @@ var grid = new CityGrid(32, 32);
 var budget = new BudgetSystem(initialBalance: 10_000);
 var population = new PopulationSystem();
 var powerNetwork = new PowerNetwork();
+var roadNetwork  = new RoadNetwork();
 
 // --- Scenario Setup ---
 switch (scenario)
 {
     case "no_power":
-        grid.SetZone(5, 5, ZoneType.Residential);
+        // Zones with roads but no power → no growth
+        grid.SetZone(5, 5, ZoneType.Road);
         grid.SetZone(6, 5, ZoneType.Residential);
         grid.SetZone(7, 5, ZoneType.Residential);
+        grid.SetZone(8, 5, ZoneType.Residential);
         break;
 
-    case "powered_start":
-        grid.SetZone(5, 5, ZoneType.Residential);
-        grid.SetZone(6, 5, ZoneType.Residential);
-        grid.SetZone(7, 5, ZoneType.Residential);
+    case "no_roads":
+        // Zones with power but no road access → no growth
+        grid.SetZone(5, 5, ZoneType.PowerPlant);
+        grid.SetZone(6, 5, ZoneType.PowerLine);
+        grid.SetZone(7, 5, ZoneType.Residential);  // powered but no road adjacent
+        grid.SetZone(7, 6, ZoneType.Residential);
+        grid.SetZone(7, 7, ZoneType.Residential);
         break;
 
     case "town":
@@ -71,6 +77,7 @@ var tickHistory = new List<TickSnapshot>();
 for (var tick = 0; tick < ticks; tick++)
 {
     powerNetwork.Propagate(grid);
+    roadNetwork.Propagate(grid);
     population.Tick(grid);
     budget.SetPopulation(population.Population);
     budget.CollectTaxes();
@@ -97,7 +104,10 @@ if (asciiMode)
 }
 else
 {
-    var poweredResidential = grid.TilesOfType(ZoneType.Residential).Count(t => t.HasPower);
+    var residentialTiles       = grid.TilesOfType(ZoneType.Residential).ToList();
+    var poweredResidential     = residentialTiles.Count(t => t.HasPower);
+    var roadAccessResidential  = residentialTiles.Count(t => t.HasRoadAccess);
+    var readyResidential       = residentialTiles.Count(t => t.IsReadyToDevelop);
 
     var report = new SimulationReport(
         Scenario: scenario,
@@ -105,8 +115,10 @@ else
         FinalPopulation: population.Population,
         FinalBalance: Math.Round(budget.Balance, 2),
         Survived: !budget.IsInDeficit,
-        ResidentialZones: grid.TilesOfType(ZoneType.Residential).Count(),
+        ResidentialZones: residentialTiles.Count,
         PoweredResidentialZones: poweredResidential,
+        RoadAccessResidentialZones: roadAccessResidential,
+        ReadyResidentialZones: readyResidential,
         PoweredTiles: powerNetwork.PoweredTileCount,
         CommercialZones: grid.TilesOfType(ZoneType.Commercial).Count(),
         IndustrialZones: grid.TilesOfType(ZoneType.Industrial).Count(),
@@ -126,6 +138,8 @@ record SimulationReport(
     bool Survived,
     int ResidentialZones,
     int PoweredResidentialZones,
+    int RoadAccessResidentialZones,
+    int ReadyResidentialZones,
     int PoweredTiles,
     int CommercialZones,
     int IndustrialZones,

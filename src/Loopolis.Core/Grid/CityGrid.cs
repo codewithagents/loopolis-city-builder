@@ -16,6 +16,18 @@ public record Tile(int X, int Y)
     public ZoneType Zone { get; init; } = ZoneType.Empty;
     public bool HasPower { get; init; } = false;
     public bool HasWater { get; init; } = false;
+    public bool HasRoadAccess { get; init; } = false;
+
+    /// <summary>
+    /// A zone is ready to develop when it has both power and road access.
+    /// Infrastructure tiles (roads, power lines, power plants) are always considered ready.
+    /// </summary>
+    public bool IsReadyToDevelop => Zone switch
+    {
+        ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial => HasPower && HasRoadAccess,
+        ZoneType.Empty => false,
+        _ => true  // infrastructure tiles don't need access to themselves
+    };
 }
 
 public class CityGrid
@@ -59,6 +71,19 @@ public class CityGrid
         for (var x = 0; x < Width; x++)
         for (var y = 0; y < Height; y++)
             _tiles[x, y] = _tiles[x, y] with { HasPower = false };
+    }
+
+    public void SetRoadAccess(int x, int y, bool hasAccess)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { HasRoadAccess = hasAccess };
+    }
+
+    public void ClearRoadAccess()
+    {
+        for (var x = 0; x < Width; x++)
+        for (var y = 0; y < Height; y++)
+            _tiles[x, y] = _tiles[x, y] with { HasRoadAccess = false };
     }
 
     public bool IsInBounds(int x, int y) =>
