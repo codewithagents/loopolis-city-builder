@@ -31,23 +31,22 @@ switch (scenario)
         break;
 
     case "town":
-        // A more interesting starter layout for visual inspection
         // Roads form a cross
         for (var x = 5; x <= 25; x++) grid.SetZone(x, 15, ZoneType.Road);
         for (var y = 5; y <= 25; y++) grid.SetZone(15, y, ZoneType.Road);
-        // Power plant top-left quadrant
+        // Power plant + power line running all the way to the vertical road
+        // Plant at (8,8) → line along y=8 from x=9 to x=15 (hits the road, power floods the network)
         grid.SetZone(8, 8, ZoneType.PowerPlant);
-        grid.SetZone(9, 8, ZoneType.PowerLine);
-        grid.SetZone(10, 8, ZoneType.PowerLine);
-        // Residential blocks
-        for (var x = 6; x <= 13; x++)
-        for (var y = 10; y <= 13; y++)
+        for (var x = 9; x <= 15; x++) grid.SetZone(x, 8, ZoneType.PowerLine);
+        // Residential blocks (top-left quadrant, touching the vertical road at x=15)
+        for (var x = 6; x <= 14; x++)
+        for (var y = 10; y <= 14; y++)
             if (grid.GetTile(x, y).Zone == ZoneType.Empty)
                 grid.SetZone(x, y, ZoneType.Residential);
-        // Commercial strip along road
+        // Commercial strip along horizontal road (right side)
         for (var x = 16; x <= 24; x++)
             grid.SetZone(x, 14, ZoneType.Commercial);
-        // Industrial bottom-right
+        // Industrial bottom-right quadrant
         for (var x = 17; x <= 24; x++)
         for (var y = 17; y <= 24; y++)
             grid.SetZone(x, y, ZoneType.Industrial);
@@ -75,7 +74,7 @@ for (var tick = 0; tick < ticks; tick++)
     population.Tick(grid);
     budget.SetPopulation(population.Population);
     budget.CollectTaxes();
-    budget.DeductCost(50);
+    budget.DeductMaintenance(grid);
 
     if (tick % 100 == 0 || tick == ticks - 1)
     {
@@ -84,7 +83,9 @@ for (var tick = 0; tick < ticks; tick++)
             Population: population.Population,
             Balance: Math.Round(budget.Balance, 2),
             IsInDeficit: budget.IsInDeficit,
-            TaxIncome: Math.Round(budget.CalculateTaxIncome(), 2)
+            TaxIncome: Math.Round(budget.CalculateTaxIncome(), 2),
+            MaintenanceCost: Math.Round(budget.LastMaintenanceCost, 2),
+            NetPerTick: Math.Round(budget.NetIncomePerTick, 2)
         ));
     }
 }
@@ -115,7 +116,7 @@ else
 }
 
 // --- Records ---
-record TickSnapshot(int Tick, int Population, double Balance, bool IsInDeficit, double TaxIncome);
+record TickSnapshot(int Tick, int Population, double Balance, bool IsInDeficit, double TaxIncome, double MaintenanceCost, double NetPerTick);
 
 record SimulationReport(
     string Scenario,
