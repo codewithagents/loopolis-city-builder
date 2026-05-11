@@ -717,7 +717,8 @@ public partial class World : Node2D
             TaxModifier:               _budget.TaxModifier,
             AvailableJobs:             _engine.EmploymentSystem.AvailableJobs,
             RequiredJobs:              _engine.EmploymentSystem.RequiredJobs,
-            EmploymentRatio:           _engine.EmploymentSystem.EmploymentRatio
+            EmploymentRatio:           _engine.EmploymentSystem.EmploymentRatio,
+            EventHappinessPenalty:     _engine.EventSystem.HappinessPenalty
         );
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);

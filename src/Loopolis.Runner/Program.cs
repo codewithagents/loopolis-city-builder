@@ -379,7 +379,8 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         SessionId:                 sessionId.Length > 0 ? sessionId : null,
         AvailableJobs:             engine.EmploymentSystem.AvailableJobs,
         RequiredJobs:              engine.EmploymentSystem.RequiredJobs,
-        EmploymentRatio:           Math.Round(engine.EmploymentSystem.EmploymentRatio, 3)
+        EmploymentRatio:           Math.Round(engine.EmploymentSystem.EmploymentRatio, 3),
+        EventHappinessPenalty:     engine.EventSystem.HappinessPenalty
     );
 
     var options = new JsonSerializerOptions
@@ -450,9 +451,9 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
             // Commercial strip along horizontal road (right side)
             for (var x = 16; x <= 24; x++)
                 grid.SetZone(x, 14, ZoneType.Commercial);
-            // Industrial bottom-right quadrant
+            // Industrial bottom-right quadrant — start at y=16 so it touches the road at y=15
             for (var x = 17; x <= 24; x++)
-            for (var y = 17; y <= 24; y++)
+            for (var y = 16; y <= 24; y++)
                 grid.SetZone(x, y, ZoneType.Industrial);
             break;
 
@@ -627,7 +628,8 @@ record ServerState(
     string? SessionId = null,
     int AvailableJobs = 0,
     int RequiredJobs = 0,
-    double EmploymentRatio = 1.0);
+    double EmploymentRatio = 1.0,
+    double EventHappinessPenalty = 0.0);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

@@ -204,7 +204,8 @@ public record SharedState(
     string? SessionId = null,
     int AvailableJobs = 0,
     int RequiredJobs = 0,
-    double EmploymentRatio = 1.0
+    double EmploymentRatio = 1.0,
+    double EventHappinessPenalty = 0.0   // live penalty from EventSystem — data-driven, not string-matched
 );
 
 public record SharedTile(

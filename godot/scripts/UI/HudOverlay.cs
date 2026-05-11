@@ -184,9 +184,7 @@ public partial class HudOverlay : CanvasLayer
 
         if (!string.IsNullOrEmpty(state.ActiveEventName))
         {
-            var penaltyPct = state.ActiveEventName.Contains("Fire")  ? "15" :
-                             state.ActiveEventName.Contains("Crime") ? "10" :
-                             state.ActiveEventName.Contains("Power") ? "12" : "5";
+            var penaltyPct = (int)(Mathf.Abs((float)state.EventHappinessPenalty) * 100);
             _eventLabel.Text = $"! {state.ActiveEventName} — happiness -{penaltyPct}%";
             _eventLabel.Visible = true;
         }

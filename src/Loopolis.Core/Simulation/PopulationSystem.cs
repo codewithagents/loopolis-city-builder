@@ -65,11 +65,12 @@ public class PopulationSystem
             if (canDevelop && tile.HasPower)
             {
                 // Grow toward capacity, modified by demand factor, happiness, and employment.
-                // Guarantee at least 1 unit of progress when there is room (consistent with
-                // Commercial/Industrial — prevents floating-point truncation from stalling growth).
+                // Guarantee at least 1 unit of growth only when employment is adequate (≥40%).
+                // With severe unemployment (<40%) growth CAN stall — a real signal to build industrial.
                 var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier;
                 var rawGrowth = GrowthRate * ResidentsPerZone * growthMultiplier;
-                var growth = current < ResidentsPerZone ? Math.Max(1, (int)rawGrowth) : 0;
+                var minGrowth = employmentMultiplier >= 0.4 ? 1 : 0;
+                var growth = current < ResidentsPerZone ? Math.Max(minGrowth, (int)rawGrowth) : 0;
                 newPop = Math.Min(ResidentsPerZone, current + growth);
             }
             else if (current > 0)
