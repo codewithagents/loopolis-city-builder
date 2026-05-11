@@ -20,6 +20,7 @@ public partial class World : Node2D
     private TilemapRenderer _renderer = null!;
     private HudOverlay _hud = null!;
     private HintOverlay _hintOverlay = null!;
+    private CityHealthPanel _cityHealth = null!;
     private Toolbar _toolbar = null!;
     private TileTooltip _tooltip = null!;
     private GameOverPanel _gameOverPanel = null!;
@@ -75,6 +76,7 @@ public partial class World : Node2D
         _renderer      = GetNode<TilemapRenderer>("TilemapRenderer");
         _hud           = GetNode<HudOverlay>("HudOverlay");
         _hintOverlay   = GetNode<HintOverlay>("HintOverlay");
+        _cityHealth    = GetNode<CityHealthPanel>("CityHealthPanel");
         _toolbar       = GetNode<Toolbar>("Toolbar");
         _tooltip       = GetNode<TileTooltip>("TileTooltip");
         _gameOverPanel = GetNode<GameOverPanel>("GameOverPanel");
@@ -714,6 +716,72 @@ public partial class World : Node2D
 
         var activeEvent = _engine.EventSystem.ActiveEvent;
 
+        // ── Diagnostic fields for CityHealthPanel ───────────────────────────
+
+        // Coverage summary — mirror the Runner's computation
+        var zonedTiles = System.Linq.Enumerable.ToList(
+            System.Linq.Enumerable.Where(_grid.AllTiles(),
+                t => t.Zone is Loopolis.Core.Grid.ZoneType.Residential
+                           or Loopolis.Core.Grid.ZoneType.Commercial
+                           or Loopolis.Core.Grid.ZoneType.Industrial));
+        var poweredZoned   = System.Linq.Enumerable.Count(zonedTiles, t => t.HasPower);
+        var unpoweredZoned = zonedTiles.Count - poweredZoned;
+
+        var covServices = System.Linq.Enumerable.ToList(
+            System.Linq.Enumerable.Where(_grid.AllTiles(),
+                t => t.Zone is Loopolis.Core.Grid.ZoneType.FireStation
+                           or Loopolis.Core.Grid.ZoneType.PoliceStation
+                           or Loopolis.Core.Grid.ZoneType.School));
+
+        int policeCovered = 0, fireCovered = 0, schoolCovered = 0;
+        foreach (var zt in zonedTiles)
+        {
+            foreach (var svc in covServices)
+            {
+                var dist = System.Math.Abs(svc.X - zt.X) + System.Math.Abs(svc.Y - zt.Y);
+                if (svc.Zone == Loopolis.Core.Grid.ZoneType.PoliceStation && dist <= 4) policeCovered++;
+                if (svc.Zone == Loopolis.Core.Grid.ZoneType.FireStation   && dist <= 4) fireCovered++;
+                if (svc.Zone == Loopolis.Core.Grid.ZoneType.School        && dist <= 5) schoolCovered++;
+            }
+        }
+        var zc = zonedTiles.Count;
+        var coverageSummary = new CoverageSummaryDto(
+            PoweredZonedTilesCount:   poweredZoned,
+            UnpoweredZonedTilesCount: unpoweredZoned,
+            PoliceCoveragePercent:    zc > 0 ? (double)policeCovered / zc : 0.0,
+            FireCoveragePercent:      zc > 0 ? (double)fireCovered   / zc : 0.0,
+            SchoolCoveragePercent:    zc > 0 ? (double)schoolCovered / zc : 0.0,
+            AvgPollution:             0.0,  // not needed for warnings
+            AvgHappiness:             0.0
+        );
+
+        // Happiness breakdown
+        var happinessBreakdown = new HappinessBreakdownDto(
+            ServiceCoverage:     0.0,  // simplified — Runner does full per-tile average
+            TaxModifier:         _budget.TaxModifier,
+            UnemploymentPenalty: 0.0,
+            EventPenalty:        _engine.EventSystem.HappinessPenalty,
+            NeglectDecay:        0.0
+        );
+
+        // Employment
+        var unemploymentRate = 1.0 - _engine.EmploymentSystem.EmploymentRatio;
+        var employmentDto = new EmploymentDto(
+            Jobs:             _engine.EmploymentSystem.AvailableJobs,
+            Workers:          _engine.EmploymentSystem.RequiredJobs,
+            UnemploymentRate: unemploymentRate
+        );
+
+        // PauseReason: derive from game state for standalone (Runner sets this explicitly)
+        string? pauseReason = gameStateName switch
+        {
+            "BankruptcyWarning" => "BankruptcyWarning",
+            "AbandonmentWarning" => "AbandonmentWarning",
+            _ => null
+        };
+
+        // ────────────────────────────────────────────────────────────────────
+
         var state = new SharedState(
             Tick:                      _standaloneTick,
             Paused:                    _standalonePaused,
@@ -737,10 +805,15 @@ public partial class World : Node2D
             AvailableJobs:             _engine.EmploymentSystem.AvailableJobs,
             RequiredJobs:              _engine.EmploymentSystem.RequiredJobs,
             EmploymentRatio:           _engine.EmploymentSystem.EmploymentRatio,
-            EventHappinessPenalty:     _engine.EventSystem.HappinessPenalty
+            EventHappinessPenalty:     _engine.EventSystem.HappinessPenalty,
+            HappinessBreakdown:        happinessBreakdown,
+            Employment:                employmentDto,
+            CoverageSummary:           coverageSummary,
+            PauseReason:               pauseReason
         );
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);
+        _cityHealth.UpdateWarnings(state);
         UpdateEventLog(state, milestone);
     }
 

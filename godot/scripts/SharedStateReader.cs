@@ -26,6 +26,7 @@ public partial class SharedStateReader : Node
     private HintOverlay _hintOverlay = null!;
     private Toolbar _toolbar = null!;
     private GameOverPanel _gameOverPanel = null!;
+    private CityHealthPanel _cityHealth = null!;
     private bool _bankruptShown = false;
     private bool _abandonedShown = false;
     private double _pollTimer = 0;
@@ -59,6 +60,7 @@ public partial class SharedStateReader : Node
         _hintOverlay   = GetNode<HintOverlay>("/root/World/HintOverlay");
         _toolbar       = GetNode<Toolbar>("/root/World/Toolbar");
         _gameOverPanel = GetNode<GameOverPanel>("/root/World/GameOverPanel");
+        _cityHealth    = GetNode<CityHealthPanel>("/root/World/CityHealthPanel");
 
         // Resolve the shared directory path from the Godot project directory
         var projectDir = ProjectSettings.GlobalizePath("res://");
@@ -112,6 +114,7 @@ public partial class SharedStateReader : Node
             _renderer.Refresh(grid);
             _hud.UpdateStats(state);
             _hintOverlay.UpdateHints(state);
+            _cityHealth.UpdateWarnings(state);
             _toolbar.SetPaused(state.Paused);
 
             // Bankrupt detection — show panel once and pause the server
@@ -226,7 +229,39 @@ public record SharedState(
     int AvailableJobs = 0,
     int RequiredJobs = 0,
     double EmploymentRatio = 1.0,
-    double EventHappinessPenalty = 0.0   // live penalty from EventSystem — data-driven, not string-matched
+    double EventHappinessPenalty = 0.0,   // live penalty from EventSystem — data-driven, not string-matched
+    // City health diagnostic fields (written by Runner, consumed by CityHealthPanel)
+    HappinessBreakdownDto? HappinessBreakdown = null,
+    EmploymentDto? Employment = null,
+    CoverageSummaryDto? CoverageSummary = null,
+    string? PauseReason = null
+);
+
+/// <summary>Happiness sub-components from HappinessSystem.GetBreakdown().</summary>
+public record HappinessBreakdownDto(
+    double ServiceCoverage,
+    double TaxModifier,
+    double UnemploymentPenalty,
+    double EventPenalty,
+    double NeglectDecay
+);
+
+/// <summary>Employment sub-fields for detailed unemployment diagnosis.</summary>
+public record EmploymentDto(
+    int Jobs,
+    int Workers,
+    double UnemploymentRate
+);
+
+/// <summary>Coverage summary for power, fire, police, school and pollution.</summary>
+public record CoverageSummaryDto(
+    int PoweredZonedTilesCount,
+    int UnpoweredZonedTilesCount,
+    double PoliceCoveragePercent,
+    double FireCoveragePercent,
+    double SchoolCoveragePercent,
+    double AvgPollution,
+    double AvgHappiness
 );
 
 public record SharedTile(
