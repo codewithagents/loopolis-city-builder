@@ -184,6 +184,54 @@ public class RoadNetworkTests
     }
 
     [Test]
+    public void FireStationAdjacentToRoad_GetsRoadAccess()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Road);
+        grid.SetZone(6, 5, ZoneType.FireStation);
+
+        _roads.Propagate(grid);
+
+        Assert.That(grid.GetTile(6, 5).HasRoadAccess, Is.True);
+    }
+
+    [Test]
+    public void PoliceStationAdjacentToRoad_GetsRoadAccess()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Road);
+        grid.SetZone(5, 6, ZoneType.PoliceStation);
+
+        _roads.Propagate(grid);
+
+        Assert.That(grid.GetTile(5, 6).HasRoadAccess, Is.True);
+    }
+
+    [Test]
+    public void SchoolAdjacentToRoad_GetsRoadAccess()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Road);
+        grid.SetZone(4, 5, ZoneType.School);
+
+        _roads.Propagate(grid);
+
+        Assert.That(grid.GetTile(4, 5).HasRoadAccess, Is.True);
+    }
+
+    [Test]
+    public void ServiceBuildingNotAdjacentToRoad_NoRoadAccess()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Road);
+        grid.SetZone(7, 5, ZoneType.FireStation); // 2 tiles away — not adjacent
+
+        _roads.Propagate(grid);
+
+        Assert.That(grid.GetTile(7, 5).HasRoadAccess, Is.False);
+    }
+
+    [Test]
     public void InteriorTile_WithoutDirectRoad_DoesNotHaveRoadAccess()
     {
         var grid = new CityGrid(10, 10);

@@ -113,8 +113,9 @@ static void RunServer(string scenario, double initialSpeed)
     var pauseAfterSkip   = false;
     var pauseOnEvent     = true;
     var skipPauseReason  = (string?)null;
+    var recentEvents     = new List<string>();
 
-    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null);
+    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents);
     Console.WriteLine($"[server] Started. Scenario: {scenario}, Speed: {speed} t/s, Session: {sessionId}");
     Console.WriteLine($"[server] State: {stateFile}");
     Console.WriteLine($"[server] Commands: {commandFile}");
@@ -125,14 +126,14 @@ static void RunServer(string scenario, double initialSpeed)
         {
             // 1. Read command
             var pausedBefore = paused;
-            ProcessCommand(commandFile, sharedDir, ref paused, ref speed,
+            ProcessCommand(commandFile, sharedDir, tmpPath, stateFile, ref paused, ref speed,
                 ref skipRemaining, ref skipRequested, ref pauseAfterSkip, ref pauseOnEvent,
-                ref grid, ref engine, sessionId);
+                ref grid, ref engine, sessionId, recentEvents);
             // grid/engine may have been replaced by new_game — use current references below
 
             // If the game was just paused, immediately flush state so state.json reflects Paused: true
             if (!pausedBefore && paused)
-                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null);
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents);
 
             // 2. Tick (or skip, or wait)
             if (skipRemaining > 0)
@@ -145,7 +146,16 @@ static void RunServer(string scenario, double initialSpeed)
                 // Check early-pause conditions when pauseOnEvent is enabled
                 if (pauseOnEvent)
                 {
-                    var earlyReason = DetectSkipPauseReason(engine, grid, milestonesBefore);
+                    // Tier 2 passive events: log but don't pause
+                    var passiveEvent = DetectPassiveEvent(engine);
+                    if (passiveEvent != null && !recentEvents.Contains(passiveEvent))
+                    {
+                        recentEvents.Add(passiveEvent);
+                        Console.WriteLine($"[skip] passive event (no pause): {passiveEvent} at tick {engine.TickCount}");
+                    }
+
+                    // Tier 1 actionable events: pause immediately
+                    var earlyReason = DetectActionableSkipPauseReason(engine, grid, milestonesBefore);
                     if (earlyReason != null)
                     {
                         var ticksDone = skipRequested - skipRemaining;
@@ -157,7 +167,8 @@ static void RunServer(string scenario, double initialSpeed)
                         paused = true;
                         pauseAfterSkip = false;
                         WriteState(tmpPath, stateFile, engine, grid, paused, sessionId,
-                            pauseReason: earlyReason, ticksRun: ticksDone);
+                            pauseReason: earlyReason, ticksRun: ticksDone, recentEvents: recentEvents);
+                        recentEvents = new List<string>();
                         skipPauseReason = null;
                         continue;
                     }
@@ -173,13 +184,14 @@ static void RunServer(string scenario, double initialSpeed)
                         pauseAfterSkip = false;
                     }
                     WriteState(tmpPath, stateFile, engine, grid, paused, sessionId,
-                        pauseReason: null, ticksRun: skipRequested);
+                        pauseReason: null, ticksRun: skipRequested, recentEvents: recentEvents);
+                    recentEvents = new List<string>();
                 }
             }
             else if (!paused)
             {
                 engine.Tick();
-                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null);
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents);
                 var milestone = engine.MilestoneSystem.LatestMilestone;
                 var milestoneTag = milestone != null ? $" [{milestone.Name} {milestone.Emoji}]" : "";
                 Console.WriteLine(
@@ -206,18 +218,22 @@ static void RunServer(string scenario, double initialSpeed)
 }
 
 /// <summary>
-/// Inspects the engine state after a tick and returns a pause-reason string if the skip should stop early,
-/// or null if the skip should continue.
+/// Tier 1 — actionable events that require immediate player attention.
+/// Returns a pause-reason string if the skip should stop early, or null to continue.
 /// </summary>
-static string? DetectSkipPauseReason(SimulationEngine engine, CityGrid grid, int milestoneCountBefore)
+static string? DetectActionableSkipPauseReason(SimulationEngine engine, CityGrid grid, int milestoneCountBefore)
 {
     // Milestone reached this tick
     if (engine.MilestoneSystem.Reached.Count > milestoneCountBefore)
         return "MilestoneReached";
 
-    // Event fired
+    // Actionable events: FireBreak and PowerOutage need immediate player attention
     if (engine.LatestEventBanner != null)
-        return engine.EventSystem.ActiveEvent?.Type.ToString() ?? engine.LatestEventBanner;
+    {
+        var eventType = engine.EventSystem.ActiveEvent?.Type;
+        if (eventType == CityEventType.FireBreak || eventType == CityEventType.PowerOutage)
+            return eventType.ToString();
+    }
 
     // Bankruptcy warning: balance < 1 tick of total costs
     var oneTick = engine.Budget.LastMaintenanceCost;
@@ -229,6 +245,19 @@ static string? DetectSkipPauseReason(SimulationEngine engine, CityGrid grid, int
     if (avgHappiness < 0.30)
         return "AbandonmentWarning";
 
+    return null;
+}
+
+/// <summary>
+/// Tier 2 — passive events that are informational only; no player action required.
+/// Returns the event name if a passive event just fired, or null if nothing new.
+/// </summary>
+static string? DetectPassiveEvent(SimulationEngine engine)
+{
+    if (engine.LatestEventBanner == null) return null;
+    var eventType = engine.EventSystem.ActiveEvent?.Type;
+    if (eventType == CityEventType.DemandSlump || eventType == CityEventType.CrimeWave)
+        return eventType.ToString();
     return null;
 }
 
@@ -334,6 +363,8 @@ static void WriteOverlay(
 static void ProcessCommand(
     string cmdPath,
     string sharedDir,
+    string tmpPath,
+    string statePath,
     ref bool paused,
     ref double speed,
     ref int skipRemaining,
@@ -342,7 +373,8 @@ static void ProcessCommand(
     ref bool pauseOnEvent,
     ref CityGrid grid,
     ref SimulationEngine engine,
-    string sessionId)
+    string sessionId,
+    List<string> recentEvents)
 {
     string json;
     try
@@ -398,6 +430,13 @@ static void ProcessCommand(
                     var x    = xProp.GetInt32();
                     var y    = yProp.GetInt32();
                     var zone = zoneProp.GetString() ?? "";
+                    if (!grid.IsInBounds(x, y))
+                    {
+                        var errMsg = $"Placement out of bounds: ({x},{y}) is outside grid ({grid.Width}x{grid.Height})";
+                        Console.WriteLine($"[place_zone] {errMsg}");
+                        WriteStateWithError(tmpPath, statePath, engine, grid, paused, sessionId, errMsg, recentEvents);
+                        break;
+                    }
                     var placementCost = BudgetSystem.PlacementCosts.GetValueOrDefault(zone, 0.0);
                     if (!engine.Budget.CanAfford(placementCost))
                     {
@@ -407,7 +446,7 @@ static void ProcessCommand(
                     if (Enum.TryParse<ZoneType>(zone, out var zoneType))
                     {
                         // Reject before charging if tile is occupied and this is not an erase
-                        if (zoneType != ZoneType.Empty && grid.IsInBounds(x, y) && grid.GetTile(x, y).Zone != ZoneType.Empty)
+                        if (zoneType != ZoneType.Empty && grid.GetTile(x, y).Zone != ZoneType.Empty)
                         {
                             Console.WriteLine($"[place_zone] ({x},{y}) occupied by {grid.GetTile(x,y).Zone} — use erase first");
                             break;
@@ -429,6 +468,13 @@ static void ProcessCommand(
                 {
                     var x = exProp.GetInt32();
                     var y = eyProp.GetInt32();
+                    if (!grid.IsInBounds(x, y))
+                    {
+                        var errMsg = $"Placement out of bounds: ({x},{y}) is outside grid ({grid.Width}x{grid.Height})";
+                        Console.WriteLine($"[erase] {errMsg}");
+                        WriteStateWithError(tmpPath, statePath, engine, grid, paused, sessionId, errMsg, recentEvents);
+                        break;
+                    }
                     grid.SetZone(x, y, ZoneType.Empty);
                     Console.WriteLine($"[erase] ({x},{y}) => Empty");
                 }
@@ -497,6 +543,21 @@ static void ProcessCommand(
     }
 }
 
+static void WriteStateWithError(
+    string tmpPath,
+    string statePath,
+    SimulationEngine engine,
+    CityGrid grid,
+    bool paused,
+    string sessionId,
+    string errorMessage,
+    List<string> recentEvents)
+{
+    // Write state with an error field so the caller can surface what went wrong
+    WriteState(tmpPath, statePath, engine, grid, paused, sessionId,
+        pauseReason: null, ticksRun: null, recentEvents: recentEvents, error: errorMessage);
+}
+
 static void WriteState(
     string tmpPath,
     string statePath,
@@ -505,7 +566,9 @@ static void WriteState(
     bool paused,
     string sessionId = "",
     string? pauseReason = null,
-    int? ticksRun = null)
+    int? ticksRun = null,
+    List<string>? recentEvents = null,
+    string? error = null)
 {
     // Build a lookup from buildingId → typeId for tile population
     var buildingTypeLookup = grid.Buildings.ToDictionary(
@@ -700,7 +763,9 @@ static void WriteState(
         Employment:                employmentState,
         CoverageSummary:           coverageSummary,
         PauseReason:               pauseReason,
-        TicksRun:                  ticksRun
+        TicksRun:                  ticksRun,
+        RecentEvents:              recentEvents ?? new List<string>(),
+        Error:                     error
     );
 
     var options = new JsonSerializerOptions
@@ -1011,7 +1076,9 @@ record ServerState(
     EmploymentState? Employment = null,
     CoverageSummary? CoverageSummary = null,
     string? PauseReason = null,
-    int? TicksRun = null);
+    int? TicksRun = null,
+    List<string>? RecentEvents = null,
+    string? Error = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

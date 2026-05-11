@@ -20,6 +20,9 @@ public class RoadNetwork
         ZoneType.Residential,
         ZoneType.Commercial,
         ZoneType.Industrial,
+        ZoneType.FireStation,
+        ZoneType.PoliceStation,
+        ZoneType.School,
     };
 
     public int AccessibleZoneCount { get; private set; }
