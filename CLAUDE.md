@@ -36,22 +36,48 @@ Output is JSON — designed for agent analysis.
 
 ## Core Systems (all done)
 
-1. ✅ CityGrid — tile grid, zone placement, adjacency, terrain (Water blocks placement)
+1. ✅ CityGrid — tile grid, zone placement, adjacency, terrain (Water blocks placement). Each tile has optional `BuildingId`.
 2. ✅ TerrainType — Flat/Hill/Forest/Water. Forest +$75, Hill +$50 placement surcharge
 3. ✅ BudgetSystem — tax income, costs, balance, deficit. Default start: $4,000
-4. ✅ PopulationSystem — wave-based development (road-adjacent first, interior unlocks at pop≥25)
+4. ✅ PopulationSystem — road-edge only (no interior spawns). Growth gated on `tile.BuildingId != null`.
 5. ✅ PowerNetwork — BFS flood-fill from power plants; services (Fire/Police/School) are conductors
 6. ✅ RoadNetwork — direct adjacency validation
 7. ✅ DemandSystem — commercial adjacency boosts residential growth (1.5×)
 8. ✅ PollutionSystem — industrial tiles emit pollution, reduces happiness of nearby residential
 9. ✅ HappinessSystem — service coverage, neglect decay, tax modifier, event penalty, unemployment
-10. ✅ MilestoneSystem — thresholds Village/Town(500)/City(5k)/Metropolis(25k)/Loopolis(100k), bankruptcy, abandonment
+10. ✅ MilestoneSystem — thresholds Town(500)/City(5k)/Metropolis(25k)/Loopolis(100k), bankruptcy, abandonment
 11. ✅ EventSystem — 4 events (FireBreak/CrimeWave/PowerOutage/DemandSlump), 2%/tick trigger, 60-tick honeymoon
 12. ✅ EmploymentSystem — industrial activity → jobs (0.4/unit, 20 jobs/full tile), residential growth throttled above pop 100
 13. ✅ SimulationEngine — orchestrates all systems per tick
-14. ✅ SaveSystem (Persistence) — Capture/Serialize/Deserialize/RestoreGrid; terrain seed saves exact map
+14. ✅ SaveSystem (Persistence) v2 — Capture/Serialize/Deserialize/RestoreGrid; terrain seed saves exact map; buildings persisted
+15. ✅ BuildingGrowthSystem — road-adjacent zone tiles → 1×1 base buildings; ≥80% capacity → tries to grow to next tier
+16. ✅ BuildingCatalog — 13 building types across R/C/I (see below)
 
-**182 tests · 0 failures**
+**195 tests · 0 failures**
+
+## Building Catalog
+
+Buildings grow organically from road edges. Interior tiles only develop if a building expands into them.
+
+| TypeId | Zone | Size | Unlock | Special condition |
+|--------|------|------|--------|------------------|
+| `res_house_1x1` | R | 1×1 | Always | Road adjacent |
+| `res_townhouse_2x2` | R | 2×2 | Always | Road access |
+| `res_villa_2x3` | R | 2×3 | Town | Forest tile within 3 (Chebyshev) |
+| `res_villa_3x2` | R | 3×2 | Town | Forest tile within 3 (Chebyshev) |
+| `res_apartment_4x4` | R | 4×4 | City | School + Police + Fire coverage |
+| `com_shop_1x1` | C | 1×1 | Always | Road adjacent |
+| `com_strip_1x3` | C | 1×3 | Town | Road access |
+| `com_strip_3x1` | C | 3×1 | Town | Road access |
+| `com_shopping_3x3` | C | 3×3 | City | Road access |
+| `ind_factory_1x1` | I | 1×1 | Always | Road adjacent |
+| `ind_warehouse_2x2` | I | 2×2 | Town | Road access |
+| `ind_park_4x2` | I | 4×2 | City | Road access |
+| `ind_park_2x4` | I | 2×4 | City | Road access |
+
+Growth trigger: building population ≥ 80% of capacity (tile count × 50).
+Absorption: smaller buildings inside the new footprint are absorbed ("big eats small").
+Erase behavior: erasing any tile in a multi-tile building demolishes the whole building.
 
 ## Running the Game
 
