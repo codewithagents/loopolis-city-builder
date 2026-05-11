@@ -1,4 +1,5 @@
 using Godot;
+using System.IO;
 
 namespace LoopolisGodot;
 
@@ -6,6 +7,12 @@ public partial class MainMenu : Control
 {
     public override void _Ready()
     {
+        // Kill any server left from a previous session (via PID file)
+        KillOrphanedServer();
+
+        // Also kill if we navigated back from World scene
+        World.KillServerIfRunning();
+
         // Full-screen dark background
         var bg = new ColorRect();
         bg.Color = new Color(0.08f, 0.08f, 0.12f, 1f);
@@ -42,10 +49,16 @@ public partial class MainMenu : Control
         spacer.CustomMinimumSize = new Vector2(0, 20);
         vbox.AddChild(spacer);
 
-        // New Game button
+        // New Game button (standalone — Godot runs its own simulation)
         var newGameBtn = MakeMenuButton("New Game");
         newGameBtn.Pressed += () => GetTree().ChangeSceneToFile("res://scenes/World.tscn");
         vbox.AddChild(newGameBtn);
+
+        // New Game (Server Mode) button — launches the dotnet runner as a background process
+        var serverBtn = MakeMenuButton("New Game (Server)");
+        serverBtn.TooltipText = "Runs a separate simulation process — more accurate physics, supports skip-ahead";
+        serverBtn.Pressed += OnServerGamePressed;
+        vbox.AddChild(serverBtn);
 
         // Quit button
         var quitBtn = MakeMenuButton("Quit");
@@ -62,6 +75,45 @@ public partial class MainMenu : Control
         hint.GrowVertical = GrowDirection.Begin;
         hint.Position = new Vector2(0, -28);
         AddChild(hint);
+    }
+
+    private void OnServerGamePressed()
+    {
+        // Launch the dotnet server as a background process
+        var projectPath = "/Users/benjamin.eckstein/IdeaProjects/private/loopolis";
+        var cmd = $"export DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec && " +
+                  $"cd {projectPath} && " +
+                  $"dotnet run --project src/Loopolis.Runner -- server default --speed 2 " +
+                  $"> /tmp/loopolis-server.log 2>&1 &";
+
+        var pid = OS.CreateProcess("bash", ["-c", cmd]);
+        World.SetServerPid(pid);
+
+        // Also write PID to file so it can be cleaned up across Godot restarts
+        try { File.WriteAllText("/tmp/loopolis-server.pid", pid.ToString()); }
+        catch { /* non-critical */ }
+
+        // Brief wait for server to initialize, then enter viewer mode
+        var timer = GetTree().CreateTimer(1.5);
+        timer.Timeout += () => GetTree().ChangeSceneToFile("res://scenes/World.tscn");
+    }
+
+    private static void KillOrphanedServer()
+    {
+        const string pidFile = "/tmp/loopolis-server.pid";
+        if (!File.Exists(pidFile)) return;
+
+        try
+        {
+            var pidText = File.ReadAllText(pidFile).Trim();
+            if (int.TryParse(pidText, out var pid))
+            {
+                try { OS.Kill(pid); }
+                catch { /* process may have already exited */ }
+            }
+            File.Delete(pidFile);
+        }
+        catch { /* non-critical */ }
     }
 
     private static Button MakeMenuButton(string text)

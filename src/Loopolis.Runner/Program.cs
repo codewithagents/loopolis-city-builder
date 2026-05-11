@@ -99,6 +99,8 @@ static void RunServer(string scenario, double initialSpeed)
     var tmpPath   = Path.Combine(sharedDir, "state.tmp.json");
     var cmdPath   = Path.Combine(sharedDir, "command.json");
 
+    var sessionId = Guid.NewGuid().ToString("N")[..8]; // e.g. "a3f7c219"
+
     var (grid, engine) = SetupScenario(scenario);
 
     var paused        = false;
@@ -106,15 +108,15 @@ static void RunServer(string scenario, double initialSpeed)
     var skipRemaining = 0;
     var pauseAfterSkip = false;
 
-    WriteState(tmpPath, statePath, engine, grid, paused);
-    Console.WriteLine($"[server] Started. Scenario: {scenario}, Speed: {speed} t/s");
+    WriteState(tmpPath, statePath, engine, grid, paused, sessionId);
+    Console.WriteLine($"[server] Started. Scenario: {scenario}, Speed: {speed} t/s, Session: {sessionId}");
     Console.WriteLine($"[server] State: {statePath}");
     Console.WriteLine($"[server] Commands: {cmdPath}");
 
     while (true)
     {
         // 1. Read command
-        ProcessCommand(cmdPath, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, ref grid, ref engine);
+        ProcessCommand(cmdPath, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, ref grid, ref engine, sessionId);
         // grid/engine may have been replaced by new_game — use current references below
 
         // 2. Tick (or skip, or wait)
@@ -132,13 +134,13 @@ static void RunServer(string scenario, double initialSpeed)
                     paused = true;
                     pauseAfterSkip = false;
                 }
-                WriteState(tmpPath, statePath, engine, grid, paused);
+                WriteState(tmpPath, statePath, engine, grid, paused, sessionId);
             }
         }
         else if (!paused)
         {
             engine.Tick();
-            WriteState(tmpPath, statePath, engine, grid, paused);
+            WriteState(tmpPath, statePath, engine, grid, paused, sessionId);
             var milestone = engine.MilestoneSystem.LatestMilestone;
             var milestoneTag = milestone != null ? $" [{milestone.Name} {milestone.Emoji}]" : "";
             Console.WriteLine(
@@ -164,7 +166,8 @@ static void ProcessCommand(
     ref int skipRemaining,
     ref bool pauseAfterSkip,
     ref CityGrid grid,
-    ref SimulationEngine engine)
+    ref SimulationEngine engine,
+    string sessionId)
 {
     string json;
     try
@@ -185,6 +188,18 @@ static void ProcessCommand(
     using (doc)
     {
         var root = doc.RootElement;
+
+        // Session ID validation: if command carries a sessionId that doesn't match ours, ignore it
+        if (root.TryGetProperty("sessionId", out var cmdSessionProp))
+        {
+            var cmdSession = cmdSessionProp.GetString();
+            if (cmdSession != null && cmdSession != sessionId)
+            {
+                Console.WriteLine($"[command] Warning: session mismatch (got {cmdSession}, expected {sessionId}) — ignoring stale command.");
+                return;
+            }
+        }
+
         if (!root.TryGetProperty("cmd", out var cmdProp)) return;
         var cmd = cmdProp.GetString() ?? "";
 
@@ -286,7 +301,7 @@ static void ProcessCommand(
     }
 }
 
-static void WriteState(string tmpPath, string statePath, SimulationEngine engine, CityGrid grid, bool paused)
+static void WriteState(string tmpPath, string statePath, SimulationEngine engine, CityGrid grid, bool paused, string sessionId = "")
 {
     var nonEmptyTiles = grid.AllTiles()
         .Where(t => t.Zone != ZoneType.Empty)
@@ -338,7 +353,8 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         ActiveEventName:           activeEvent?.Name,
         ActiveEventDescription:    activeEvent?.Description,
         LatestEventBanner:         engine.LatestEventBanner,
-        TaxModifier:               engine.Budget.TaxModifier
+        TaxModifier:               engine.Budget.TaxModifier,
+        SessionId:                 sessionId.Length > 0 ? sessionId : null
     );
 
     var options = new JsonSerializerOptions
@@ -582,7 +598,8 @@ record ServerState(
     string? ActiveEventName = null,
     string? ActiveEventDescription = null,
     string? LatestEventBanner = null,
-    double TaxModifier = 0.0);
+    double TaxModifier = 0.0,
+    string? SessionId = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

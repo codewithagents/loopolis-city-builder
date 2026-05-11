@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Loopolis"
-run/main_scene="uid://mainmenu_scene"
+run/main_scene="res://scenes/MainMenu.tscn"
 config/features=PackedStringArray("4.4", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 config/run/main_scene="res://scenes/MainMenu.tscn"

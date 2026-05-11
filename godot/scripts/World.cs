@@ -1,4 +1,5 @@
 using Godot;
+using System;
 using System.IO;
 using System.Text.Json;
 using Loopolis.Core.Grid;
@@ -31,6 +32,21 @@ public partial class World : Node2D
     private PopulationSystem? _population;
     private string _taxLevel = "normal";
 
+    // Server process tracking (static — survives scene changes)
+    private static long _serverPid = -1;
+
+    public static void SetServerPid(long pid) { _serverPid = pid; }
+
+    public static void KillServerIfRunning()
+    {
+        if (_serverPid >= 0)
+        {
+            try { Godot.OS.Kill((int)_serverPid); }
+            catch { /* process may have already exited */ }
+            _serverPid = -1;
+        }
+    }
+
     // Coverage radius overlay tracking
     private int _coverageRadius = 0;
     private Color _coverageColor = Colors.Transparent;
@@ -51,7 +67,11 @@ public partial class World : Node2D
         _toolbar.PauseToggled       += OnPauseToggled;
         _toolbar.NewGameRequested   += OnNewGameRequested;
         _toolbar.TaxRateChanged     += OnTaxRateChanged;
-        _toolbar.MainMenuRequested  += () => GetTree().ChangeSceneToFile("res://scenes/MainMenu.tscn");
+        _toolbar.MainMenuRequested  += () =>
+        {
+            KillServerIfRunning();
+            GetTree().ChangeSceneToFile("res://scenes/MainMenu.tscn");
+        };
 
         // Wire game-over panel
         _gameOverPanel.NewGameRequested += OnNewGameRequested;
@@ -66,11 +86,21 @@ public partial class World : Node2D
 
         if (File.Exists(statePath))
         {
-            GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
-            _reader = new SharedStateReader();
-            AddChild(_reader);
-            _viewerMode = true;
-            return;
+            // Stale file detection: if state.json is older than 3 seconds, it's from a previous session
+            var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(statePath);
+            if (age.TotalSeconds > 3)
+            {
+                GD.Print($"[world] Deleting stale state.json (age: {age.TotalSeconds:F1}s) — entering standalone mode.");
+                File.Delete(statePath);
+            }
+            else
+            {
+                GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
+                _reader = new SharedStateReader();
+                AddChild(_reader);
+                _viewerMode = true;
+                return;
+            }
         }
 
         // Standalone mode — run own simulation
@@ -377,7 +407,16 @@ public partial class World : Node2D
 
     private void WriteCommand(string json)
     {
-        try { File.WriteAllText(_commandPath, json); }
+        try
+        {
+            // Append sessionId to command JSON if we know it (viewer mode with known session)
+            var sessionId = _reader?.SessionId;
+            if (sessionId != null && json.EndsWith("}"))
+            {
+                json = json[..^1] + $",\"sessionId\":\"{sessionId}\"}}";
+            }
+            File.WriteAllText(_commandPath, json);
+        }
         catch { /* ignore — Runner may not be listening */ }
     }
 

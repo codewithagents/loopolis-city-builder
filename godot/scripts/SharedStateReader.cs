@@ -25,8 +25,15 @@ public partial class SharedStateReader : Node
     private double _pollTimer = 0;
     private const double PollInterval = 0.05; // 20Hz polling
 
+    // Session tracking
+    private string? _sessionId;
+    private bool _sessionExpired;
+
     /// <summary>Last grid received from the server. World.cs uses this for optimistic tile placement.</summary>
     public CityGrid? LastGrid { get; private set; }
+
+    /// <summary>Session ID from the first state.json read. Used to stamp outgoing commands.</summary>
+    public string? SessionId => _sessionId;
 
     public override void _Ready()
     {
@@ -49,6 +56,7 @@ public partial class SharedStateReader : Node
         if (_pollTimer < PollInterval) return;
         _pollTimer = 0;
 
+        if (_sessionExpired) return;
         if (!File.Exists(_statePath)) return;
 
         try
@@ -57,6 +65,18 @@ public partial class SharedStateReader : Node
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var state = JsonSerializer.Deserialize<SharedState>(json, options);
             if (state == null || state.Tick == _lastTick) return;
+
+            // Session tracking: latch on first read, detect replacement on subsequent reads
+            if (_sessionId == null)
+            {
+                _sessionId = state.SessionId;
+            }
+            else if (state.SessionId != null && state.SessionId != _sessionId)
+            {
+                GD.Print("[viewer] stale state.json — session mismatch. Stopping viewer polling.");
+                _sessionExpired = true;
+                return;
+            }
 
             _lastTick = state.Tick;
             var grid = RebuildGrid(state);
@@ -141,7 +161,8 @@ public record SharedState(
     string? ActiveEventName = null,
     string? ActiveEventDescription = null,
     string? LatestEventBanner = null,
-    double TaxModifier = 0.0
+    double TaxModifier = 0.0,
+    string? SessionId = null
 );
 
 public record SharedTile(
