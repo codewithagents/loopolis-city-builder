@@ -183,6 +183,13 @@ public partial class Toolbar : CanvasLayer
     /// <summary>Programmatically set the game speed (e.g. from keyboard shortcuts in World.cs).</summary>
     public void SetSpeed(float tps) => SelectSpeed(tps);
 
+    /// <summary>Programmatically set the tax rate highlight to match a loaded save (does NOT emit TaxRateChanged).</summary>
+    public void SetTaxRate(string level)
+    {
+        _taxLevel = level;
+        HighlightTaxButton(level);
+    }
+
     public string SelectedZone => _selectedZone;
 
     // ── Private helpers ────────────────────────────────────────────────────

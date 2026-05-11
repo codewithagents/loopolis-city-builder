@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using Loopolis.Core.Grid;
+using Loopolis.Core.Persistence;
 using Loopolis.Core.Simulation;
 
 namespace LoopolisGodot;
@@ -34,6 +35,7 @@ public partial class World : Node2D
     private BudgetSystem? _budget;
     private PopulationSystem? _population;
     private string _taxLevel = "normal";
+    private int _terrainSeed = 0;
 
     // Event log tracking fields
     private int _lastLoggedPop = 0;
@@ -132,7 +134,8 @@ public partial class World : Node2D
     private void SetupStandaloneSimulation()
     {
         _grid = new CityGrid(64, 64);
-        GenerateTerrain(_grid);
+        _terrainSeed = (int)(GD.Randi() % int.MaxValue); // random seed this run
+        GenerateTerrain(_grid, _terrainSeed);
         SeedStarterCity(_grid);
 
         _budget     = new BudgetSystem(); // default $4,000 starting balance
@@ -168,7 +171,7 @@ public partial class World : Node2D
         grid.SetZone(33, 31, ZoneType.Residential);
     }
 
-    private static void GenerateTerrain(CityGrid grid, int seed = 0)
+    private static void GenerateTerrain(CityGrid grid, int seed)
     {
         int w = grid.Width;
         int h = grid.Height;
@@ -176,7 +179,7 @@ public partial class World : Node2D
         // Height noise — determines land/water/hills
         var heightNoise = new FastNoiseLite();
         heightNoise.NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth;
-        heightNoise.Seed = seed == 0 ? (int)(Time.GetTicksMsec() % int.MaxValue) : seed;
+        heightNoise.Seed = seed;
         heightNoise.Frequency = 0.04f; // large blobs
 
         // Forest noise — separate layer for tree coverage
@@ -386,6 +389,14 @@ public partial class World : Node2D
 
             if (key.Keycode == Key.Space)
                 OnPauseToggled();
+
+            // Ctrl+S = Save, Ctrl+L = Load (standalone mode only)
+            if (key.CtrlPressed && !_viewerMode && !_gameOver)
+            {
+                if (key.Keycode == Key.S) SaveGame();
+                if (key.Keycode == Key.L) LoadGame();
+                return;
+            }
         }
     }
 
@@ -550,6 +561,82 @@ public partial class World : Node2D
     }
 
     private void Log(string text) => _eventLog.AddEntry(text);
+
+    // ── Save / Load ────────────────────────────────────────────────────────
+
+    private string GetSaveFilePath()
+    {
+        var saveDir = Path.Combine(ProjectSettings.GlobalizePath("res://"), "saves");
+        Directory.CreateDirectory(saveDir);
+        return Path.Combine(saveDir, "autosave.json");
+    }
+
+    private void SaveGame()
+    {
+        try
+        {
+            var save = SaveSystem.Capture(_engine, _grid, _terrainSeed, _taxLevel, _standaloneTick);
+            var json = SaveSystem.Serialize(save);
+            File.WriteAllText(GetSaveFilePath(), json);
+            _eventLog.AddEntry("Game saved ✓");
+            GD.Print($"[save] Saved to {GetSaveFilePath()} — {save.Tiles.Length} tiles, tick {save.Tick}");
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"[save] Failed: {ex.Message}");
+            _eventLog.AddEntry("Save failed!");
+        }
+    }
+
+    private void LoadGame()
+    {
+        var path = GetSaveFilePath();
+        if (!File.Exists(path))
+        {
+            _eventLog.AddEntry("No save file found.");
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(path);
+            var save = SaveSystem.Deserialize(json);
+            if (save == null) { _eventLog.AddEntry("Save file corrupted."); return; }
+
+            // Rebuild the city from the save
+            _grid        = new CityGrid(64, 64);
+            _terrainSeed = save.TerrainSeed;
+            GenerateTerrain(_grid, _terrainSeed);
+            SaveSystem.RestoreGrid(_grid, save);
+
+            _budget     = new BudgetSystem(save.Balance);
+            _budget.SetTaxRate(save.TaxLevel);
+            _taxLevel   = save.TaxLevel;
+            _population = new PopulationSystem();
+            var power   = new PowerNetwork();
+            var roads   = new RoadNetwork();
+            var demand  = new DemandSystem();
+
+            _engine           = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
+            _standaloneTick   = save.Tick;
+            _standalonePaused = false;
+            _gameOver         = false;
+
+            _toolbar.SetPaused(false);
+            _toolbar.SetTaxRate(save.TaxLevel);
+            _gameOverPanel.Hide();
+            _renderer.Refresh(_grid);
+            PushStandaloneHudUpdate();
+
+            _eventLog.AddEntry($"Game loaded ✓ (tick {save.Tick})");
+            GD.Print($"[load] Loaded from {path} — tick {save.Tick}, balance ${save.Balance:N0}");
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"[load] Failed: {ex.Message}");
+            _eventLog.AddEntry("Load failed!");
+        }
+    }
 
     private void WriteCommand(string json)
     {
