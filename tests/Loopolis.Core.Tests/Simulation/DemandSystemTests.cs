@@ -146,15 +146,15 @@ public class DemandSystemTests
     }
 
     [Test]
-    public void MultipleResidentialZones_OnlyAdjacentGetsBoost()
+    public void MultipleResidentialZones_OnlyWithinRadius3GetsBoost()
     {
-        var grid = new CityGrid(10, 10);
-        // Residential at (5,5) — adjacent to commercial at (6,5)
+        var grid = new CityGrid(15, 15);
+        // Residential at (5,5) — within Chebyshev-3 of commercial at (6,5) (distance = 1)
         grid.SetZone(5, 5, ZoneType.Residential);
         MakeReady(grid, 5, 5);
-        // Residential at (3,5) — far from commercial
-        grid.SetZone(3, 5, ZoneType.Residential);
-        MakeReady(grid, 3, 5);
+        // Residential at (1,5) — Chebyshev distance 5 from commercial at (6,5) → outside radius
+        grid.SetZone(1, 5, ZoneType.Residential);
+        MakeReady(grid, 1, 5);
         // Commercial at (6,5)
         grid.SetZone(6, 5, ZoneType.Commercial);
         MakeReady(grid, 6, 5);
@@ -162,9 +162,9 @@ public class DemandSystemTests
         _demand.Propagate(grid);
 
         Assert.That(grid.GetTile(5, 5).DemandFactor, Is.EqualTo(1.5),
-            "Residential adjacent to commercial should get boosted");
-        Assert.That(grid.GetTile(3, 5).DemandFactor, Is.EqualTo(1.0),
-            "Residential far from commercial should stay at baseline");
+            "Residential within Chebyshev-3 of commercial should get boosted");
+        Assert.That(grid.GetTile(1, 5).DemandFactor, Is.EqualTo(1.0),
+            "Residential more than 3 tiles away from commercial should stay at baseline");
     }
 
     [Test]

@@ -12,6 +12,8 @@ namespace Loopolis.Core.Simulation;
 ///             (service coverage = within Manhattan distance of the service's coverage radius)
 ///   - 0.4 * PollutionLevel  (pollution hurts happiness significantly)
 ///   - serviceNeglect        (accumulated penalty for lack of service coverage over time)
+///   - commutePenalty        (distance to nearest powered industrial zone; 0 if ≤8, -0.10 if 9-14, -0.20 if ≥15)
+///                           (no penalty if city population &lt; 50 or no industrial on map)
 ///   = clamp(0.1, 1.0)
 ///
 /// Service neglect accumulates at +0.001/tick when no service covers the tile (max 0.3),
@@ -20,6 +22,9 @@ namespace Loopolis.Core.Simulation;
 ///
 /// Hospital event penalty reduction: when an eventPenalty is active and a Hospital is within
 /// radius 8 of the tile, the penalty is halved for that tile.
+///
+/// Commute penalty: punishes pure zone segregation (residential far from industrial jobs).
+/// Pre-computed once per tick from powered industrial tiles. Grace period below pop 50.
 ///
 /// Only ready residential zones get happiness calculated. Non-ready zones keep the default 1.0.
 /// Call Propagate() each tick after PollutionSystem and DemandSystem.
@@ -51,8 +56,49 @@ public class HappinessSystem
     // Option B: track neglect per tile in a dictionary — no CityGrid API change needed
     private readonly Dictionary<(int, int), double> _neglect = new();
 
+    /// <summary>
+    /// Returns the average commute penalty across all developed residential tiles (those with BuildingId).
+    /// Zero when there is no industrial or when population is below the grace threshold.
+    /// </summary>
+    public double AverageCommutePenalty(CityGrid grid, int population)
+    {
+        if (population < CommutePenaltyGracePopulation) return 0.0;
+
+        var poweredIndustrial = grid.TilesOfType(ZoneType.Industrial)
+            .Where(t => t.HasPower)
+            .ToList();
+        if (poweredIndustrial.Count == 0) return 0.0;
+
+        var developedResidential = grid.TilesOfType(ZoneType.Residential)
+            .Where(t => t.BuildingId != null)
+            .ToList();
+        if (developedResidential.Count == 0) return 0.0;
+
+        return developedResidential
+            .Select(t => ComputeCommutePenalty(t, poweredIndustrial))
+            .Average();
+    }
+
+    private const int CommutePenaltyGracePopulation = 50;
+
+    /// <summary>Computes the commute penalty for a single residential tile.</summary>
+    private static double ComputeCommutePenalty(Tile tile, List<Tile> poweredIndustrial)
+    {
+        var minDist = poweredIndustrial
+            .Select(ind => Math.Abs(ind.X - tile.X) + Math.Abs(ind.Y - tile.Y))
+            .Min();
+
+        return minDist switch
+        {
+            <= 8  => 0.0,
+            <= 14 => -0.10,
+            _     => -0.20,
+        };
+    }
+
     public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
-        RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null)
+        RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null,
+        int cityPopulation = 0)
     {
         grid.ClearHappiness();
 
@@ -66,6 +112,11 @@ public class HappinessSystem
 
         // Brownout penalty: applies to BFS-powered tiles only
         var brownoutPenalty = powerCapacitySystem?.BrownoutHappinessPenalty ?? 0.0;
+
+        // Pre-compute commute penalty: powered industrial positions (once per tick, not per tile)
+        var poweredIndustrialPositions = (cityPopulation >= CommutePenaltyGracePopulation)
+            ? grid.TilesOfType(ZoneType.Industrial).Where(t => t.HasPower).ToList()
+            : null;
 
         foreach (var tile in grid.TilesOfType(ZoneType.Residential))
         {
@@ -125,6 +176,10 @@ public class HappinessSystem
             // Traffic congestion penalty: −0.10 if adjacent to an overloaded road/avenue
             if (trafficSystem != null)
                 happiness += trafficSystem.GetHappinessModifier(grid, tile.X, tile.Y);
+
+            // Commute penalty: only applies to developed tiles (BuildingId != null) with industry on the map
+            if (poweredIndustrialPositions != null && poweredIndustrialPositions.Count > 0 && tile.BuildingId != null)
+                happiness += ComputeCommutePenalty(tile, poweredIndustrialPositions);
 
             // Clamp
             happiness = Math.Clamp(happiness, 0.1, 1.0);

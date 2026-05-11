@@ -726,12 +726,16 @@ static void WriteState(
         avgNeglectDecay       /= readyResidential.Count;
     }
 
+    // Average commute penalty: sum of per-tile commute penalties / count of developed residential tiles
+    var avgCommutePenalty = engine.HappinessSystem.AverageCommutePenalty(grid, currentPop);
+
     var happinessBreakdown = new HappinessBreakdown(
         ServiceCoverage:     Math.Round(avgServiceCoverage, 4),
         TaxModifier:         Math.Round(engine.Budget.TaxModifier, 4),
         UnemploymentPenalty: 0.0,   // employment affects growth rate, not happiness directly
         EventPenalty:        Math.Round(engine.EventSystem.HappinessPenalty, 4),
-        NeglectDecay:        Math.Round(-avgNeglectDecay, 4)
+        NeglectDecay:        Math.Round(-avgNeglectDecay, 4),
+        CommutePenalty:      Math.Round(avgCommutePenalty, 4)
     );
 
     // --- Coverage summary (power + services + pollution + happiness across all zoned tiles) ---
@@ -1078,7 +1082,8 @@ record HappinessBreakdown(
     [property: JsonPropertyName("taxModifier")]         double TaxModifier,
     [property: JsonPropertyName("unemploymentPenalty")] double UnemploymentPenalty,
     [property: JsonPropertyName("eventPenalty")]        double EventPenalty,
-    [property: JsonPropertyName("neglectDecay")]        double NeglectDecay);
+    [property: JsonPropertyName("neglectDecay")]        double NeglectDecay,
+    [property: JsonPropertyName("commutePenalty")]      double CommutePenalty = 0.0);
 
 record EmploymentState(
     [property: JsonPropertyName("jobs")]             int    Jobs,

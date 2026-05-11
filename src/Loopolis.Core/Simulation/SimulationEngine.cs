@@ -83,7 +83,7 @@ public class SimulationEngine
         DemandSystem.Propagate(Grid);      // demand before happiness
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
-        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute
         LandValueSystem.Propagate(Grid);   // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition
