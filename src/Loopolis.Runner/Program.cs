@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Simulation;
 
@@ -105,12 +106,15 @@ static void RunServer(string scenario, double initialSpeed)
 
     var (grid, engine) = SetupScenario(scenario);
 
-    var paused        = false;
-    var speed         = initialSpeed;
-    var skipRemaining = 0;
-    var pauseAfterSkip = false;
+    var paused           = false;
+    var speed            = initialSpeed;
+    var skipRemaining    = 0;
+    var skipRequested    = 0;    // total ticks requested in the last skip command
+    var pauseAfterSkip   = false;
+    var pauseOnEvent     = true;
+    var skipPauseReason  = (string?)null;
 
-    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
+    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null);
     Console.WriteLine($"[server] Started. Scenario: {scenario}, Speed: {speed} t/s, Session: {sessionId}");
     Console.WriteLine($"[server] State: {stateFile}");
     Console.WriteLine($"[server] Commands: {commandFile}");
@@ -121,19 +125,44 @@ static void RunServer(string scenario, double initialSpeed)
         {
             // 1. Read command
             var pausedBefore = paused;
-            ProcessCommand(commandFile, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, ref grid, ref engine, sessionId);
+            ProcessCommand(commandFile, ref paused, ref speed,
+                ref skipRemaining, ref skipRequested, ref pauseAfterSkip, ref pauseOnEvent,
+                ref grid, ref engine, sessionId);
             // grid/engine may have been replaced by new_game — use current references below
 
             // If the game was just paused, immediately flush state so state.json reflects Paused: true
             if (!pausedBefore && paused)
-                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null);
 
             // 2. Tick (or skip, or wait)
             if (skipRemaining > 0)
             {
                 // Fast-forward: no writes, no sleep
+                var milestonesBefore = engine.MilestoneSystem.Reached.Count;
                 engine.Tick();
                 skipRemaining--;
+
+                // Check early-pause conditions when pauseOnEvent is enabled
+                if (pauseOnEvent)
+                {
+                    var earlyReason = DetectSkipPauseReason(engine, grid, milestonesBefore);
+                    if (earlyReason != null)
+                    {
+                        var ticksDone = skipRequested - skipRemaining;
+                        skipPauseReason = earlyReason;
+                        skipRemaining = 0;
+                        Console.WriteLine(
+                            $"[skip] paused early at tick {engine.TickCount}: {earlyReason} " +
+                            $"(ran {ticksDone}/{skipRequested} ticks)");
+                        paused = true;
+                        pauseAfterSkip = false;
+                        WriteState(tmpPath, stateFile, engine, grid, paused, sessionId,
+                            pauseReason: earlyReason, ticksRun: ticksDone);
+                        skipPauseReason = null;
+                        continue;
+                    }
+                }
+
                 if (skipRemaining == 0)
                 {
                     Console.WriteLine(
@@ -143,13 +172,14 @@ static void RunServer(string scenario, double initialSpeed)
                         paused = true;
                         pauseAfterSkip = false;
                     }
-                    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
+                    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId,
+                        pauseReason: null, ticksRun: skipRequested);
                 }
             }
             else if (!paused)
             {
                 engine.Tick();
-                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null);
                 var milestone = engine.MilestoneSystem.LatestMilestone;
                 var milestoneTag = milestone != null ? $" [{milestone.Name} {milestone.Emoji}]" : "";
                 Console.WriteLine(
@@ -175,12 +205,41 @@ static void RunServer(string scenario, double initialSpeed)
     }
 }
 
+/// <summary>
+/// Inspects the engine state after a tick and returns a pause-reason string if the skip should stop early,
+/// or null if the skip should continue.
+/// </summary>
+static string? DetectSkipPauseReason(SimulationEngine engine, CityGrid grid, int milestoneCountBefore)
+{
+    // Milestone reached this tick
+    if (engine.MilestoneSystem.Reached.Count > milestoneCountBefore)
+        return "MilestoneReached";
+
+    // Event fired
+    if (engine.LatestEventBanner != null)
+        return engine.EventSystem.ActiveEvent?.Type.ToString() ?? engine.LatestEventBanner;
+
+    // Bankruptcy warning: balance < 1 tick of total costs
+    var oneTick = engine.Budget.LastMaintenanceCost;
+    if (engine.Budget.Balance < oneTick && engine.Budget.Balance < 0)
+        return "BankruptcyWarning";
+
+    // Abandonment warning: happiness dropping below threshold
+    var avgHappiness = engine.HappinessSystem.AverageHappiness(grid);
+    if (avgHappiness < 0.30)
+        return "AbandonmentWarning";
+
+    return null;
+}
+
 static void ProcessCommand(
     string cmdPath,
     ref bool paused,
     ref double speed,
     ref int skipRemaining,
+    ref int skipRequested,
     ref bool pauseAfterSkip,
+    ref bool pauseOnEvent,
     ref CityGrid grid,
     ref SimulationEngine engine,
     string sessionId)
@@ -301,9 +360,12 @@ static void ProcessCommand(
                 if (root.TryGetProperty("ticks", out var ticksProp))
                 {
                     var count = ticksProp.GetInt32();
-                    skipRemaining = count;
+                    skipRemaining  = count;
+                    skipRequested  = count;
                     pauseAfterSkip = root.TryGetProperty("pauseAfter", out var paProp) && paProp.GetBoolean();
-                    Console.WriteLine($"[skip] Starting {count} ticks...");
+                    // pauseOnEvent defaults to true when absent
+                    pauseOnEvent   = !root.TryGetProperty("pauseOnEvent", out var poeProp) || poeProp.GetBoolean();
+                    Console.WriteLine($"[skip] Starting {count} ticks... pauseOnEvent={pauseOnEvent}");
                 }
                 break;
 
@@ -323,7 +385,15 @@ static void ProcessCommand(
     }
 }
 
-static void WriteState(string tmpPath, string statePath, SimulationEngine engine, CityGrid grid, bool paused, string sessionId = "")
+static void WriteState(
+    string tmpPath,
+    string statePath,
+    SimulationEngine engine,
+    CityGrid grid,
+    bool paused,
+    string sessionId = "",
+    string? pauseReason = null,
+    int? ticksRun = null)
 {
     // Build a lookup from buildingId → typeId for tile population
     var buildingTypeLookup = grid.Buildings.ToDictionary(
@@ -342,15 +412,36 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
             t.BuildingId != null ? buildingTypeLookup.GetValueOrDefault(t.BuildingId) : null))
         .ToList();
 
-    var buildings = grid.Buildings.Values
-        .Select(b => new BuildingInfo(b.Id, b.TypeId, b.Zone.ToString(), b.AnchorX, b.AnchorY, b.Width, b.Height))
+    // --- Enriched building info ---
+    // Sum tile populations per building and look up capacity from catalog
+    var buildingTilePopulations = new Dictionary<string, int>();
+    foreach (var tile in grid.AllTiles())
+    {
+        if (tile.BuildingId == null || tile.Zone != ZoneType.Residential) continue;
+        buildingTilePopulations.TryGetValue(tile.BuildingId, out var existing);
+        buildingTilePopulations[tile.BuildingId] = existing + grid.GetPopulation(tile.X, tile.Y);
+    }
+
+    var enrichedBuildings = grid.Buildings.Values
+        .Select(b =>
+        {
+            var typeDef = BuildingCatalog.Find(b.TypeId);
+            var capacity = typeDef?.MaxPopulation ?? (b.TileCount * 50);
+            buildingTilePopulations.TryGetValue(b.Id, out var pop);
+            return new BuildingStateInfo(b.TypeId, b.AnchorX, b.AnchorY, b.Width, b.Height, pop, capacity);
+        })
         .ToArray();
+
+    // Building summary: typeId → count
+    var buildingSummary = enrichedBuildings
+        .GroupBy(b => b.TypeId)
+        .ToDictionary(g => g.Key, g => g.Count());
 
     var residentialCount = grid.TilesOfType(ZoneType.Residential).Count();
     var maxCapacity = residentialCount * 50;
     var milestone = engine.MilestoneSystem.LatestMilestone;
 
-    // Compute next milestone inline: find first threshold > current population
+    // Compute next milestone: find first threshold > current population
     var currentPop = engine.Population.Population;
     (string Name, string Emoji, int Target)[] milestoneThresholds =
     {
@@ -359,16 +450,79 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         ("Metropolis", "🥇", 25_000),
         ("Loopolis",   "🏆", 100_000),
     };
-    var nextMilestone = milestoneThresholds.FirstOrDefault(m => m.Target > currentPop);
-    var nextMilestoneName   = nextMilestone != default ? $"{nextMilestone.Name} {nextMilestone.Emoji}" : null;
-    var nextMilestoneTarget = nextMilestone != default ? nextMilestone.Target : 0;
+    var nextMilestoneData = milestoneThresholds.FirstOrDefault(m => m.Target > currentPop);
+    var nextMilestoneName   = nextMilestoneData != default ? $"{nextMilestoneData.Name} {nextMilestoneData.Emoji}" : null;
+    var nextMilestoneTarget = nextMilestoneData != default ? nextMilestoneData.Target : 0;
+
+    // --- Happiness breakdown (average across all ready residential tiles) ---
+    var readyResidential = grid.TilesOfType(ZoneType.Residential)
+        .Where(t => t.IsReadyToDevelop).ToList();
+
+    double avgServiceCoverage    = 0;
+    double avgNeglectDecay       = 0;
+    if (readyResidential.Count > 0)
+    {
+        // Service coverage contribution: each covered service type adds +0.15, max 2 types
+        var services = grid.AllTiles()
+            .Where(t => t.Zone is ZoneType.FireStation or ZoneType.PoliceStation or ZoneType.School)
+            .ToList();
+        var serviceRadii = new Dictionary<ZoneType, int>
+        {
+            { ZoneType.FireStation,   4 },
+            { ZoneType.PoliceStation, 4 },
+            { ZoneType.School,        5 },
+        };
+
+        foreach (var tile in readyResidential)
+        {
+            var coveredTypes = new HashSet<ZoneType>();
+            foreach (var svc in services)
+            {
+                var dist = Math.Abs(svc.X - tile.X) + Math.Abs(svc.Y - tile.Y);
+                if (serviceRadii.TryGetValue(svc.Zone, out var radius) && dist <= radius)
+                    coveredTypes.Add(svc.Zone);
+            }
+            avgServiceCoverage += Math.Min(coveredTypes.Count, 2) * 0.15;
+            avgNeglectDecay    += engine.HappinessSystem.GetNeglect(tile.X, tile.Y);
+        }
+        avgServiceCoverage    /= readyResidential.Count;
+        avgNeglectDecay       /= readyResidential.Count;
+    }
+
+    var happinessBreakdown = new HappinessBreakdown(
+        ServiceCoverage:     Math.Round(avgServiceCoverage, 4),
+        TaxModifier:         Math.Round(engine.Budget.TaxModifier, 4),
+        UnemploymentPenalty: 0.0,   // employment affects growth rate, not happiness directly
+        EventPenalty:        Math.Round(engine.EventSystem.HappinessPenalty, 4),
+        NeglectDecay:        Math.Round(-avgNeglectDecay, 4)
+    );
+
+    // --- Powered / unpowered zoned tiles ---
+    var zonedTiles       = grid.AllTiles().Where(t => t.Zone is ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial).ToList();
+    var poweredZoned     = zonedTiles.Count(t => t.HasPower);
+    var unpoweredZoned   = zonedTiles.Count - poweredZoned;
+
+    // --- Employment ---
+    var employmentState = new EmploymentState(
+        Jobs:             engine.EmploymentSystem.AvailableJobs,
+        Workers:          engine.EmploymentSystem.RequiredJobs,
+        UnemploymentRate: Math.Round(1.0 - engine.EmploymentSystem.EmploymentRatio, 3)
+    );
+
+    // --- Next milestone object ---
+    var nextMilestoneInfo = nextMilestoneData != default
+        ? new NextMilestoneInfo(
+            Name:                nextMilestoneData.Name,
+            RequiredPopulation:  nextMilestoneData.Target,
+            CurrentPopulation:   currentPop)
+        : null;
 
     var activeEvent = engine.EventSystem.ActiveEvent;
 
     var state = new ServerState(
         Tick:                      engine.TickCount,
         Paused:                    paused,
-        Population:                engine.Population.Population,
+        Population:                currentPop,
         MaxCapacity:               maxCapacity,
         Balance:                   Math.Round(engine.Budget.Balance, 2),
         TaxPerTick:                Math.Round(engine.Budget.CalculateTaxIncome(), 2),
@@ -381,9 +535,11 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         GameState:                 engine.MilestoneSystem.CurrentState.ToString(),
         Milestones:                engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
         Tiles:                     nonEmptyTiles,
-        Buildings:                 buildings,
+        BuildingList:              enrichedBuildings,
+        BuildingSummary:           buildingSummary,
         NextMilestoneName:         nextMilestoneName,
         NextMilestoneTarget:       nextMilestoneTarget,
+        NextMilestone:             nextMilestoneInfo,
         ActiveEventName:           activeEvent?.Name,
         ActiveEventDescription:    activeEvent?.Description,
         LatestEventBanner:         engine.LatestEventBanner,
@@ -392,7 +548,13 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         AvailableJobs:             engine.EmploymentSystem.AvailableJobs,
         RequiredJobs:              engine.EmploymentSystem.RequiredJobs,
         EmploymentRatio:           Math.Round(engine.EmploymentSystem.EmploymentRatio, 3),
-        EventHappinessPenalty:     engine.EventSystem.HappinessPenalty
+        EventHappinessPenalty:     engine.EventSystem.HappinessPenalty,
+        HappinessBreakdown:        happinessBreakdown,
+        Employment:                employmentState,
+        PoweredZonedTiles:         poweredZoned,
+        UnpoweredZonedTiles:       unpoweredZoned,
+        PauseReason:               pauseReason,
+        TicksRun:                  ticksRun
     );
 
     var options = new JsonSerializerOptions
@@ -604,14 +766,32 @@ record SimulationReport(
     List<string> MilestonesReached,
     List<TickSnapshot> History);
 
-record BuildingInfo(
-    [property: JsonPropertyName("id")] string Id,
-    [property: JsonPropertyName("typeId")] string TypeId,
-    [property: JsonPropertyName("zone")] string Zone,
-    [property: JsonPropertyName("x")] int X,
-    [property: JsonPropertyName("y")] int Y,
-    [property: JsonPropertyName("width")] int Width,
-    [property: JsonPropertyName("height")] int Height);
+/// <summary>Enriched building entry in state.json — includes population and capacity.</summary>
+record BuildingStateInfo(
+    [property: JsonPropertyName("typeId")]     string TypeId,
+    [property: JsonPropertyName("x")]          int    X,
+    [property: JsonPropertyName("y")]          int    Y,
+    [property: JsonPropertyName("width")]      int    Width,
+    [property: JsonPropertyName("height")]     int    Height,
+    [property: JsonPropertyName("population")] int    Population,
+    [property: JsonPropertyName("capacity")]   int    Capacity);
+
+record HappinessBreakdown(
+    [property: JsonPropertyName("serviceCoverage")]     double ServiceCoverage,
+    [property: JsonPropertyName("taxModifier")]         double TaxModifier,
+    [property: JsonPropertyName("unemploymentPenalty")] double UnemploymentPenalty,
+    [property: JsonPropertyName("eventPenalty")]        double EventPenalty,
+    [property: JsonPropertyName("neglectDecay")]        double NeglectDecay);
+
+record EmploymentState(
+    [property: JsonPropertyName("jobs")]             int    Jobs,
+    [property: JsonPropertyName("workers")]          int    Workers,
+    [property: JsonPropertyName("unemploymentRate")] double UnemploymentRate);
+
+record NextMilestoneInfo(
+    [property: JsonPropertyName("name")]                string Name,
+    [property: JsonPropertyName("requiredPopulation")]  int    RequiredPopulation,
+    [property: JsonPropertyName("currentPopulation")]   int    CurrentPopulation);
 
 record TileState(
     [property: JsonPropertyName("x")] int X,
@@ -642,9 +822,11 @@ record ServerState(
     string GameState,
     List<string> Milestones,
     List<TileState> Tiles,
-    BuildingInfo[]? Buildings = null,
+    BuildingStateInfo[]? BuildingList = null,
+    Dictionary<string, int>? BuildingSummary = null,
     string? NextMilestoneName = null,
     int NextMilestoneTarget = 0,
+    NextMilestoneInfo? NextMilestone = null,
     string? ActiveEventName = null,
     string? ActiveEventDescription = null,
     string? LatestEventBanner = null,
@@ -653,7 +835,13 @@ record ServerState(
     int AvailableJobs = 0,
     int RequiredJobs = 0,
     double EmploymentRatio = 1.0,
-    double EventHappinessPenalty = 0.0);
+    double EventHappinessPenalty = 0.0,
+    HappinessBreakdown? HappinessBreakdown = null,
+    EmploymentState? Employment = null,
+    int PoweredZonedTiles = 0,
+    int UnpoweredZonedTiles = 0,
+    string? PauseReason = null,
+    int? TicksRun = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 
