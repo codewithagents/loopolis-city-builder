@@ -36,6 +36,17 @@ public partial class TileTooltip : CanvasLayer
         foreach (Node child in _vbox.GetChildren())
             child.QueueFree();
 
+        // Show terrain line at top if not flat
+        var terrainName = tile.Terrain switch
+        {
+            TerrainType.Water  => "Water — cannot build",
+            TerrainType.Forest => "Forest — +$75 clearing cost",
+            TerrainType.Hill   => "Hill — +$50 build cost, +$0.25/tick",
+            _                  => ""
+        };
+        if (!string.IsNullOrEmpty(terrainName))
+            AddLine(terrainName, 12, new Color(0.7f, 0.85f, 0.7f));
+
         // Build lines based on zone type
         switch (tile.Zone)
         {

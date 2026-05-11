@@ -9,10 +9,10 @@ public partial class Camera : Camera2D
 
     public override void _Ready()
     {
-        // Center on seeded starter city at tile (15,14) → world pos (480, 448).
-        // Zoom 1.5x so the starter city is clearly visible on startup.
-        Zoom = new Vector2(1.5f, 1.5f);
-        Position = new Vector2(480, 448);
+        // Center on seeded starter city at tile (32,30) → world pos (1024, 960).
+        // Zoom 1.0x so more of the 64×64 map is visible on startup.
+        Zoom = new Vector2(1.0f, 1.0f);
+        Position = new Vector2(1024, 960);
     }
 
     public override void _UnhandledInput(InputEvent @event)

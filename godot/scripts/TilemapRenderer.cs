@@ -13,6 +13,9 @@ public partial class TilemapRenderer : Node2D
     private Color _coverageColor = Colors.Transparent;
 
     private static readonly Color ColorEmpty         = new Color(0.15f, 0.15f, 0.15f);
+    private static readonly Color ColorWater        = new Color(0.18f, 0.42f, 0.72f); // blue
+    private static readonly Color ColorForest       = new Color(0.13f, 0.42f, 0.18f); // dark green
+    private static readonly Color ColorHill         = new Color(0.52f, 0.46f, 0.34f); // sandy brown
     private static readonly Color ColorResidential  = new Color(0.2f,  0.7f,  0.2f);
     private static readonly Color ColorCommercial   = new Color(0.2f,  0.4f,  0.9f);
     private static readonly Color ColorIndustrial   = new Color(0.9f,  0.8f,  0.1f);
@@ -91,11 +94,20 @@ public partial class TilemapRenderer : Node2D
                     color = ColorSchool;
                     break;
                 default:
-                    color = ColorEmpty;
+                    color = tile.Terrain switch
+                    {
+                        Loopolis.Core.Grid.TerrainType.Water  => ColorWater,
+                        Loopolis.Core.Grid.TerrainType.Forest => ColorForest,
+                        Loopolis.Core.Grid.TerrainType.Hill   => ColorHill,
+                        _                                      => ColorEmpty,
+                    };
                     break;
             }
 
             DrawRect(rect, color);
+
+            // Water tiles have no overlays — skip pollution, power tint, and demand dot
+            if (tile.Terrain == Loopolis.Core.Grid.TerrainType.Water) continue;
 
             // Dark overlay on zones that are zoned but not powered
             var isZone = tile.Zone is ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial;

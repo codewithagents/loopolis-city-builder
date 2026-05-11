@@ -131,7 +131,8 @@ public partial class World : Node2D
 
     private void SetupStandaloneSimulation()
     {
-        _grid = new CityGrid(32, 32);
+        _grid = new CityGrid(64, 64);
+        GenerateTerrain(_grid);
         SeedStarterCity(_grid);
 
         _budget     = new BudgetSystem(initialBalance: 10_000);
@@ -151,20 +152,72 @@ public partial class World : Node2D
     /// Pre-seed a minimal working city so new players immediately see the
     /// power → road → residential chain in action.
     ///
-    /// Layout centred around (14,14)–(16,15):
-    ///   PowerPlant  at (15,13)
-    ///   Road        at (15,14) and (15,15)
-    ///   Residential at (14,14), (16,14), (14,15), (16,15)
+    /// Layout centred around (32,30)–(32,31):
+    ///   PowerPlant  at (32,29)
+    ///   Road        at (32,30) and (32,31)
+    ///   Residential at (31,30), (33,30), (31,31), (33,31)
     /// </summary>
     private static void SeedStarterCity(CityGrid grid)
     {
-        grid.SetZone(15, 13, ZoneType.PowerPlant);
-        grid.SetZone(15, 14, ZoneType.Road);
-        grid.SetZone(15, 15, ZoneType.Road);
-        grid.SetZone(14, 14, ZoneType.Residential);
-        grid.SetZone(16, 14, ZoneType.Residential);
-        grid.SetZone(14, 15, ZoneType.Residential);
-        grid.SetZone(16, 15, ZoneType.Residential);
+        grid.SetZone(32, 29, ZoneType.PowerPlant);
+        grid.SetZone(32, 30, ZoneType.Road);
+        grid.SetZone(32, 31, ZoneType.Road);
+        grid.SetZone(31, 30, ZoneType.Residential);
+        grid.SetZone(33, 30, ZoneType.Residential);
+        grid.SetZone(31, 31, ZoneType.Residential);
+        grid.SetZone(33, 31, ZoneType.Residential);
+    }
+
+    private static void GenerateTerrain(CityGrid grid, int seed = 0)
+    {
+        int w = grid.Width;
+        int h = grid.Height;
+
+        // Height noise — determines land/water/hills
+        var heightNoise = new FastNoiseLite();
+        heightNoise.NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth;
+        heightNoise.Seed = seed == 0 ? (int)(Time.GetTicksMsec() % int.MaxValue) : seed;
+        heightNoise.Frequency = 0.04f; // large blobs
+
+        // Forest noise — separate layer for tree coverage
+        var forestNoise = new FastNoiseLite();
+        forestNoise.NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth;
+        forestNoise.Seed = heightNoise.Seed + 1;
+        forestNoise.Frequency = 0.08f;
+
+        for (int x = 0; x < w; x++)
+        {
+            for (int y = 0; y < h; y++)
+            {
+                float nx = heightNoise.GetNoise2D(x, y); // -1 to 1
+
+                // Island falloff: edges become water
+                float dx = (x - w * 0.5f) / (w * 0.5f);
+                float dy = (y - h * 0.5f) / (h * 0.5f);
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                float height = nx - dist * 0.85f;
+
+                TerrainType terrain;
+                if (height < -0.25f)
+                    terrain = TerrainType.Water;
+                else if (height > 0.35f)
+                    terrain = TerrainType.Hill;
+                else
+                {
+                    // Forest on mid-elevation land
+                    float fn = forestNoise.GetNoise2D(x, y);
+                    terrain = fn > 0.15f ? TerrainType.Forest : TerrainType.Flat;
+                }
+
+                grid.SetTerrain(x, y, terrain);
+            }
+        }
+
+        // Guarantee a flat starter area around center (so SeedStarterCity always works)
+        int cx = w / 2, cy = h / 2;
+        for (int x = cx - 4; x <= cx + 4; x++)
+        for (int y = cy - 4; y <= cy + 4; y++)
+            grid.SetTerrain(x, y, TerrainType.Flat);
     }
 
     public override void _Process(double delta)
@@ -219,7 +272,7 @@ public partial class World : Node2D
         var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
 
         var grid = _viewerMode ? _reader?.LastGrid : _grid;
-        if (grid == null || tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32)
+        if (grid == null || tileX < 0 || tileX >= 64 || tileY < 0 || tileY >= 64)
         {
             _tooltip.Hide();
             return;
@@ -248,7 +301,7 @@ public partial class World : Node2D
         _lastCoverageHoverX = tileX;
         _lastCoverageHoverY = tileY;
 
-        if (tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32)
+        if (tileX < 0 || tileX >= 64 || tileY < 0 || tileY >= 64)
         {
             _renderer.ClearCoverageHighlight();
             return;
@@ -261,7 +314,7 @@ public partial class World : Node2D
         {
             var cx = tileX + dx;
             var cy = tileY + dy;
-            if (cx >= 0 && cx < 32 && cy >= 0 && cy < 32)
+            if (cx >= 0 && cx < 64 && cy >= 0 && cy < 64)
                 tiles.Add((cx, cy));
         }
 
@@ -424,7 +477,7 @@ public partial class World : Node2D
         var tileX = tilePos.X;
         var tileY = tilePos.Y;
 
-        if (tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32) return;
+        if (tileX < 0 || tileX >= 64 || tileY < 0 || tileY >= 64) return;
 
         var selectedZone = _toolbar.SelectedZone;
 
@@ -469,7 +522,8 @@ public partial class World : Node2D
             }
             else
             {
-                Loopolis.Core.Simulation.BudgetSystem.PlacementCosts.TryGetValue(selectedZone, out var placementCost);
+                var terrain = _grid.GetTerrain(tileX, tileY);
+                var placementCost = Loopolis.Core.Simulation.BudgetSystem.GetPlacementCost(selectedZone, terrain);
                 if (_budget != null && !_budget.CanAfford(placementCost))
                 {
                     // Flash the balance label red briefly to signal insufficient funds
