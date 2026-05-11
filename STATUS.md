@@ -46,8 +46,9 @@
 | Avenue (ZoneType) | ✅ Done | (in RoadTrafficSystemTests) |
 | CoalPlant/NuclearPlant (ZoneType) | ✅ Done | (in PowerCapacitySystemTests) |
 | PowerCapacitySystem | ✅ Done | 27 |
+| LandValueSystem | ✅ Done | 18 |
 
-**Total: 272 tests · 0 failures · ~0.23s runtime**
+**Total: 290 tests · 0 failures · ~0.34s runtime**
 
 ---
 
@@ -187,4 +188,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 ---
 
-*Last updated: 2026-05-11 — M8 Phase 2: CoalPlant/NuclearPlant + PowerCapacitySystem + brownout mechanics*
+| 2026-05-11 | default | M8 Phase 3 land value: flat-terrain residential gets 0.8× tax multiplier → 12.24→9.79/tick at pop 102. LandValue avg=0.16, max=0.25 on default grid (no hills, minimal power at tick 1). landValueAvg/landValueMax in coverageSummary confirmed. res_villa_hillside_3x3 in catalog, HillTerrain+MinLandValue conditions working. | Working correctly |
+
+*Last updated: 2026-05-11 — M8 Phase 3: LandValueSystem + hillside villa + tax modifiers*
