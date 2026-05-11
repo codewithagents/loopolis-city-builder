@@ -289,15 +289,18 @@ public partial class World : Node2D
     {
         if (_budget == null || _population == null) return;
 
-        var snapshot  = _budget.Snapshot();
-        var happiness = _engine.HappinessSystem.AverageHappiness(_grid);
-        var milestone = _engine.MilestoneSystem.LatestMilestone?.Name;
+        var snapshot      = _budget.Snapshot();
+        var happiness     = _engine.HappinessSystem.AverageHappiness(_grid);
+        var milestone     = _engine.MilestoneSystem.LatestMilestone?.Name;
+        var residentialCount = System.Linq.Enumerable.Count(_grid.TilesOfType(Loopolis.Core.Grid.ZoneType.Residential));
+        var maxCapacity   = residentialCount * 50;
 
         var gameStateName = _engine.MilestoneSystem.CurrentState.ToString();
         var state = new SharedState(
             Tick:                      _standaloneTick,
             Paused:                    _standalonePaused,
             Population:                _population.Population,
+            MaxCapacity:               maxCapacity,
             Balance:                   snapshot.Balance,
             TaxPerTick:                snapshot.TaxIncome,
             CommercialIncomePerTick:   _budget.CommercialIncomePerTick,

@@ -10,6 +10,7 @@ public partial class HudOverlay : CanvasLayer
 {
     private Label _tickLabel      = null!;
     private Label _popLabel       = null!;
+    private Label _capacityNudge  = null!;
     private Label _balanceLabel   = null!;
     private Label _netLabel       = null!;
     private Label _taxCostLabel   = null!;
@@ -38,6 +39,13 @@ public partial class HudOverlay : CanvasLayer
 
         _tickLabel     = MakeLabel("Tick: 0");
         _popLabel      = MakeLabel("Pop: 0");
+
+        _capacityNudge = new Label();
+        _capacityNudge.Text = "⚡ At capacity — build more zones!";
+        _capacityNudge.Visible = false;
+        _capacityNudge.AddThemeColorOverride("font_color", new Color(1f, 0.75f, 0.1f));
+        _capacityNudge.AddThemeFontSizeOverride("font_size", 13);
+
         _balanceLabel  = MakeLabel("Balance: $0");
         _netLabel      = MakeLabel("Net: $0/tick");
         _taxCostLabel  = MakeLabel("Tax: $0/tick | Costs: $0/tick");
@@ -47,6 +55,7 @@ public partial class HudOverlay : CanvasLayer
 
         vbox.AddChild(_tickLabel);
         vbox.AddChild(_popLabel);
+        vbox.AddChild(_capacityNudge);
         vbox.AddChild(_balanceLabel);
         vbox.AddChild(_netLabel);
         vbox.AddChild(_taxCostLabel);
@@ -85,7 +94,14 @@ public partial class HudOverlay : CanvasLayer
     public void UpdateStats(SharedState state)
     {
         _tickLabel.Text    = $"Tick: {state.Tick:N0}";
-        _popLabel.Text     = $"Pop: {state.Population:N0}";
+        if (state.MaxCapacity > 0)
+            _popLabel.Text = $"Pop: {state.Population:N0} / {state.MaxCapacity:N0}";
+        else
+            _popLabel.Text = $"Pop: {state.Population:N0}";
+
+        var nearCapacity = state.MaxCapacity > 0 && state.Population >= state.MaxCapacity - 5;
+        _capacityNudge.Visible = nearCapacity;
+
         _balanceLabel.Text = $"Balance: ${state.Balance:N0}";
 
         var netSign = state.NetPerTick >= 0 ? "+" : "";
@@ -94,7 +110,7 @@ public partial class HudOverlay : CanvasLayer
             state.NetPerTick >= 0 ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.3f, 0.3f));
 
         if (state.CommercialIncomePerTick > 0)
-            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1} | Comm: ${state.CommercialIncomePerTick:F1} | Costs: ${state.MaintenancePerTick:F1}/tick";
+            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1} | Shops: ${state.CommercialIncomePerTick:F1} | Costs: ${state.MaintenancePerTick:F1}/tick";
         else
             _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1}/tick | Costs: ${state.MaintenancePerTick:F1}/tick";
 

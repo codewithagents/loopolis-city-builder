@@ -44,20 +44,19 @@ public partial class TileTooltip : CanvasLayer
                 AddPowerRoadLines(tile);
                 AddReadyLine(tile);
                 AddLine($"Pop: {tile.Population} / 50", 13, new Color(0.8f, 0.8f, 0.8f));
+                AddGrowthLines(tile);
                 break;
 
             case ZoneType.Commercial:
                 AddLine("Commercial", 15, new Color(0.4f, 0.6f, 1f));
                 AddPowerRoadLines(tile);
                 AddReadyLine(tile);
-                AddLine($"Pop: {tile.Population} / 50", 13, new Color(0.8f, 0.8f, 0.8f));
                 break;
 
             case ZoneType.Industrial:
                 AddLine("Industrial", 15, new Color(1f, 0.9f, 0.2f));
                 AddPowerRoadLines(tile);
                 AddReadyLine(tile);
-                AddLine($"Pop: {tile.Population} / 50", 13, new Color(0.8f, 0.8f, 0.8f));
                 break;
 
             case ZoneType.Road:
@@ -120,6 +119,20 @@ public partial class TileTooltip : CanvasLayer
             AddLine("Ready to develop", 13, new Color(0.3f, 1f, 0.3f));
         else
             AddLine("Not ready — needs power + road", 13, new Color(1f, 0.8f, 0.2f));
+    }
+
+    private void AddGrowthLines(Tile tile)
+    {
+        var demandFactor = tile.HasDemandBoost ? 1.5f : 1.0f;
+        var growthMultiplier = demandFactor * (float)tile.Happiness;
+        AddLine($"Growth: {growthMultiplier:F1}×", 13, new Color(0.8f, 0.8f, 0.8f));
+
+        if (tile.Happiness < 0.5f)
+            AddLine("⚠ Pollution reducing growth", 12, new Color(1f, 0.4f, 0.2f));
+        else if (tile.HasDemandBoost)
+            AddLine("✓ Commercial demand boost", 12, new Color(0.3f, 1f, 0.3f));
+        else if (tile.Happiness > 0.9f)
+            AddLine("★ High happiness", 12, new Color(1f, 0.9f, 0.3f));
     }
 
     private void AddLine(string text, int fontSize, Color color)

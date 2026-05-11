@@ -106,6 +106,7 @@ public record SharedState(
     int Tick,
     bool Paused,
     int Population,
+    int MaxCapacity,
     double Balance,
     double TaxPerTick,
     double CommercialIncomePerTick,

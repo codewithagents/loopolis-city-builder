@@ -282,11 +282,14 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
             t.HasDemandBoost))
         .ToList();
 
+    var residentialCount = grid.TilesOfType(ZoneType.Residential).Count();
+    var maxCapacity = residentialCount * 50;
     var milestone = engine.MilestoneSystem.LatestMilestone;
     var state = new ServerState(
         Tick:                      engine.TickCount,
         Paused:                    paused,
         Population:                engine.Population.Population,
+        MaxCapacity:               maxCapacity,
         Balance:                   Math.Round(engine.Budget.Balance, 2),
         TaxPerTick:                Math.Round(engine.Budget.CalculateTaxIncome(), 2),
         CommercialIncomePerTick:   Math.Round(engine.Budget.CommercialIncomePerTick, 2),
@@ -524,6 +527,7 @@ record ServerState(
     int Tick,
     bool Paused,
     int Population,
+    int MaxCapacity,
     double Balance,
     double TaxPerTick,
     double CommercialIncomePerTick,

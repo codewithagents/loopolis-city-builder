@@ -26,19 +26,19 @@ public partial class Toolbar : CanvasLayer
     private readonly Dictionary<string, Button> _buttons = new();
     private Button? _pauseButton;
 
-    // Zone definitions: (label, zone name, background color)
-    private static readonly (string Label, string Zone, Color Color)[] ZoneButtons =
+    // Zone definitions: (label, zone name, background color, tooltip)
+    private static readonly (string Label, string Zone, Color Color, string Tooltip)[] ZoneButtons =
     {
-        ("R",       "Residential", new Color(0.2f,  0.7f,  0.2f)),
-        ("C",       "Commercial",  new Color(0.2f,  0.4f,  0.9f)),
-        ("I",       "Industrial",  new Color(0.9f,  0.8f,  0.1f)),
-        ("Road",    "Road",        new Color(0.5f,  0.5f,  0.5f)),
-        ("Line",    "PowerLine",   new Color(0.1f,  0.9f,  0.9f)),
-        ("Plant",   "PowerPlant",  new Color(0.9f,  0.3f,  0.1f)),
-        ("Fire",    "FireStation", new Color(1.0f,  0.4f,  0.1f)),
-        ("Police",  "PoliceStation", new Color(0.2f, 0.4f, 1.0f)),
-        ("School",  "School",      new Color(0.7f,  0.3f,  0.9f)),
-        ("Erase",   "Erase",       new Color(0.6f,  0.15f, 0.15f)),
+        ("R",       "Residential",   new Color(0.2f,  0.7f,  0.2f), "Residential — $0.50/tick"),
+        ("C",       "Commercial",    new Color(0.2f,  0.4f,  0.9f), "Commercial — $0.50/tick"),
+        ("I",       "Industrial",    new Color(0.9f,  0.8f,  0.1f), "Industrial — $0.25/tick"),
+        ("Road",    "Road",          new Color(0.5f,  0.5f,  0.5f), "Road — $1.00/tick"),
+        ("Line",    "PowerLine",     new Color(0.1f,  0.9f,  0.9f), "Power Line — $0.50/tick"),
+        ("Plant",   "PowerPlant",    new Color(0.9f,  0.3f,  0.1f), "Power Plant — $8.00/tick"),
+        ("Fire",    "FireStation",   new Color(1.0f,  0.4f,  0.1f), "Fire Station — $3.00/tick"),
+        ("Police",  "PoliceStation", new Color(0.2f,  0.4f,  1.0f), "Police Station — $3.00/tick"),
+        ("School",  "School",        new Color(0.7f,  0.3f,  0.9f), "School — $5.00/tick"),
+        ("Erase",   "Erase",         new Color(0.6f,  0.15f, 0.15f), "Erase — no cost"),
     };
 
     public override void _Ready()
@@ -57,9 +57,9 @@ public partial class Toolbar : CanvasLayer
         panel.AddChild(hbox);
 
         // Zone / tool buttons
-        foreach (var (label, zone, color) in ZoneButtons)
+        foreach (var (label, zone, color, tooltip) in ZoneButtons)
         {
-            var btn = MakeZoneButton(label, color);
+            var btn = MakeZoneButton(label, color, tooltip);
             btn.Pressed += () => SelectZone(zone, btn);
             hbox.AddChild(btn);
             _buttons[zone] = btn;
@@ -143,10 +143,11 @@ public partial class Toolbar : CanvasLayer
         EmitSignal(SignalName.PauseToggled);
     }
 
-    private static Button MakeZoneButton(string label, Color bgColor)
+    private static Button MakeZoneButton(string label, Color bgColor, string tooltip = "")
     {
         var btn = new Button();
         btn.Text = label;
+        btn.TooltipText = tooltip;
         btn.CustomMinimumSize = new Vector2(64, 44);
         btn.AddThemeFontSizeOverride("font_size", 14);
 
@@ -240,7 +241,7 @@ public partial class Toolbar : CanvasLayer
     private StyleBoxFlat GetBaseStyle(string zone)
     {
         // Recreate the base style from zone colors
-        foreach (var (label, z, color) in ZoneButtons)
+        foreach (var (label, z, color, _) in ZoneButtons)
         {
             if (z == zone)
             {
