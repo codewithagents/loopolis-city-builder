@@ -30,11 +30,17 @@ public partial class Toolbar : CanvasLayer
     [Signal]
     public delegate void TaxRateChangedEventHandler(string level);
 
+    // Fired when the player changes the game speed.
+    [Signal]
+    public delegate void SpeedChangedEventHandler(float ticksPerSecond);
+
     private string _selectedZone = "Road";
     private string _taxLevel = "normal";
+    private float _selectedSpeed = 2.0f;
     private readonly Dictionary<string, Button> _buttons = new();
     private Button? _pauseButton;
     private readonly Dictionary<string, Button> _taxButtons = new();
+    private readonly Dictionary<float, Button> _speedButtons = new();
 
     // Zone definitions: (label, zone name, background color, tooltip)
     private static readonly (string Label, string Zone, Color Color, string Tooltip)[] ZoneButtons =
@@ -113,6 +119,40 @@ public partial class Toolbar : CanvasLayer
         _pauseButton.Pressed += OnPauseToggled;
         hbox.AddChild(_pauseButton);
 
+        // Speed label
+        var speedLabel = new Label();
+        speedLabel.Text = "Speed:";
+        speedLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
+        speedLabel.AddThemeFontSizeOverride("font_size", 13);
+        hbox.AddChild(speedLabel);
+
+        // Speed buttons: ½×, 1×, 2×, 4×
+        var speedOptions = new (string Label, float Tps)[]
+        {
+            ("½×", 0.5f),
+            ("1×", 1.0f),
+            ("2×", 2.0f),
+            ("4×", 4.0f),
+        };
+        foreach (var (label, tps) in speedOptions)
+        {
+            var btn = new Button();
+            btn.Text = label;
+            btn.CustomMinimumSize = new Vector2(44, 44);
+            btn.AddThemeFontSizeOverride("font_size", 13);
+            btn.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f));
+            var style = MakeSpeedButtonStyle(false);
+            btn.AddThemeStyleboxOverride("normal", style);
+            btn.AddThemeStyleboxOverride("focus", style);
+            var capturedTps = tps;
+            btn.Pressed += () => SelectSpeed(capturedTps);
+            hbox.AddChild(btn);
+            _speedButtons[tps] = btn;
+        }
+
+        // Highlight the default speed (2×)
+        HighlightSpeedButton(_selectedSpeed);
+
         // New Game button
         var newGameBtn = new Button();
         newGameBtn.Text = "New Game";
@@ -139,6 +179,9 @@ public partial class Toolbar : CanvasLayer
         if (_pauseButton != null)
             _pauseButton.Text = paused ? "Resume" : "Pause";
     }
+
+    /// <summary>Programmatically set the game speed (e.g. from keyboard shortcuts in World.cs).</summary>
+    public void SetSpeed(float tps) => SelectSpeed(tps);
 
     public string SelectedZone => _selectedZone;
 
@@ -185,6 +228,35 @@ public partial class Toolbar : CanvasLayer
     private void OnPauseToggled()
     {
         EmitSignal(SignalName.PauseToggled);
+    }
+
+    private void SelectSpeed(float tps)
+    {
+        _selectedSpeed = tps;
+        HighlightSpeedButton(tps);
+        EmitSignal(SignalName.SpeedChanged, tps);
+    }
+
+    private void HighlightSpeedButton(float tps)
+    {
+        foreach (var (speed, btn) in _speedButtons)
+        {
+            var selected = Mathf.IsEqualApprox(speed, tps);
+            btn.AddThemeStyleboxOverride("normal", MakeSpeedButtonStyle(selected));
+            btn.AddThemeStyleboxOverride("focus", MakeSpeedButtonStyle(selected));
+        }
+    }
+
+    private static StyleBoxFlat MakeSpeedButtonStyle(bool selected)
+    {
+        var s = new StyleBoxFlat();
+        s.BgColor = selected ? new Color(0.3f, 0.3f, 0.5f) : new Color(0.15f, 0.15f, 0.2f);
+        s.BorderColor = selected ? new Color(0.8f, 0.8f, 1f) : new Color(0.3f, 0.3f, 0.4f);
+        s.BorderWidthBottom = s.BorderWidthTop = s.BorderWidthLeft = s.BorderWidthRight = selected ? 2 : 1;
+        s.CornerRadiusTopLeft = s.CornerRadiusTopRight = s.CornerRadiusBottomLeft = s.CornerRadiusBottomRight = 3;
+        s.ContentMarginLeft = s.ContentMarginRight = 4;
+        s.ContentMarginTop = s.ContentMarginBottom = 4;
+        return s;
     }
 
     private void SelectTaxLevel(string level)

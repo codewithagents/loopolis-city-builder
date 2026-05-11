@@ -13,7 +13,8 @@ public partial class World : Node2D
     private CityGrid _grid = null!;
     private SimulationEngine _engine = null!;
     private double _tickTimer = 0;
-    private const double TickInterval = 0.5; // seconds per sim tick
+    private double _tickInterval = 0.5; // seconds per sim tick (default: 2 ticks/sec)
+    private float _ticksPerSecond = 2.0f;
 
     private TilemapRenderer _renderer = null!;
     private HudOverlay _hud = null!;
@@ -82,6 +83,7 @@ public partial class World : Node2D
         _toolbar.PauseToggled       += OnPauseToggled;
         _toolbar.NewGameRequested   += OnNewGameRequested;
         _toolbar.TaxRateChanged     += OnTaxRateChanged;
+        _toolbar.SpeedChanged       += OnSpeedChanged;
         _toolbar.MainMenuRequested  += () =>
         {
             KillServerIfRunning();
@@ -179,7 +181,7 @@ public partial class World : Node2D
         if (_gameOver) return;
 
         _tickTimer += delta;
-        if (_tickTimer >= TickInterval)
+        if (_tickTimer >= _tickInterval)
         {
             _tickTimer = 0;
             _engine.Tick();
@@ -296,6 +298,18 @@ public partial class World : Node2D
 
         if (@event is InputEventKey key && key.Pressed && !key.Echo)
         {
+            // Shift+1/2/3/4 → speed controls (½×, 1×, 2×, 4×)
+            if (key.ShiftPressed)
+            {
+                var speedChanged = true;
+                if      (key.Keycode == Key.Key1) _toolbar.SetSpeed(0.5f);
+                else if (key.Keycode == Key.Key2) _toolbar.SetSpeed(1.0f);
+                else if (key.Keycode == Key.Key3) _toolbar.SetSpeed(2.0f);
+                else if (key.Keycode == Key.Key4) _toolbar.SetSpeed(4.0f);
+                else speedChanged = false;
+                if (speedChanged) return;
+            }
+
             var zone = key.Keycode switch
             {
                 Key.Key1 => "Residential",
@@ -383,6 +397,14 @@ public partial class World : Node2D
         {
             _budget?.SetTaxRate(level);
         }
+    }
+
+    private void OnSpeedChanged(float ticksPerSecond)
+    {
+        _ticksPerSecond = ticksPerSecond;
+        _tickInterval = 1.0 / ticksPerSecond;
+        if (_viewerMode && _reader?.SessionId != null)
+            WriteCommand($"{{\"cmd\":\"set_speed\",\"ticksPerSecond\":{ticksPerSecond}}}");
     }
 
     // ── Click/drag-to-place ────────────────────────────────────────────────
