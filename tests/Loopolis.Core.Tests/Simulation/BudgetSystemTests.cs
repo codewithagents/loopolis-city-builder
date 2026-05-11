@@ -105,13 +105,13 @@ public class BudgetSystemTests
     }
 
     [Test]
-    public void MaintenanceCost_PowerPlantCostsTen()
+    public void MaintenanceCost_PowerPlantCostsEight()
     {
         var budget = new BudgetSystem();
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.PowerPlant);
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(10.0).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(8.0).Within(0.001));
     }
 
     [Test]
@@ -134,13 +134,13 @@ public class BudgetSystemTests
         var budget = new BudgetSystem();
         var grid = new CityGrid(10, 10);
 
-        grid.SetZone(0, 0, ZoneType.PowerPlant);   // $10.0
+        grid.SetZone(0, 0, ZoneType.PowerPlant);   // $8.0
         grid.SetZone(1, 0, ZoneType.Road);          // $1.0
         grid.SetZone(2, 0, ZoneType.Residential);   // $0.5
         grid.SetZone(3, 0, ZoneType.Commercial);    // $0.5
         grid.SetZone(4, 0, ZoneType.PowerLine);     // $0.5
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(12.5).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(10.5).Within(0.001));
     }
 
     [Test]

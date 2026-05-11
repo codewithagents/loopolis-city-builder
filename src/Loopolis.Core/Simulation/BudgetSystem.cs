@@ -12,19 +12,19 @@ public class BudgetSystem
     public static readonly IReadOnlyDictionary<ZoneType, double> MaintenanceCostPerTile =
         new Dictionary<ZoneType, double>
         {
-            { ZoneType.PowerPlant,    10.0 },
-            { ZoneType.PowerLine,      0.5 },
-            { ZoneType.Road,           1.0 },
-            { ZoneType.Residential,    0.5 },
-            { ZoneType.Commercial,     0.5 },
-            { ZoneType.Industrial,     0.5 },
-            { ZoneType.FireStation,    3.0 },
-            { ZoneType.PoliceStation,  3.0 },
-            { ZoneType.School,         5.0 },
+            { ZoneType.PowerPlant,    8.0 },
+            { ZoneType.PowerLine,     0.5 },
+            { ZoneType.Road,          1.0 },
+            { ZoneType.Residential,   0.5 },
+            { ZoneType.Commercial,    0.5 },
+            { ZoneType.Industrial,    0.25 },
+            { ZoneType.FireStation,   3.0 },
+            { ZoneType.PoliceStation, 3.0 },
+            { ZoneType.School,        5.0 },
         };
 
     public double Balance { get; private set; }
-    public double TaxRate { get; private set; } = 0.09;
+    public double TaxRate { get; private set; } = 0.12;
     public int Population { get; private set; }
     public double LastMaintenanceCost { get; private set; }
 

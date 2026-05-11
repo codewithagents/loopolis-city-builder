@@ -91,6 +91,7 @@ public record SharedState(
     double NetPerTick,
     double Happiness,
     string? MilestoneReached,
+    string GameState,
     SharedTile[] Tiles
 );
 

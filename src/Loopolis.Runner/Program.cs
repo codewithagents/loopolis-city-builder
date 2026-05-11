@@ -234,14 +234,14 @@ static void ProcessCommand(
             case "new_game":
             {
                 var newGrid   = new CityGrid(32, 32);
-                var newBudget = new BudgetSystem(initialBalance: 5_000);
+                var newBudget = new BudgetSystem(initialBalance: 10_000);
                 var newPop    = new PopulationSystem();
                 var newPower  = new PowerNetwork();
                 var newRoads  = new RoadNetwork();
                 var newDemand = new DemandSystem();
                 grid   = newGrid;
                 engine = new SimulationEngine(newGrid, newBudget, newPop, newPower, newRoads, newDemand);
-                Console.WriteLine("[new_game] Reset to empty 32x32 grid, $5000 starting balance.");
+                Console.WriteLine("[new_game] Reset to empty 32x32 grid, $10000 starting balance.");
                 break;
             }
 

@@ -33,8 +33,9 @@ public class MilestoneSystem
 
     public void Check(int population, double balance, double netPerTick, int tick)
     {
-        // Bankruptcy: negative balance AND no population (no recovery path)
-        if (balance < 0 && population == 0)
+        // Bankruptcy: unrecoverable — either no population with negative balance,
+        // or deep debt spiral past -$10,000 (inhabited cities can also go bankrupt)
+        if ((balance < 0 && population == 0) || balance < -10_000)
         {
             CurrentState = GameState.Bankrupt;
             return;
