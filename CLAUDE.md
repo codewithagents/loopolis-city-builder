@@ -36,15 +36,22 @@ Output is JSON — designed for agent analysis.
 
 ## Core Systems (all done)
 
-1. ✅ CityGrid — tile grid, zone placement, adjacency
-2. ✅ BudgetSystem — tax income, costs, balance, deficit
-3. ✅ PopulationSystem — growth/decline based on powered residential zones
-4. ✅ PowerNetwork — BFS propagation from power plants
-5. ✅ RoadNetwork — connectivity validation
-6. ✅ DemandSystem — commercial adjacency boosts residential growth rate (1.5x)
-7. ✅ SimulationEngine — orchestrates all systems per tick
+1. ✅ CityGrid — tile grid, zone placement, adjacency, terrain (Water blocks placement)
+2. ✅ TerrainType — Flat/Hill/Forest/Water. Forest +$75, Hill +$50 placement surcharge
+3. ✅ BudgetSystem — tax income, costs, balance, deficit. Default start: $4,000
+4. ✅ PopulationSystem — wave-based development (road-adjacent first, interior unlocks at pop≥25)
+5. ✅ PowerNetwork — BFS flood-fill from power plants; services (Fire/Police/School) are conductors
+6. ✅ RoadNetwork — direct adjacency validation
+7. ✅ DemandSystem — commercial adjacency boosts residential growth (1.5×)
+8. ✅ PollutionSystem — industrial tiles emit pollution, reduces happiness of nearby residential
+9. ✅ HappinessSystem — service coverage, neglect decay, tax modifier, event penalty, unemployment
+10. ✅ MilestoneSystem — thresholds Village/Town(500)/City(5k)/Metropolis(25k)/Loopolis(100k), bankruptcy, abandonment
+11. ✅ EventSystem — 4 events (FireBreak/CrimeWave/PowerOutage/DemandSlump), 2%/tick trigger, 60-tick honeymoon
+12. ✅ EmploymentSystem — industrial activity → jobs (0.4/unit, 20 jobs/full tile), residential growth throttled above pop 100
+13. ✅ SimulationEngine — orchestrates all systems per tick
+14. ✅ SaveSystem (Persistence) — Capture/Serialize/Deserialize/RestoreGrid; terrain seed saves exact map
 
-**76 tests · 0 failures**
+**182 tests · 0 failures**
 
 ## Running the Game
 
@@ -73,10 +80,19 @@ DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec \
 
 ### Send commands to running server
 ```bash
-echo '{"cmd":"pause"}' > godot/shared/command.json
-echo '{"cmd":"place_zone","x":10,"y":14,"zone":"Road"}' > godot/shared/command.json
-echo '{"cmd":"skip","ticks":500,"pauseAfter":true}' > godot/shared/command.json
-echo '{"cmd":"resume"}' > godot/shared/command.json
+# Use session-ID filenames — server prints "[loopolis] session=XXXXXXXX" on start
+SESSION_ID=$(grep '\[loopolis\] session=' /tmp/loopolis.log | head -1 | sed 's/.*session=//' | tr -d '[:space:]')
+
+echo "{\"cmd\":\"pause\",\"sessionId\":\"$SESSION_ID\"}"                             > godot/shared/command-${SESSION_ID}.json
+echo "{\"cmd\":\"place_zone\",\"x\":10,\"y\":14,\"zone\":\"Road\",\"sessionId\":\"$SESSION_ID\"}" > godot/shared/command-${SESSION_ID}.json
+echo "{\"cmd\":\"skip\",\"ticks\":500,\"pauseAfter\":true,\"sessionId\":\"$SESSION_ID\"}"         > godot/shared/command-${SESSION_ID}.json
+echo "{\"cmd\":\"resume\",\"sessionId\":\"$SESSION_ID\"}"                            > godot/shared/command-${SESSION_ID}.json
+```
+
+### In-game Save/Load (standalone mode)
+```
+Ctrl+S  — save to godot/saves/autosave.json (EventLog shows "Game saved ✓")
+Ctrl+L  — load from godot/saves/autosave.json (restores terrain, zones, pop, balance, tick)
 ```
 
 ### macOS .NET fix (one-time setup, already done)
