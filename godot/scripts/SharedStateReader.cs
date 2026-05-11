@@ -92,6 +92,9 @@ public partial class SharedStateReader : Node
             grid.SetZone(tile.X, tile.Y, zoneType);
             if (tile.HasPower) grid.SetPower(tile.X, tile.Y, true);
             if (tile.HasRoadAccess) grid.SetRoadAccess(tile.X, tile.Y, true);
+            if (tile.Population > 0) grid.SetPopulation(tile.X, tile.Y, tile.Population);
+            if (tile.PollutionLevel > 0f) grid.SetPollution(tile.X, tile.Y, tile.PollutionLevel);
+            if (tile.Happiness < 1f) grid.SetHappiness(tile.X, tile.Y, tile.Happiness);
         }
         return grid;
     }

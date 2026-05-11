@@ -43,18 +43,21 @@ public partial class TileTooltip : CanvasLayer
                 AddLine("Residential", 15, new Color(0.3f, 1f, 0.4f));
                 AddPowerRoadLines(tile);
                 AddReadyLine(tile);
+                AddLine($"Pop: {tile.Population} / 50", 13, new Color(0.8f, 0.8f, 0.8f));
                 break;
 
             case ZoneType.Commercial:
                 AddLine("Commercial", 15, new Color(0.4f, 0.6f, 1f));
                 AddPowerRoadLines(tile);
                 AddReadyLine(tile);
+                AddLine($"Pop: {tile.Population} / 50", 13, new Color(0.8f, 0.8f, 0.8f));
                 break;
 
             case ZoneType.Industrial:
                 AddLine("Industrial", 15, new Color(1f, 0.9f, 0.2f));
                 AddPowerRoadLines(tile);
                 AddReadyLine(tile);
+                AddLine($"Pop: {tile.Population} / 50", 13, new Color(0.8f, 0.8f, 0.8f));
                 break;
 
             case ZoneType.Road:

@@ -93,7 +93,10 @@ public partial class HudOverlay : CanvasLayer
         _netLabel.AddThemeColorOverride("font_color",
             state.NetPerTick >= 0 ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.3f, 0.3f));
 
-        _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1}/tick | Costs: ${state.MaintenancePerTick:F1}/tick";
+        if (state.CommercialIncomePerTick > 0)
+            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1} | Comm: ${state.CommercialIncomePerTick:F1} | Costs: ${state.MaintenancePerTick:F1}/tick";
+        else
+            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1}/tick | Costs: ${state.MaintenancePerTick:F1}/tick";
 
         var happyPct = (int)(state.Happiness * 100);
         _happyLabel.Text = $"Happiness: {happyPct}%";

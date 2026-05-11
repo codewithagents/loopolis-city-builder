@@ -9,10 +9,10 @@ public partial class Camera : Camera2D
 
     public override void _Ready()
     {
-        // 32px tiles at zoom=1: 32×32 grid = 1024px — fits 1440px window with margin.
-        // Grid center = tile (16,16) → world (512, 512).
-        Zoom = new Vector2(1f, 1f);
-        Position = new Vector2(512, 512);
+        // Center on seeded starter city at tile (15,14) → world pos (480, 448).
+        // Zoom 1.5x so the starter city is clearly visible on startup.
+        Zoom = new Vector2(1.5f, 1.5f);
+        Position = new Vector2(480, 448);
     }
 
     public override void _UnhandledInput(InputEvent @event)

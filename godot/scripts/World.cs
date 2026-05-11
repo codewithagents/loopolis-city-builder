@@ -167,6 +167,28 @@ public partial class World : Node2D
                 HandlePlaceTile();
             }
         }
+
+        if (@event is InputEventKey key && key.Pressed && !key.Echo)
+        {
+            var zone = key.Keycode switch
+            {
+                Key.Key1 => "Residential",
+                Key.Key2 => "Commercial",
+                Key.Key3 => "Industrial",
+                Key.Key4 => "Road",
+                Key.Key5 => "PowerLine",
+                Key.Key6 => "PowerPlant",
+                Key.Key7 => "FireStation",
+                Key.Key8 => "PoliceStation",
+                Key.Key9 => "School",
+                Key.Key0 => "Erase",
+                _ => null
+            };
+            if (zone != null) _toolbar.SelectZone(zone);
+
+            if (key.Keycode == Key.Space)
+                OnPauseToggled();
+        }
     }
 
     // ── Toolbar signal handlers ────────────────────────────────────────────
@@ -273,17 +295,18 @@ public partial class World : Node2D
 
         var gameStateName = _engine.MilestoneSystem.CurrentState.ToString();
         var state = new SharedState(
-            Tick:                _standaloneTick,
-            Paused:              _standalonePaused,
-            Population:          _population.Population,
-            Balance:             snapshot.Balance,
-            TaxPerTick:          snapshot.TaxIncome,
-            MaintenancePerTick:  snapshot.MaintenanceCost,
-            NetPerTick:          snapshot.NetIncome,
-            Happiness:           happiness,
-            MilestoneReached:    milestone,
-            GameState:           gameStateName,
-            Tiles:               System.Array.Empty<SharedTile>()
+            Tick:                      _standaloneTick,
+            Paused:                    _standalonePaused,
+            Population:                _population.Population,
+            Balance:                   snapshot.Balance,
+            TaxPerTick:                snapshot.TaxIncome,
+            CommercialIncomePerTick:   _budget.CommercialIncomePerTick,
+            MaintenancePerTick:        snapshot.MaintenanceCost,
+            NetPerTick:                snapshot.NetIncome,
+            Happiness:                 happiness,
+            MilestoneReached:          milestone,
+            GameState:                 gameStateName,
+            Tiles:                     System.Array.Empty<SharedTile>()
         );
         _hud.UpdateStats(state);
     }

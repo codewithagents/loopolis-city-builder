@@ -100,6 +100,13 @@ public partial class Toolbar : CanvasLayer
 
     // ── Private helpers ────────────────────────────────────────────────────
 
+    /// <summary>Programmatically select a zone by name (e.g. from keyboard shortcuts in World.cs).</summary>
+    public void SelectZone(string zone)
+    {
+        if (!_buttons.TryGetValue(zone, out var btn)) return;
+        SelectZone(zone, btn);
+    }
+
     private void SelectZone(string zone, Button btn)
     {
         _selectedZone = zone;

@@ -35,19 +35,47 @@ public partial class TilemapRenderer : Node2D
         {
             var rect = new Rect2(tile.X * TileSize, tile.Y * TileSize, TileSize - 1, TileSize - 1);
 
-            var color = tile.Zone switch
+            Color color;
+            switch (tile.Zone)
             {
-                ZoneType.Residential   => ColorResidential,
-                ZoneType.Commercial    => ColorCommercial,
-                ZoneType.Industrial    => ColorIndustrial,
-                ZoneType.Road          => ColorRoad,
-                ZoneType.PowerPlant    => ColorPowerPlant,
-                ZoneType.PowerLine     => ColorPowerLine,
-                ZoneType.FireStation   => ColorFireStation,
-                ZoneType.PoliceStation => ColorPoliceStation,
-                ZoneType.School        => ColorSchool,
-                _                      => ColorEmpty,
-            };
+                case ZoneType.Residential:
+                case ZoneType.Commercial:
+                case ZoneType.Industrial:
+                {
+                    // Scale brightness with population fill level
+                    var baseColor = tile.Zone switch
+                    {
+                        ZoneType.Residential => ColorResidential,
+                        ZoneType.Commercial  => ColorCommercial,
+                        _                    => ColorIndustrial,
+                    };
+                    var fillFraction = Mathf.Clamp(tile.Population / 50f, 0f, 1f);
+                    var emptyColor = baseColor * 0.35f;
+                    color = emptyColor.Lerp(baseColor, fillFraction);
+                    break;
+                }
+                case ZoneType.Road:
+                    color = ColorRoad;
+                    break;
+                case ZoneType.PowerPlant:
+                    color = ColorPowerPlant;
+                    break;
+                case ZoneType.PowerLine:
+                    color = ColorPowerLine;
+                    break;
+                case ZoneType.FireStation:
+                    color = ColorFireStation;
+                    break;
+                case ZoneType.PoliceStation:
+                    color = ColorPoliceStation;
+                    break;
+                case ZoneType.School:
+                    color = ColorSchool;
+                    break;
+                default:
+                    color = ColorEmpty;
+                    break;
+            }
 
             DrawRect(rect, color);
 
@@ -55,6 +83,20 @@ public partial class TilemapRenderer : Node2D
             var isZone = tile.Zone is ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial;
             if (isZone && !tile.HasPower)
                 DrawRect(rect, UnpoweredTint);
+
+            // Red semi-transparent overlay for pollution
+            if (tile.PollutionLevel > 0.05f)
+            {
+                var pollutionColor = new Color(1f, 0f, 0f, (float)tile.PollutionLevel * 0.55f);
+                DrawRect(rect, pollutionColor);
+            }
+
+            // Yellow dot in corner for residential tiles with demand boost
+            if (tile.HasDemandBoost && tile.Zone == ZoneType.Residential)
+            {
+                var dotRect = new Rect2(rect.Position + rect.Size - new Vector2(6, 6), new Vector2(5, 5));
+                DrawRect(dotRect, new Color(1f, 0.9f, 0.1f, 0.8f));
+            }
         }
     }
 }
