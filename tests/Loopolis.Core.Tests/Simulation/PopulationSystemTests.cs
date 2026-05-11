@@ -11,11 +11,12 @@ public class PopulationSystemTests
     [SetUp]
     public void SetUp() => _pop = new PopulationSystem();
 
-    // Helper: mark a tile as fully ready (powered + road access)
+    // Helper: mark a tile as fully ready (powered + road access) AND give it a BuildingId
     private static void MakeReady(CityGrid grid, int x, int y)
     {
         grid.SetPower(x, y, true);
         grid.SetRoadAccess(x, y, true);
+        grid.SetBuildingId(x, y, "test");
     }
 
     [Test]
@@ -46,6 +47,7 @@ public class PopulationSystemTests
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Residential);
         grid.SetRoadAccess(5, 5, true); // road but no power
+        grid.SetBuildingId(5, 5, "test");
 
         _pop.Tick(grid);
 
@@ -57,7 +59,8 @@ public class PopulationSystemTests
     {
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Residential);
-        grid.SetPower(5, 5, true); // power but no road
+        grid.SetPower(5, 5, true); // power but no road — BuildingGrowthSystem would NOT give it a building
+        // Intentionally no SetBuildingId — simulates interior tile without road access
 
         _pop.Tick(grid);
 
@@ -74,7 +77,7 @@ public class PopulationSystemTests
         grid.SetZone(1, 1, ZoneType.Residential);
         MakeReady(grid, 1, 1);
 
-        // 5 completely unserviced zones
+        // 5 completely unserviced zones (no power, no road, no BuildingId)
         for (var x = 3; x <= 7; x++)
             grid.SetZone(x, 5, ZoneType.Residential); // no power, no road
 
@@ -112,6 +115,7 @@ public class PopulationSystemTests
         // Remove all services — zone is no longer ready
         grid.SetPower(5, 5, false);
         grid.SetRoadAccess(5, 5, false);
+        grid.SetBuildingId(5, 5, null);
 
         // Run more ticks — population should decline toward new capacity (0)
         for (var i = 0; i < 100; i++) _pop.Tick(grid);
@@ -158,50 +162,29 @@ public class PopulationSystemTests
     [Test]
     public void InteriorTile_CanGrow_WhenAdjacentNeighbourHasSufficientPopulation()
     {
+        // With the BuildingGrowthSystem, interior tiles get a BuildingId when they
+        // are absorbed into a multi-tile building. This test verifies that a tile
+        // with a BuildingId (simulating being part of a multi-tile building) DOES grow.
         var grid = new CityGrid(10, 10);
 
-        // Tile (5,5): road-adjacent, powered — will grow to pop >= 25
+        // Tile (5,5): road-adjacent, powered, has BuildingId — will grow
         grid.SetZone(5, 5, ZoneType.Residential);
         grid.SetZone(4, 5, ZoneType.Road);
         MakeReady(grid, 5, 5);
 
-        // Tile (6,5): interior — no direct road, but powered, adjacent to (5,5)
-        grid.SetZone(6, 5, ZoneType.Residential);
-        grid.SetPower(6, 5, true); // powered but no road access
-
-        // Grow (5,5) past the wave threshold of 25
-        for (var i = 0; i < 200; i++) _pop.Tick(grid);
-        Assert.That(grid.GetPopulation(5, 5), Is.GreaterThanOrEqualTo(25),
-            "Road-adjacent tile must reach pop 25 before unlocking its neighbour");
-
-        // Interior tile (6,5) should now be developing
-        var interiorPop = grid.GetPopulation(6, 5);
-        Assert.That(interiorPop, Is.GreaterThan(0),
-            "Interior tile should develop once its road-adjacent neighbour has population >= 25");
-    }
-
-    [Test]
-    public void InteriorTile_CannotGrow_WhenNeighbourPopulationTooLow()
-    {
-        var grid = new CityGrid(10, 10);
-
-        // Tile (5,5): road-adjacent, powered — grows but we'll check before it hits 25
-        grid.SetZone(5, 5, ZoneType.Residential);
-        grid.SetZone(4, 5, ZoneType.Road);
-        MakeReady(grid, 5, 5);
-
-        // Tile (6,5): interior — no direct road, but powered
+        // Tile (6,5): interior — no direct road, but powered AND has a BuildingId
+        // (simulates being part of a 2x1 building that was grown to cover this tile)
         grid.SetZone(6, 5, ZoneType.Residential);
         grid.SetPower(6, 5, true);
+        grid.SetBuildingId(6, 5, "test"); // has building assignment → can develop
 
-        // Manually set (5,5) population to 10 — below the wave threshold of 25
-        grid.SetPopulation(5, 5, 10);
+        // Both tiles should develop
+        for (var i = 0; i < 200; i++) _pop.Tick(grid);
 
-        // Run just one tick — (6,5) should not develop since neighbour pop is only 10
-        _pop.Tick(grid);
-
-        Assert.That(grid.GetPopulation(6, 5), Is.EqualTo(0),
-            "Interior tile should not develop when neighbour population is below 25");
+        Assert.That(grid.GetPopulation(5, 5), Is.GreaterThanOrEqualTo(25),
+            "Road-adjacent tile must reach pop 25");
+        Assert.That(grid.GetPopulation(6, 5), Is.GreaterThan(0),
+            "Interior tile with BuildingId should develop");
     }
 
     [Test]
@@ -215,6 +198,7 @@ public class PopulationSystemTests
         grid.SetPower(5, 5, true);
         grid.SetPower(5, 4, true);
         grid.SetRoadAccess(5, 5, true);
+        grid.SetBuildingId(5, 5, "test");
         grid.SetPopulation(5, 4, 30); // residential neighbours present
 
         _pop.Tick(grid);
@@ -230,6 +214,7 @@ public class PopulationSystemTests
         grid.SetZone(5, 6, ZoneType.Road);
         grid.SetPower(5, 5, true);
         grid.SetRoadAccess(5, 5, true);
+        grid.SetBuildingId(5, 5, "test");
 
         _pop.Tick(grid);
 

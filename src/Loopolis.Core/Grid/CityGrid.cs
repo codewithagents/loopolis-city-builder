@@ -25,6 +25,7 @@ public record Tile(int X, int Y)
     public double Happiness { get; init; } = 1.0;
     public int Population { get; init; } = 0;
     public TerrainType Terrain { get; init; } = TerrainType.Flat;
+    public string? BuildingId { get; init; } = null;
 
     /// <summary>True when a commercial zone is adjacent and grants a demand boost to this residential tile.</summary>
     public bool HasDemandBoost => Zone == ZoneType.Residential && DemandFactor > 1.0;
@@ -48,6 +49,8 @@ public class CityGrid
 
     public int Width { get; }
     public int Height { get; }
+
+    public Dictionary<string, Buildings.Building> Buildings { get; } = new();
 
     public CityGrid(int width, int height)
     {
@@ -201,6 +204,21 @@ public class CityGrid
             if (IsInBounds(nx, ny))
                 yield return _tiles[nx, ny] with { Terrain = _terrain[nx, ny] };
         }
+    }
+
+    public void SetBuildingId(int x, int y, string? id)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { BuildingId = id };
+    }
+
+    public void ClearBuildings()
+    {
+        Buildings.Clear();
+        for (var x = 0; x < Width; x++)
+            for (var y = 0; y < Height; y++)
+                if (_tiles[x, y].BuildingId != null)
+                    _tiles[x, y] = _tiles[x, y] with { BuildingId = null };
     }
 
     private void AssertInBounds(int x, int y)

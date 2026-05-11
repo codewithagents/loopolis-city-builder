@@ -1,3 +1,4 @@
+using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Simulation;
@@ -32,6 +33,7 @@ public class SimulationEngine
     public MilestoneSystem MilestoneSystem { get; }
     public EventSystem EventSystem { get; }
     public EmploymentSystem EmploymentSystem { get; }
+    public BuildingGrowthSystem BuildingGrowthSystem { get; } = new();
     public int TickCount { get; private set; }
 
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
@@ -88,6 +90,8 @@ public class SimulationEngine
             MilestoneSystem.RecoverFromAbandonment();
         }
 
+        BuildingGrowthSystem.Initialize(Grid);
+        BuildingGrowthSystem.TryGrow(Grid, MilestoneSystem.CurrentState);
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
         Population.Tick(Grid, employmentMultiplier);
         Budget.SetPopulation(Population.Population);

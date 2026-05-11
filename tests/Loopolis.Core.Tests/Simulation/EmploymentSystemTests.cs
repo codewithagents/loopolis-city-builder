@@ -142,10 +142,12 @@ public class EmploymentSystemTests
             gridGood.SetZone(x, 5, ZoneType.Residential);
             gridGood.SetPower(x, 5, true);
             gridGood.SetRoadAccess(x, 5, true);
+            gridGood.SetBuildingId(x, 5, "test");
 
             gridPoor.SetZone(x, 5, ZoneType.Residential);
             gridPoor.SetPower(x, 5, true);
             gridPoor.SetRoadAccess(x, 5, true);
+            gridPoor.SetBuildingId(x, 5, "test");
         }
 
         // Tick 30 times: good employment = full multiplier, poor employment = 0.2×

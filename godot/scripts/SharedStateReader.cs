@@ -174,12 +174,32 @@ public partial class SharedStateReader : Node
             if (tile.Population > 0) grid.SetPopulation(tile.X, tile.Y, tile.Population);
             if (tile.PollutionLevel > 0f) grid.SetPollution(tile.X, tile.Y, tile.PollutionLevel);
             if (tile.Happiness < 1f) grid.SetHappiness(tile.X, tile.Y, tile.Happiness);
+            if (tile.BuildingId != null) grid.SetBuildingId(tile.X, tile.Y, tile.BuildingId);
+        }
+        // Restore building entities from the buildings list if present
+        if (state.Buildings != null)
+        {
+            foreach (var b in state.Buildings)
+            {
+                if (!System.Enum.TryParse<ZoneType>(b.Zone, out var zone)) continue;
+                var building = new Loopolis.Core.Buildings.Building(b.Id, b.TypeId, zone, b.X, b.Y, b.Width, b.Height);
+                grid.Buildings[b.Id] = building;
+            }
         }
         return grid;
     }
 }
 
 // ── JSON DTOs ──────────────────────────────────────────────────────────────
+
+public record BuildingInfo(
+    string Id,
+    string TypeId,
+    string Zone,
+    int X,
+    int Y,
+    int Width,
+    int Height);
 
 public record SharedState(
     int Tick,
@@ -195,6 +215,7 @@ public record SharedState(
     string? MilestoneReached,
     string GameState,
     SharedTile[] Tiles,
+    BuildingInfo[]? Buildings = null,
     string? NextMilestoneName = null,
     int NextMilestoneTarget = 0,
     string? ActiveEventName = null,
@@ -217,5 +238,7 @@ public record SharedTile(
     int Population,         // per-zone population (0-50 for residential)
     float PollutionLevel,   // 0.0-1.0 from PollutionSystem
     float Happiness,        // 0.0-1.0 from HappinessSystem (per-tile)
-    bool HasDemandBoost     // commercial adjacency boost active for this tile
+    bool HasDemandBoost,    // commercial adjacency boost active for this tile
+    string? BuildingId = null,
+    string? BuildingType = null
 );

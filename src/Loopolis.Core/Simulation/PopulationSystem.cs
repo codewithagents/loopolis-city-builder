@@ -44,22 +44,9 @@ public class PopulationSystem
         {
             var current = grid.GetPopulation(tile.X, tile.Y);
 
-            // Wave-based development: direct road adjacency always works.
-            // Interior tiles unlock when a same-zone neighbour has sufficient population
-            // (dense buildings whose footprint "reaches" into the block interior).
-            bool canDevelop = tile.HasRoadAccess;
-
-            if (!canDevelop && tile.HasPower)
-            {
-                foreach (var neighbour in grid.AdjacentTiles(tile.X, tile.Y))
-                {
-                    if (neighbour.Zone == tile.Zone && neighbour.Population >= 25)
-                    {
-                        canDevelop = true;
-                        break;
-                    }
-                }
-            }
+            // Building-based development: tile must belong to a building (assigned by BuildingGrowthSystem).
+            // Road-adjacent tiles get initialized as buildings; interior tiles don't develop standalone.
+            bool canDevelop = tile.BuildingId != null;
 
             int newPop;
             if (canDevelop && tile.HasPower)
@@ -97,19 +84,8 @@ public class PopulationSystem
         {
             var current = grid.GetPopulation(tile.X, tile.Y);
 
-            // Same wave rule as residential
-            bool canDevelop = tile.HasRoadAccess;
-            if (!canDevelop && tile.HasPower)
-            {
-                foreach (var neighbour in grid.AdjacentTiles(tile.X, tile.Y))
-                {
-                    if (neighbour.Zone == tile.Zone && neighbour.Population >= 25)
-                    {
-                        canDevelop = true;
-                        break;
-                    }
-                }
-            }
+            // Building-based development: tile must belong to a building (assigned by BuildingGrowthSystem).
+            bool canDevelop = tile.BuildingId != null;
 
             if (tile.HasPower && canDevelop)
             {
@@ -148,19 +124,8 @@ public class PopulationSystem
         {
             var current = grid.GetPopulation(tile.X, tile.Y);
 
-            // Same wave rule as residential
-            bool canDevelop = tile.HasRoadAccess;
-            if (!canDevelop && tile.HasPower)
-            {
-                foreach (var neighbour in grid.AdjacentTiles(tile.X, tile.Y))
-                {
-                    if (neighbour.Zone == tile.Zone && neighbour.Population >= 25)
-                    {
-                        canDevelop = true;
-                        break;
-                    }
-                }
-            }
+            // Building-based development: tile must belong to a building (assigned by BuildingGrowthSystem).
+            bool canDevelop = tile.BuildingId != null;
 
             if (tile.HasPower && canDevelop)
             {

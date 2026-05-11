@@ -325,6 +325,11 @@ static void ProcessCommand(
 
 static void WriteState(string tmpPath, string statePath, SimulationEngine engine, CityGrid grid, bool paused, string sessionId = "")
 {
+    // Build a lookup from buildingId → typeId for tile population
+    var buildingTypeLookup = grid.Buildings.ToDictionary(
+        kvp => kvp.Key,
+        kvp => kvp.Value.TypeId);
+
     var nonEmptyTiles = grid.AllTiles()
         .Where(t => t.Zone != ZoneType.Empty)
         .Select(t => new TileState(
@@ -332,8 +337,14 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
             t.Zone == ZoneType.Residential ? grid.GetPopulation(t.X, t.Y) : 0,
             Math.Round(t.PollutionLevel, 3),
             Math.Round(t.Happiness, 3),
-            t.HasDemandBoost))
+            t.HasDemandBoost,
+            t.BuildingId,
+            t.BuildingId != null ? buildingTypeLookup.GetValueOrDefault(t.BuildingId) : null))
         .ToList();
+
+    var buildings = grid.Buildings.Values
+        .Select(b => new BuildingInfo(b.Id, b.TypeId, b.Zone.ToString(), b.AnchorX, b.AnchorY, b.Width, b.Height))
+        .ToArray();
 
     var residentialCount = grid.TilesOfType(ZoneType.Residential).Count();
     var maxCapacity = residentialCount * 50;
@@ -370,6 +381,7 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         GameState:                 engine.MilestoneSystem.CurrentState.ToString(),
         Milestones:                engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
         Tiles:                     nonEmptyTiles,
+        Buildings:                 buildings,
         NextMilestoneName:         nextMilestoneName,
         NextMilestoneTarget:       nextMilestoneTarget,
         ActiveEventName:           activeEvent?.Name,
@@ -592,6 +604,15 @@ record SimulationReport(
     List<string> MilestonesReached,
     List<TickSnapshot> History);
 
+record BuildingInfo(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("typeId")] string TypeId,
+    [property: JsonPropertyName("zone")] string Zone,
+    [property: JsonPropertyName("x")] int X,
+    [property: JsonPropertyName("y")] int Y,
+    [property: JsonPropertyName("width")] int Width,
+    [property: JsonPropertyName("height")] int Height);
+
 record TileState(
     [property: JsonPropertyName("x")] int X,
     [property: JsonPropertyName("y")] int Y,
@@ -601,7 +622,9 @@ record TileState(
     [property: JsonPropertyName("population")] int Population,
     [property: JsonPropertyName("pollutionLevel")] double PollutionLevel,
     [property: JsonPropertyName("happiness")] double Happiness,
-    [property: JsonPropertyName("hasDemandBoost")] bool HasDemandBoost);
+    [property: JsonPropertyName("hasDemandBoost")] bool HasDemandBoost,
+    [property: JsonPropertyName("buildingId")] string? BuildingId = null,
+    [property: JsonPropertyName("buildingType")] string? BuildingType = null);
 
 record ServerState(
     int Tick,
@@ -619,6 +642,7 @@ record ServerState(
     string GameState,
     List<string> Milestones,
     List<TileState> Tiles,
+    BuildingInfo[]? Buildings = null,
     string? NextMilestoneName = null,
     int NextMilestoneTarget = 0,
     string? ActiveEventName = null,

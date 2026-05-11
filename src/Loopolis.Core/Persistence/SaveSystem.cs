@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Simulation;
 
@@ -6,7 +7,7 @@ namespace Loopolis.Core.Persistence;
 
 public static class SaveSystem
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -19,7 +20,11 @@ public static class SaveSystem
     {
         var tiles = grid.AllTiles()
             .Where(t => t.Zone != ZoneType.Empty)
-            .Select(t => new SavedTile(t.X, t.Y, t.Zone.ToString(), t.Population))
+            .Select(t => new SavedTile(t.X, t.Y, t.Zone.ToString(), t.Population, t.BuildingId))
+            .ToArray();
+
+        var buildings = grid.Buildings.Values
+            .Select(b => new SavedBuilding(b.Id, b.TypeId, b.Zone.ToString(), b.AnchorX, b.AnchorY, b.Width, b.Height))
             .ToArray();
 
         return new SaveGame(
@@ -29,7 +34,8 @@ public static class SaveSystem
             TaxLevel:    taxLevel,
             GameState:   engine.MilestoneSystem.CurrentState.ToString(),
             TerrainSeed: terrainSeed,
-            Tiles:       tiles
+            Tiles:       tiles,
+            Buildings:   buildings
         );
     }
 
@@ -48,6 +54,8 @@ public static class SaveSystem
     /// Restore zone placements and per-tile population into an empty grid.
     /// Call AFTER terrain generation (terrain is generated separately from the seed).
     /// Does NOT set HasPower, HasRoadAccess etc — those are recalculated on first Tick().
+    /// Version 1 saves: buildings will re-initialize from BuildingGrowthSystem on first tick.
+    /// Version 2+ saves: building entities are restored directly.
     /// </summary>
     public static void RestoreGrid(CityGrid grid, SaveGame save)
     {
@@ -64,6 +72,21 @@ public static class SaveSystem
 
             if (t.Population > 0)
                 grid.SetPopulation(t.X, t.Y, t.Population);
+
+            if (t.BuildingId != null)
+                grid.SetBuildingId(t.X, t.Y, t.BuildingId);
+        }
+
+        // Restore building entities (version 2+). Version 1 saves have null Buildings
+        // — BuildingGrowthSystem will re-create them on the first tick.
+        if (save.Buildings != null)
+        {
+            foreach (var b in save.Buildings)
+            {
+                if (!Enum.TryParse<ZoneType>(b.Zone, out var zone)) continue;
+                var building = new Building(b.Id, b.TypeId, zone, b.AnchorX, b.AnchorY, b.Width, b.Height);
+                grid.Buildings[b.Id] = building;
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 
 namespace LoopolisGodot;
@@ -195,6 +196,35 @@ public partial class TilemapRenderer : Node2D
             {
                 var rect = new Rect2(cx * TileSize, cy * TileSize, TileSize - 1, TileSize - 1);
                 DrawRect(rect, overlayColor);
+            }
+        }
+
+        // Multi-tile building outlines: draw a bright border around footprints larger than 1x1
+        if (_grid != null)
+        {
+            foreach (var building in _grid.Buildings.Values)
+            {
+                if (building.TileCount <= 1) continue; // skip 1x1 buildings
+
+                var borderColor = building.Zone switch
+                {
+                    ZoneType.Residential => new Color(0.0f, 1.0f, 0.3f, 0.85f),   // bright green
+                    ZoneType.Commercial  => new Color(0.3f, 0.7f, 1.0f, 0.85f),   // bright blue
+                    ZoneType.Industrial  => new Color(1.0f, 0.9f, 0.0f, 0.85f),   // bright yellow
+                    _                    => new Color(1.0f, 1.0f, 1.0f, 0.85f),
+                };
+
+                const int outlineW = 3;
+                float bx = building.AnchorX * TileSize;
+                float by = building.AnchorY * TileSize;
+                float bw = building.Width  * TileSize;
+                float bh = building.Height * TileSize;
+
+                // Draw four border edges (top, bottom, left, right)
+                DrawRect(new Rect2(bx,                by,                bw, outlineW), borderColor);      // top
+                DrawRect(new Rect2(bx,                by + bh - outlineW, bw, outlineW), borderColor);     // bottom
+                DrawRect(new Rect2(bx,                by,                outlineW, bh), borderColor);      // left
+                DrawRect(new Rect2(bx + bw - outlineW, by,                outlineW, bh), borderColor);    // right
             }
         }
     }
