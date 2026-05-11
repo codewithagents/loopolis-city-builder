@@ -203,4 +203,50 @@ public class PopulationSystemTests
         Assert.That(grid.GetPopulation(6, 5), Is.EqualTo(0),
             "Interior tile should not develop when neighbour population is below 25");
     }
+
+    [Test]
+    public void Commercial_GrowsWhenAdjacentToResidents()
+    {
+        // Arrange: commercial tile powered + road-adjacent, residential neighbour with pop 30
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Commercial);
+        grid.SetZone(5, 6, ZoneType.Road);
+        grid.SetZone(5, 4, ZoneType.Residential);
+        grid.SetPower(5, 5, true);
+        grid.SetPower(5, 4, true);
+        grid.SetRoadAccess(5, 5, true);
+        grid.SetPopulation(5, 4, 30); // residential neighbours present
+
+        _pop.Tick(grid);
+
+        Assert.That(grid.GetTile(5, 5).Population, Is.GreaterThan(0));
+    }
+
+    [Test]
+    public void Industrial_GrowsWithPowerAndRoad()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Industrial);
+        grid.SetZone(5, 6, ZoneType.Road);
+        grid.SetPower(5, 5, true);
+        grid.SetRoadAccess(5, 5, true);
+
+        _pop.Tick(grid);
+
+        Assert.That(grid.GetTile(5, 5).Population, Is.GreaterThan(0));
+    }
+
+    [Test]
+    public void Commercial_DoesNotCountTowardTotalPopulation()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Commercial);
+        grid.SetPopulation(5, 5, 30);
+
+        // Tick without any residential zones — Population should stay 0
+        _pop.Tick(grid);
+
+        Assert.That(_pop.Population, Is.EqualTo(0),
+            "Commercial activity should not inflate the residential population count");
+    }
 }

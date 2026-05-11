@@ -8,18 +8,33 @@ public class PopulationSystem
     private const double GrowthRate    = 0.05;
     private const double DeclineRate   = 0.10; // faster than growth — losing services hurts
 
-    /// <summary>Total population: sum of all residential tile populations.</summary>
+    // Commercial constants
+    private const int ActivityCapacity            = 50;
+    private const double CommercialBaseGrowthRate  = 0.04;
+    private const double CommercialMinGrowthRate   = 0.005;
+    private const double CommercialMaxGrowthRate   = 0.06;
+    private const double CommercialDeclineRate     = 0.02;
+    private const double CommercialDeclineThreshold = 5.0;
+
+    // Industrial constants
+    private const double IndustrialGrowthRate  = 0.025;
+    private const double IndustrialDeclineRate = 0.05;
+
+    /// <summary>Total population: sum of all residential tile populations only.
+    /// Commercial and Industrial activity is intentionally excluded so that
+    /// milestones and HUD counts remain residential-only.</summary>
     public int Population { get; private set; }
 
     /// <summary>
     /// Grows or declines population per residential tile each tick.
+    /// Also grows Commercial activity (demand-driven) and Industrial activity (steady).
     ///
     /// Growth:  only for tiles that are ready (powered + road access), toward capacity 50.
     ///          Demand boost (DemandFactor) and happiness both act as growth multipliers.
     /// Decline: only for tiles that are no longer ready but have population > 0,
     ///          population decays at DeclineRate per tick toward 0.
     ///
-    /// Total Population = sum of all tile populations.
+    /// Total Population = sum of residential tile populations only.
     /// </summary>
     public void Tick(CityGrid grid)
     {
@@ -72,6 +87,95 @@ public class PopulationSystem
         }
 
         Population = totalPopulation;
+
+        // --- Commercial activity growth ---
+        foreach (var tile in grid.TilesOfType(ZoneType.Commercial))
+        {
+            var current = grid.GetPopulation(tile.X, tile.Y);
+
+            // Same wave rule as residential
+            bool canDevelop = tile.HasRoadAccess;
+            if (!canDevelop && tile.HasPower)
+            {
+                foreach (var neighbour in grid.AdjacentTiles(tile.X, tile.Y))
+                {
+                    if (neighbour.Zone == tile.Zone && neighbour.Population >= 25)
+                    {
+                        canDevelop = true;
+                        break;
+                    }
+                }
+            }
+
+            if (tile.HasPower && canDevelop)
+            {
+                // Sum population of adjacent residential tiles
+                double adjacentResidential = 0;
+                foreach (var n in grid.AdjacentTiles(tile.X, tile.Y))
+                    if (n.Zone == ZoneType.Residential)
+                        adjacentResidential += n.Population;
+
+                // Grow faster when more residential nearby, capped at ActivityCapacity
+                double commercialGrowthRate = CommercialBaseGrowthRate * (adjacentResidential / 100.0);
+                commercialGrowthRate = Math.Clamp(commercialGrowthRate, CommercialMinGrowthRate, CommercialMaxGrowthRate);
+                var rawGrowth = commercialGrowthRate * (ActivityCapacity - current);
+                // Guarantee at least 1 unit of progress when there is room to grow
+                var growth = current < ActivityCapacity ? Math.Max(1, (int)rawGrowth) : 0;
+                var newPop = Math.Min(ActivityCapacity, current + growth);
+
+                // Slow decline when no residents nearby
+                if (adjacentResidential < CommercialDeclineThreshold && current > 0)
+                    newPop = Math.Max(0, (int)(current - CommercialDeclineRate * current));
+
+                if (newPop != current)
+                    grid.SetPopulation(tile.X, tile.Y, newPop);
+            }
+            else if (current > 0)
+            {
+                // Lost power or road access — activity declines
+                var newPop = Math.Max(0, (int)(current - CommercialDeclineRate * current));
+                if (newPop != current)
+                    grid.SetPopulation(tile.X, tile.Y, newPop);
+            }
+        }
+
+        // --- Industrial activity growth ---
+        foreach (var tile in grid.TilesOfType(ZoneType.Industrial))
+        {
+            var current = grid.GetPopulation(tile.X, tile.Y);
+
+            // Same wave rule as residential
+            bool canDevelop = tile.HasRoadAccess;
+            if (!canDevelop && tile.HasPower)
+            {
+                foreach (var neighbour in grid.AdjacentTiles(tile.X, tile.Y))
+                {
+                    if (neighbour.Zone == tile.Zone && neighbour.Population >= 25)
+                    {
+                        canDevelop = true;
+                        break;
+                    }
+                }
+            }
+
+            if (tile.HasPower && canDevelop)
+            {
+                // Fixed slow growth regardless of neighbours
+                var rawGrowth = IndustrialGrowthRate * (ActivityCapacity - current);
+                // Guarantee at least 1 unit of progress when there is room to grow
+                var growth = current < ActivityCapacity ? Math.Max(1, (int)rawGrowth) : 0;
+                var newPop = Math.Min(ActivityCapacity, current + growth);
+                if (newPop != current)
+                    grid.SetPopulation(tile.X, tile.Y, newPop);
+            }
+            else if (current > 0)
+            {
+                // Lost power or road — activity declines
+                var newPop = Math.Max(0, (int)(current - IndustrialDeclineRate * current));
+                if (newPop != current)
+                    grid.SetPopulation(tile.X, tile.Y, newPop);
+            }
+        }
     }
 
     public void SetPopulation(int population) =>
