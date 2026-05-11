@@ -24,6 +24,7 @@ public record Tile(int X, int Y)
     public double PollutionLevel { get; init; } = 0.0;
     public double Happiness { get; init; } = 1.0;
     public int Population { get; init; } = 0;
+    public TerrainType Terrain { get; init; } = TerrainType.Flat;
 
     /// <summary>True when a commercial zone is adjacent and grants a demand boost to this residential tile.</summary>
     public bool HasDemandBoost => Zone == ZoneType.Residential && DemandFactor > 1.0;
@@ -43,6 +44,7 @@ public record Tile(int X, int Y)
 public class CityGrid
 {
     private readonly Tile[,] _tiles;
+    private readonly TerrainType[,] _terrain;
 
     public int Width { get; }
     public int Height { get; }
@@ -52,21 +54,39 @@ public class CityGrid
         Width = width;
         Height = height;
         _tiles = new Tile[width, height];
+        _terrain = new TerrainType[width, height];
 
         for (var x = 0; x < width; x++)
         for (var y = 0; y < height; y++)
+        {
+            _terrain[x, y] = TerrainType.Flat;
             _tiles[x, y] = new Tile(x, y);
+        }
     }
 
     public Tile GetTile(int x, int y)
     {
         AssertInBounds(x, y);
-        return _tiles[x, y];
+        return _tiles[x, y] with { Terrain = _terrain[x, y] };
+    }
+
+    public TerrainType GetTerrain(int x, int y)
+    {
+        if (!IsInBounds(x, y)) return TerrainType.Flat;
+        return _terrain[x, y];
+    }
+
+    public void SetTerrain(int x, int y, TerrainType terrain)
+    {
+        if (!IsInBounds(x, y)) return;
+        _terrain[x, y] = terrain;
     }
 
     public void SetZone(int x, int y, ZoneType zone)
     {
         AssertInBounds(x, y);
+        if (GetTerrain(x, y) == TerrainType.Water)
+            return; // cannot build on water
         _tiles[x, y] = _tiles[x, y] with { Zone = zone };
     }
 
@@ -161,7 +181,7 @@ public class CityGrid
     {
         for (var x = 0; x < Width; x++)
         for (var y = 0; y < Height; y++)
-            yield return _tiles[x, y];
+            yield return _tiles[x, y] with { Terrain = _terrain[x, y] };
     }
 
     public IEnumerable<Tile> TilesOfType(ZoneType zone) =>
@@ -177,7 +197,7 @@ public class CityGrid
             var nx = x + dx[i];
             var ny = y + dy[i];
             if (IsInBounds(nx, ny))
-                yield return _tiles[nx, ny];
+                yield return _tiles[nx, ny] with { Terrain = _terrain[nx, ny] };
         }
     }
 

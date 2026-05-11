@@ -42,7 +42,27 @@ public class BudgetSystem
             { "Erase",          0.0 },
         };
 
+    /// <summary>Extra maintenance cost per tick per tile on a hill.</summary>
+    /// <remarks>TODO: Apply per-tile hill maintenance in SimulationEngine or BudgetSystem tick.</remarks>
+    public const double HillMaintenanceSurcharge = 0.25;
+
     private const double CommercialIncomePerReadyTile = 3.0;
+
+    /// <summary>
+    /// Returns the total placement cost for a zone, including any terrain surcharge.
+    /// Forest adds $75 (clearing cost), Hill adds $50. Water is unbuildable and returns the base cost only.
+    /// </summary>
+    public static double GetPlacementCost(string zoneName, TerrainType terrain)
+    {
+        var baseCost = PlacementCosts.TryGetValue(zoneName, out var c) ? c : 0.0;
+        var terrainSurcharge = terrain switch
+        {
+            TerrainType.Forest => 75.0,
+            TerrainType.Hill   => 50.0,
+            _                  => 0.0,
+        };
+        return baseCost + terrainSurcharge;
+    }
 
     public double Balance { get; private set; }
     public double TaxRate { get; private set; } = 0.12;
