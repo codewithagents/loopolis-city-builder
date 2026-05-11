@@ -54,6 +54,10 @@ public partial class World : Node2D
     private int _lastCoverageHoverX = -1;
     private int _lastCoverageHoverY = -1;
 
+    // Drag-to-place (paint mode) state
+    private bool _isPlacing = false;
+    private Vector2I _lastPlacedTile = new(-1, -1);
+
     public override void _Ready()
     {
         _renderer      = GetNode<TilemapRenderer>("TilemapRenderer");
@@ -254,11 +258,29 @@ public partial class World : Node2D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton mb)
+        if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
         {
-            if (mb.ButtonIndex == MouseButton.Left && mb.Pressed)
+            if (mb.Pressed)
             {
-                HandlePlaceTile();
+                _isPlacing = true;
+                var tilePos = GetTileUnderMouse();
+                HandlePlaceTile(tilePos);
+                _lastPlacedTile = tilePos;
+            }
+            else
+            {
+                _isPlacing = false;
+                _lastPlacedTile = new(-1, -1);
+            }
+        }
+
+        if (@event is InputEventMouseMotion && _isPlacing)
+        {
+            var tilePos = GetTileUnderMouse();
+            if (tilePos != _lastPlacedTile)
+            {
+                HandlePlaceTile(tilePos);
+                _lastPlacedTile = tilePos;
             }
         }
 
@@ -353,14 +375,22 @@ public partial class World : Node2D
         }
     }
 
-    // ── Click-to-place ─────────────────────────────────────────────────────
+    // ── Click/drag-to-place ────────────────────────────────────────────────
 
-    private void HandlePlaceTile()
+    /// <summary>Returns the tile coordinate currently under the mouse cursor.</summary>
+    private Vector2I GetTileUnderMouse()
     {
-        // Get mouse position in TilemapRenderer local coordinates
         var localPos = _renderer.GetLocalMousePosition();
-        var tileX = (int)(localPos.X / TilemapRenderer.TileSize);
-        var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
+        return new Vector2I(
+            (int)(localPos.X / TilemapRenderer.TileSize),
+            (int)(localPos.Y / TilemapRenderer.TileSize)
+        );
+    }
+
+    private void HandlePlaceTile(Vector2I tilePos)
+    {
+        var tileX = tilePos.X;
+        var tileY = tilePos.Y;
 
         if (tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32) return;
 
@@ -368,6 +398,13 @@ public partial class World : Node2D
 
         if (_viewerMode)
         {
+            // Tile protection: skip if the tile is occupied and we are not erasing
+            if (selectedZone != "Erase" && _reader?.LastGrid is { } checkGrid)
+            {
+                if (checkGrid.GetTile(tileX, tileY).Zone != ZoneType.Empty)
+                    return;
+            }
+
             // Optimistic rendering: update visuals immediately, server confirms on next tick
             if (_reader?.LastGrid is { } optimisticGrid)
             {
@@ -387,6 +424,13 @@ public partial class World : Node2D
         }
         else
         {
+            // Tile protection: skip if the tile is occupied and we are not erasing
+            if (selectedZone != "Erase")
+            {
+                if (_grid.GetTile(tileX, tileY).Zone != ZoneType.Empty)
+                    return;
+            }
+
             if (selectedZone == "Erase")
             {
                 _grid.SetZone(tileX, tileY, ZoneType.Empty);
