@@ -21,6 +21,7 @@ public partial class World : Node2D
     private Toolbar _toolbar = null!;
     private TileTooltip _tooltip = null!;
     private GameOverPanel _gameOverPanel = null!;
+    private EventLog _eventLog = null!;
     private bool _viewerMode = false;
     private string _sharedDir = "";
     private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
@@ -32,6 +33,14 @@ public partial class World : Node2D
     private BudgetSystem? _budget;
     private PopulationSystem? _population;
     private string _taxLevel = "normal";
+
+    // Event log tracking fields
+    private int _lastLoggedPop = 0;
+    private bool _wasNegative = false;
+    private bool _warnedLowBalance = false;
+    private bool _loggedCapacity = false;
+    private string? _lastLoggedMilestone;
+    private string? _lastLoggedBanner;
 
     // Server process tracking (static — survives scene changes)
     private static long _serverPid = -1;
@@ -66,6 +75,7 @@ public partial class World : Node2D
         _toolbar       = GetNode<Toolbar>("Toolbar");
         _tooltip       = GetNode<TileTooltip>("TileTooltip");
         _gameOverPanel = GetNode<GameOverPanel>("GameOverPanel");
+        _eventLog      = GetNode<EventLog>("EventLog");
 
         // Wire toolbar signals
         _toolbar.ZoneSelected       += OnZoneSelected;
@@ -448,11 +458,14 @@ public partial class World : Node2D
                 {
                     _budget?.Charge(placementCost);
                     _grid.SetZone(tileX, tileY, zoneType);
+                    Log($"[T:{_standaloneTick}] Placed {selectedZone} at ({tileX},{tileY})");
                 }
             }
             _renderer.Refresh(_grid);
         }
     }
+
+    private void Log(string text) => _eventLog.AddEntry(text);
 
     private void WriteCommand(string json)
     {
@@ -534,5 +547,57 @@ public partial class World : Node2D
         );
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);
+        UpdateEventLog(state, milestone);
+    }
+
+    private void UpdateEventLog(SharedState state, string? milestone)
+    {
+        var tick = _standaloneTick;
+        var pop = (int)state.Population;
+
+        // Population milestone every 50
+        if (pop > 0 && pop / 50 > _lastLoggedPop / 50)
+        {
+            Log($"[T:{tick}] Population reached {(pop / 50) * 50}");
+            _lastLoggedPop = pop;
+        }
+
+        // Milestone reached (e.g. Town, City, Metropolis)
+        if (!string.IsNullOrEmpty(milestone) && milestone != _lastLoggedMilestone)
+        {
+            _lastLoggedMilestone = milestone;
+            Log($"[T:{tick}] 🏆 {milestone}");
+        }
+
+        // City events (event banner)
+        if (!string.IsNullOrEmpty(state.LatestEventBanner) && state.LatestEventBanner != _lastLoggedBanner)
+        {
+            _lastLoggedBanner = state.LatestEventBanner;
+            Log($"[T:{tick}] {state.LatestEventBanner}");
+        }
+
+        // Net income turning negative
+        if (state.NetPerTick < -1.0 && !_wasNegative)
+        {
+            Log($"[T:{tick}] ⚠ Spending more than earning");
+            _wasNegative = true;
+        }
+        if (state.NetPerTick >= 0) _wasNegative = false;
+
+        // Low balance warning
+        if (state.Balance < 500 && state.Balance > 0 && !_warnedLowBalance)
+        {
+            Log($"[T:{tick}] ⚠ Low funds — ${state.Balance:N0} remaining");
+            _warnedLowBalance = true;
+        }
+        if (state.Balance > 1000) _warnedLowBalance = false;
+
+        // At capacity
+        if (state.MaxCapacity > 0 && state.Population >= state.MaxCapacity - 5 && !_loggedCapacity)
+        {
+            Log($"[T:{tick}] ⚡ At capacity — build more residential zones");
+            _loggedCapacity = true;
+        }
+        if (state.Population < state.MaxCapacity - 10) _loggedCapacity = false;
     }
 }

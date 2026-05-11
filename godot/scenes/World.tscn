@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://b3yamwhmhh5rf"]
+[gd_scene load_steps=10 format=3 uid="uid://b3yamwhmhh5rf"]
 
 [ext_resource type="Script" uid="uid://klphfmi3ljlk" path="res://scripts/World.cs" id="1_world"]
 [ext_resource type="Script" uid="uid://bwhmvgak6j8gl" path="res://scripts/TilemapRenderer.cs" id="2_renderer"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://cbhfjil15it47" path="res://scripts/UI/TileTooltip.cs" id="6_tooltip"]
 [ext_resource type="Script" uid="uid://bihd3muse4lml" path="res://scripts/UI/GameOverPanel.cs" id="7_gameover"]
 [ext_resource type="Script" uid="uid://dtyfrqsgnq2bi" path="res://scripts/UI/HintOverlay.cs" id="8_hint"]
+[ext_resource type="Script" path="res://scripts/UI/EventLog.cs" id="9_eventlog"]
 
 [node name="World" type="Node2D"]
 script = ExtResource("1_world")
@@ -37,3 +38,6 @@ script = ExtResource("7_gameover")
 [node name="HintOverlay" type="CanvasLayer" parent="."]
 layer = 8
 script = ExtResource("8_hint")
+
+[node name="EventLog" type="CanvasLayer" parent="."]
+script = ExtResource("9_eventlog")
