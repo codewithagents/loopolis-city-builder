@@ -41,7 +41,8 @@ public partial class SharedStateReader : Node
         try
         {
             var json = File.ReadAllText(_statePath);
-            var state = JsonSerializer.Deserialize<SharedState>(json);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var state = JsonSerializer.Deserialize<SharedState>(json, options);
             if (state == null || state.Tick == _lastTick) return;
 
             _lastTick = state.Tick;
@@ -78,6 +79,8 @@ public record SharedState(
     double TaxPerTick,
     double MaintenancePerTick,
     double NetPerTick,
+    double Happiness,
+    string? MilestoneReached,
     SharedTile[] Tiles
 );
 

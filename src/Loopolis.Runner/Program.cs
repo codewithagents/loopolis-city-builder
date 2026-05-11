@@ -114,7 +114,8 @@ static void RunServer(string scenario, double initialSpeed)
     while (true)
     {
         // 1. Read command
-        ProcessCommand(cmdPath, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, grid, engine);
+        ProcessCommand(cmdPath, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, ref grid, ref engine);
+        // grid/engine may have been replaced by new_game — use current references below
 
         // 2. Tick (or skip, or wait)
         if (skipRemaining > 0)
@@ -162,8 +163,8 @@ static void ProcessCommand(
     ref double speed,
     ref int skipRemaining,
     ref bool pauseAfterSkip,
-    CityGrid grid,
-    SimulationEngine engine)
+    ref CityGrid grid,
+    ref SimulationEngine engine)
 {
     string json;
     try
@@ -219,6 +220,31 @@ static void ProcessCommand(
                 }
                 break;
 
+            case "erase":
+                if (root.TryGetProperty("x", out var exProp) &&
+                    root.TryGetProperty("y", out var eyProp))
+                {
+                    var x = exProp.GetInt32();
+                    var y = eyProp.GetInt32();
+                    grid.SetZone(x, y, ZoneType.Empty);
+                    Console.WriteLine($"[erase] ({x},{y}) => Empty");
+                }
+                break;
+
+            case "new_game":
+            {
+                var newGrid   = new CityGrid(32, 32);
+                var newBudget = new BudgetSystem(initialBalance: 5_000);
+                var newPop    = new PopulationSystem();
+                var newPower  = new PowerNetwork();
+                var newRoads  = new RoadNetwork();
+                var newDemand = new DemandSystem();
+                grid   = newGrid;
+                engine = new SimulationEngine(newGrid, newBudget, newPop, newPower, newRoads, newDemand);
+                Console.WriteLine("[new_game] Reset to empty 32x32 grid, $5000 starting balance.");
+                break;
+            }
+
             case "set_speed":
                 if (root.TryGetProperty("ticksPerSecond", out var tpsProp))
                 {
@@ -262,6 +288,7 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         MaintenancePerTick: Math.Round(engine.Budget.LastMaintenanceCost, 2),
         NetPerTick:         Math.Round(engine.Budget.NetIncomePerTick, 2),
         Happiness:          Math.Round(engine.HappinessSystem.AverageHappiness(grid), 3),
+        MilestoneReached:   milestone?.Name,
         Pollution:          Math.Round(engine.PollutionSystem.AveragePollution(grid), 3),
         GameState:          engine.MilestoneSystem.CurrentState.ToString(),
         Milestones:         engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
@@ -495,6 +522,7 @@ record ServerState(
     double MaintenancePerTick,
     double NetPerTick,
     double Happiness,
+    [property: JsonPropertyName("milestoneReached")] string? MilestoneReached,
     double Pollution,
     string GameState,
     List<string> Milestones,
