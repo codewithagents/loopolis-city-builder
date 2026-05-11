@@ -27,6 +27,8 @@ src/Loopolis.Core/
     PopulationSystem.cs  — growth toward capacity, decline on service loss
     PowerNetwork.cs      — BFS flood-fill from power plants
     RoadNetwork.cs       — adjacency-based road access for zones
+    DemandSystem.cs      — R/C/I demand: commercial adjacency boosts residential growth
+    SimulationEngine.cs  — orchestrates all systems per tick
 
 tests/Loopolis.Core.Tests/
   Grid/
@@ -36,9 +38,11 @@ tests/Loopolis.Core.Tests/
     PopulationSystemTests.cs
     PowerNetworkTests.cs
     RoadNetworkTests.cs
+    DemandSystemTests.cs
+    SimulationEngineTests.cs
 
 src/Loopolis.Runner/
-  Program.cs             — headless CLI: dotnet run -- <ticks> <scenario> [--ascii]
+  Program.cs             — CLI mode (N ticks + JSON report) + Server mode (continuous, file-based)
 ```
 
 ## Mandatory Workflow
@@ -92,12 +96,14 @@ public class SomeSystem
 }
 ```
 
-Systems don't call each other — the orchestrator (SimulationEngine / Runner) calls them in order:
+Systems don't call each other — the orchestrator (SimulationEngine) calls them in order:
 1. PowerNetwork.Propagate(grid)
 2. RoadNetwork.Propagate(grid)
-3. PopulationSystem.Tick(grid)
-4. BudgetSystem.CollectTaxes()
-5. BudgetSystem.DeductMaintenance(grid)
+3. DemandSystem.Propagate(grid)
+4. PopulationSystem.Tick(grid)
+5. BudgetSystem.SetPopulation() + CollectTaxes() + DeductMaintenance()
+
+`SimulationEngine` encapsulates this tick order. Runner calls `engine.Tick()`.
 
 ## Test Patterns
 
@@ -140,3 +146,64 @@ Test names follow: `Condition_ExpectedBehavior` (e.g., `NoRoads_ZonesHaveNoAcces
 | Budget | Road maintenance | $1/tick | BudgetSystem.cs |
 | Budget | Zone maintenance | $0.5/tick | BudgetSystem.cs |
 | Budget | PowerLine maintenance | $0.5/tick | BudgetSystem.cs |
+| DemandSystem | DemandBoost (residential adj to commercial) | 1.5x | DemandSystem.cs |
+
+## Server Mode
+
+Launch the simulation as a persistent server with file-based IPC:
+
+```bash
+export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
+dotnet run --project src/Loopolis.Runner -- server default
+dotnet run --project src/Loopolis.Runner -- server default --speed 2   # ticks per second (default: 2)
+```
+
+`FindSolutionRoot()` walks up from `AppContext.BaseDirectory` looking for a `.slnx` file — this makes the runner work from any working directory.
+
+### Command File (`godot/shared/command.json`)
+
+Write a command JSON file — Runner reads it and deletes it atomically after processing:
+
+```json
+{"cmd":"pause"}
+{"cmd":"resume"}
+{"cmd":"place_zone","x":10,"y":14,"zone":"Road"}
+{"cmd":"set_speed","ticksPerSecond":1}
+{"cmd":"skip","ticks":500}
+{"cmd":"skip","ticks":500,"pauseAfter":true}
+```
+
+**Skip behaviour:** The runner enters a tight loop (no delays, no state writes), processes N ticks as fast as possible, writes one final state.json on completion, then pauses if `pauseAfter:true`.
+
+### State File (`godot/shared/state.json`)
+
+Written after each non-skip tick via atomic rename (`state.tmp.json` → `File.Move(overwrite:true)`):
+
+```json
+{
+  "tick": 42,
+  "paused": false,
+  "population": 850,
+  "balance": 12340,
+  "taxPerTick": 76.5,
+  "maintenancePerTick": 30.5,
+  "netPerTick": 46.0,
+  "tiles": [
+    {"x": 5, "y": 3, "zone": "Residential", "hasPower": true, "hasRoad": true},
+    ...
+  ]
+}
+```
+
+- **camelCase keys** — `System.Text.Json` default serialization
+- **Non-empty tiles only** — `tiles[]` omits empty/unzoned cells for compactness
+- **Atomic writes** — readers should wrap file reads in try/catch (file may be mid-write); retry next poll
+
+### JSON Case Sensitivity Gotcha
+
+Runner writes camelCase JSON. C# records on the Godot side use PascalCase. Fix on the reader side:
+
+```csharp
+JsonSerializer.Deserialize<SharedState>(json,
+    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+```
