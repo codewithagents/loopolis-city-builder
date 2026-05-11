@@ -48,7 +48,9 @@ for (var tick = 0; tick < ticks; tick++)
             IsInDeficit: budget.IsInDeficit,
             TaxIncome: Math.Round(budget.CalculateTaxIncome(), 2),
             MaintenanceCost: Math.Round(budget.LastMaintenanceCost, 2),
-            NetPerTick: Math.Round(budget.NetIncomePerTick, 2)
+            NetPerTick: Math.Round(budget.NetIncomePerTick, 2),
+            AverageHappiness: Math.Round(cliEngine.HappinessSystem.AverageHappiness(cliGrid), 3),
+            AveragePollution: Math.Round(cliEngine.PollutionSystem.AveragePollution(cliGrid), 3)
         ));
     }
 }
@@ -78,6 +80,10 @@ else
         PoweredTiles: powerNetwork.PoweredTileCount,
         CommercialZones: cliGrid.TilesOfType(ZoneType.Commercial).Count(),
         IndustrialZones: cliGrid.TilesOfType(ZoneType.Industrial).Count(),
+        AveragePollution: Math.Round(cliEngine.PollutionSystem.AveragePollution(cliGrid), 3),
+        AverageHappiness: Math.Round(cliEngine.HappinessSystem.AverageHappiness(cliGrid), 3),
+        GameState: cliEngine.MilestoneSystem.CurrentState.ToString(),
+        MilestonesReached: cliEngine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
         History: tickHistory
     );
     Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
@@ -132,8 +138,13 @@ static void RunServer(string scenario, double initialSpeed)
         {
             engine.Tick();
             WriteState(tmpPath, statePath, engine, grid, paused);
+            var milestone = engine.MilestoneSystem.LatestMilestone;
+            var milestoneTag = milestone != null ? $" [{milestone.Name} {milestone.Emoji}]" : "";
             Console.WriteLine(
-                $"[tick {engine.TickCount}] pop={engine.Population.Population} balance=${engine.Budget.Balance:N2}");
+                $"[tick {engine.TickCount,4}] pop={engine.Population.Population} " +
+                $"happiness={engine.HappinessSystem.AverageHappiness(grid):F2} " +
+                $"pollution={engine.PollutionSystem.AveragePollution(grid):F2} " +
+                $"balance=${engine.Budget.Balance:N0} net=${engine.Budget.NetIncomePerTick:+0.#;-0.#}{milestoneTag}");
             var sleepMs = (int)(1000.0 / speed);
             Thread.Sleep(sleepMs);
         }
@@ -237,9 +248,11 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
 {
     var nonEmptyTiles = grid.AllTiles()
         .Where(t => t.Zone != ZoneType.Empty)
-        .Select(t => new TileState(t.X, t.Y, t.Zone.ToString(), t.HasPower, t.HasRoadAccess))
+        .Select(t => new TileState(t.X, t.Y, t.Zone.ToString(), t.HasPower, t.HasRoadAccess,
+            Math.Round(t.PollutionLevel, 3), Math.Round(t.Happiness, 3)))
         .ToList();
 
+    var milestone = engine.MilestoneSystem.LatestMilestone;
     var state = new ServerState(
         Tick:               engine.TickCount,
         Paused:             paused,
@@ -248,6 +261,10 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         TaxPerTick:         Math.Round(engine.Budget.CalculateTaxIncome(), 2),
         MaintenancePerTick: Math.Round(engine.Budget.LastMaintenanceCost, 2),
         NetPerTick:         Math.Round(engine.Budget.NetIncomePerTick, 2),
+        Happiness:          Math.Round(engine.HappinessSystem.AverageHappiness(grid), 3),
+        Pollution:          Math.Round(engine.PollutionSystem.AveragePollution(grid), 3),
+        GameState:          engine.MilestoneSystem.CurrentState.ToString(),
+        Milestones:         engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
         Tiles:              nonEmptyTiles
     );
 
@@ -325,6 +342,92 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
                 grid.SetZone(x, y, ZoneType.Industrial);
             break;
 
+        case "mixed":
+            // Residential mixed with industrial nearby — tests pollution penalty on growth.
+            //
+            // Layout (32x32 grid):
+            //   Power plant at (5,5), power line runs east to vertical road at x=15
+            //   Main road: vertical at x=15 (y=3..28), horizontal at y=15 (x=5..28)
+            //   Industrial block: south section (x=16..24, y=17..24) — near the road
+            //   Residential north: safe distance from industrial (y=5..13)
+            //   Residential polluted: immediately adjacent to industrial block (x=16..18, y=16 — one row away)
+            //
+            // Expected: northern R zones grow at base happiness; southern R zones near industrial
+            //           suffer heavy pollution penalty → much slower growth
+
+            // Power
+            grid.SetZone(5, 5, ZoneType.PowerPlant);
+            for (var x = 6; x <= 15; x++) grid.SetZone(x, 5, ZoneType.PowerLine);
+
+            // Roads: vertical at x=15, horizontal at y=15
+            for (var y = 3; y <= 28; y++) grid.SetZone(15, y, ZoneType.Road);
+            for (var x = 5; x <= 28; x++) grid.SetZone(x, 15, ZoneType.Road);
+
+            // Industrial block: south-east (y=17..24)
+            for (var x = 16; x <= 24; x++)
+            for (var y = 17; y <= 24; y++)
+                grid.SetZone(x, y, ZoneType.Industrial);
+
+            // Residential north (safe from pollution — ~8+ tiles from nearest industrial)
+            for (var x = 6; x <= 14; x++)
+            for (var y = 6; y <= 13; y++)
+                if (grid.GetTile(x, y).Zone == ZoneType.Empty)
+                    grid.SetZone(x, y, ZoneType.Residential);
+
+            // Polluted residential: just north of industrial, touching the road at y=15 (y=16 but road is there)
+            // Place them at y=14 (one tile north of road), adjacent to industrial via road gap
+            // Actually: industrial starts at y=17, so at y=16 is still fine; road is at y=15
+            // R at y=14 is 3 tiles from industrial (y=17), which is right at the pollution radius edge
+            // For stronger effect, place some R adjacent to x=15 road at y=16 (just below road)
+            for (var x = 16; x <= 18; x++)
+                grid.SetZone(x, 16, ZoneType.Residential); // just 1 tile from industrial at y=17
+
+            break;
+
+        case "services":
+            // City with school and fire station — tests service coverage happiness bonus.
+            //
+            // Layout:
+            //   Power plant, roads forming a grid
+            //   Residential blocks — some covered by services, some not
+            //   One school covering the north block
+            //   One fire station covering the east block
+            //
+            // Expected: covered zones reach happiness ~0.75+, uncovered zones stay at 0.6
+
+            // Power
+            grid.SetZone(5, 5, ZoneType.PowerPlant);
+            for (var x = 6; x <= 20; x++) grid.SetZone(x, 5, ZoneType.PowerLine);
+
+            // Roads: horizontal at y=10 and y=20, vertical at x=10 and x=20
+            for (var x = 5; x <= 26; x++) grid.SetZone(x, 10, ZoneType.Road);
+            for (var x = 5; x <= 26; x++) grid.SetZone(x, 20, ZoneType.Road);
+            for (var y = 10; y <= 20; y++) grid.SetZone(10, y, ZoneType.Road);
+            for (var y = 10; y <= 20; y++) grid.SetZone(20, y, ZoneType.Road);
+
+            // Residential: north block (y=6..9), south block (y=21..24)
+            for (var x = 11; x <= 19; x++)
+            for (var y = 6; y <= 9; y++)
+                if (grid.GetTile(x, y).Zone == ZoneType.Empty)
+                    grid.SetZone(x, y, ZoneType.Residential);
+
+            for (var x = 11; x <= 19; x++)
+            for (var y = 21; y <= 24; y++)
+                if (grid.GetTile(x, y).Zone == ZoneType.Empty)
+                    grid.SetZone(x, y, ZoneType.Residential);
+
+            // School: covers north block (Manhattan radius 5 from center of north block ~(15,7))
+            grid.SetZone(15, 12, ZoneType.School); // within 5 of all north residential
+
+            // Fire station: covers south block
+            grid.SetZone(15, 18, ZoneType.FireStation); // within 4 of south residential at y=21
+
+            // Commercial strip on the east road
+            for (var y = 11; y <= 19; y++)
+                grid.SetZone(21, y, ZoneType.Commercial);
+
+            break;
+
         default:
             // Wired starter city: plant → road → zones (all connected)
             grid.SetZone(10, 10, ZoneType.PowerPlant);
@@ -351,7 +454,9 @@ record TickSnapshot(
     bool IsInDeficit,
     double TaxIncome,
     double MaintenanceCost,
-    double NetPerTick);
+    double NetPerTick,
+    double AverageHappiness,
+    double AveragePollution);
 
 record SimulationReport(
     string Scenario,
@@ -366,6 +471,10 @@ record SimulationReport(
     int PoweredTiles,
     int CommercialZones,
     int IndustrialZones,
+    double AveragePollution,
+    double AverageHappiness,
+    string GameState,
+    List<string> MilestonesReached,
     List<TickSnapshot> History);
 
 record TileState(
@@ -373,7 +482,9 @@ record TileState(
     [property: JsonPropertyName("y")] int Y,
     [property: JsonPropertyName("zone")] string Zone,
     [property: JsonPropertyName("hasPower")] bool HasPower,
-    [property: JsonPropertyName("hasRoadAccess")] bool HasRoadAccess);
+    [property: JsonPropertyName("hasRoadAccess")] bool HasRoadAccess,
+    [property: JsonPropertyName("pollutionLevel")] double PollutionLevel,
+    [property: JsonPropertyName("happiness")] double Happiness);
 
 record ServerState(
     int Tick,
@@ -383,6 +494,10 @@ record ServerState(
     double TaxPerTick,
     double MaintenancePerTick,
     double NetPerTick,
+    double Happiness,
+    double Pollution,
+    string GameState,
+    List<string> Milestones,
     List<TileState> Tiles);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
