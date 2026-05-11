@@ -308,9 +308,13 @@ static void WriteOverlay(
                 break;
         }
 
-        overlayTiles.Add(new OverlayTile(x, y, value));
+        // Sparse encoding: only emit tiles where value > 0
+        if (value > 0.0)
+            overlayTiles.Add(new OverlayTile(x, y, value));
     }
 
+    // overlayTiles is sparse — zero-value tiles are omitted for compactness.
+    // Readers should treat absent tiles as value=0.
     var overlayState = new OverlayState(overlayType, tick, width, height, overlayTiles);
     var options = new JsonSerializerOptions
     {
@@ -324,7 +328,7 @@ static void WriteOverlay(
     File.WriteAllText(overlayTmp, overlayJson);
     File.Move(overlayTmp, overlayFile, overwrite: true);
 
-    Console.WriteLine($"[query_overlay] overlay={overlayType}, tick={tick}, tiles={overlayTiles.Count}, written to {overlayFile}");
+    Console.WriteLine($"[query_overlay] overlay={overlayType}, tick={tick}, tiles={overlayTiles.Count} (sparse, non-zero only), written to {overlayFile}");
 }
 
 static void ProcessCommand(
@@ -962,6 +966,10 @@ record OverlayTile(
     [property: JsonPropertyName("y")]     int    Y,
     [property: JsonPropertyName("value")] double Value);
 
+/// <summary>
+/// Sparse overlay snapshot. <c>tiles</c> contains only entries where value &gt; 0;
+/// absent tiles should be treated as value = 0 by the reader.
+/// </summary>
 record OverlayState(
     [property: JsonPropertyName("overlay")] string            Overlay,
     [property: JsonPropertyName("tick")]    int               Tick,
