@@ -185,28 +185,33 @@ public partial class World : Node2D
         forestNoise.Seed = heightNoise.Seed + 1;
         forestNoise.Frequency = 0.08f;
 
+        // Small random offset so the island isn't always perfectly centred
+        var rng = new System.Random(heightNoise.Seed);
+        float offX = (float)(rng.NextDouble() - 0.5) * 8; // ±4 tiles
+        float offY = (float)(rng.NextDouble() - 0.5) * 8;
+
         for (int x = 0; x < w; x++)
         {
             for (int y = 0; y < h; y++)
             {
                 float nx = heightNoise.GetNoise2D(x, y); // -1 to 1
 
-                // Island falloff: edges become water
-                float dx = (x - w * 0.5f) / (w * 0.5f);
-                float dy = (y - h * 0.5f) / (h * 0.5f);
+                // Island falloff: edges become water (gentler — less aggressive shrinkage)
+                float dx = (x - w * 0.5f - offX) / (w * 0.5f);
+                float dy = (y - h * 0.5f - offY) / (h * 0.5f);
                 float dist = Mathf.Sqrt(dx * dx + dy * dy);
-                float height = nx - dist * 0.85f;
+                float height = nx - dist * 0.5f;
 
                 TerrainType terrain;
-                if (height < -0.25f)
+                if (height < -0.45f)
                     terrain = TerrainType.Water;
-                else if (height > 0.35f)
+                else if (height > 0.4f)
                     terrain = TerrainType.Hill;
                 else
                 {
                     // Forest on mid-elevation land
                     float fn = forestNoise.GetNoise2D(x, y);
-                    terrain = fn > 0.15f ? TerrainType.Forest : TerrainType.Flat;
+                    terrain = fn > 0.2f ? TerrainType.Forest : TerrainType.Flat;
                 }
 
                 grid.SetTerrain(x, y, terrain);
@@ -215,8 +220,8 @@ public partial class World : Node2D
 
         // Guarantee a flat starter area around center (so SeedStarterCity always works)
         int cx = w / 2, cy = h / 2;
-        for (int x = cx - 4; x <= cx + 4; x++)
-        for (int y = cy - 4; y <= cy + 4; y++)
+        for (int x = cx - 6; x <= cx + 6; x++)
+        for (int y = cy - 6; y <= cy + 6; y++)
             grid.SetTerrain(x, y, TerrainType.Flat);
     }
 
