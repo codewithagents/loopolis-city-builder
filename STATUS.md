@@ -8,9 +8,9 @@
 ## Current Milestone
 
 **Milestone 1 — Simulation Foundation** ✅ Complete (76 tests · 0 failures)
-**Milestone 2 — First Playable** 🔄 In Progress
+**Milestone 2 — First Playable** ✅ Complete
   - Phase 1 (static render + camera) ✅ Done
-  - Phase 2 (player input + UI) ⬜ Next
+  - Phase 2 (player input + UI) ✅ Done
 **Milestone 3 — Simulation Depth** ✅ Complete (108 tests · 0 failures)
   - PollutionSystem ✅ Done
   - HappinessSystem ✅ Done
@@ -38,7 +38,9 @@
 | HappinessSystem | ✅ Done | 13 |
 | MilestoneSystem | ✅ Done | 11 |
 | Services (FireStation/PoliceStation/School) | ✅ Done | (in HappinessSystem tests) |
-| Player input (Godot) | ⬜ Next | — |
+| Player input (Godot) | ✅ Done | — |
+| Stats HUD overlay (Godot) | ✅ Done | — |
+| Toolbar + zone selector (Godot) | ✅ Done | — |
 
 **Total: 108 tests · 0 failures · ~0.06s runtime**
 
@@ -46,13 +48,22 @@
 
 ## Short-Term Task Queue (Next 2–3 Sessions)
 
-### Phase 2 — Player Input & UI (next session)
-- [ ] Toolbar: zone selector (R / C / I / Road / PowerLine / Fire / Police / School / Erase)
-- [ ] Click-to-place: viewer mode writes to command.json, standalone mode modifies internal grid
-- [ ] UI labels: population count, balance, net/tick, tick counter, happiness, game state
-- [ ] Budget panel: overlay showing income vs costs
-- [ ] Milestone notification: show milestone banners when Town/City/Metropolis/Loopolis reached
+### Phase 2 — Player Input & UI ✅ Complete (Session 7)
+- [x] Toolbar: zone selector (R / C / I / Road / PowerLine / Plant / Fire / Police / School / Erase)
+- [x] Click-to-place: viewer mode writes command.json, standalone mode modifies internal grid
+- [x] UI labels: population, balance, net/tick (green/red), tick counter, happiness, selected zone
+- [x] Budget breakdown: Tax/tick | Costs/tick displayed in HUD
+- [x] Milestone notification: banner fades in/out when Town/City/Metropolis/Loopolis reached
+- [x] Pause/Resume + New Game buttons in toolbar
+- [x] SharedState extended: happiness + milestoneReached added
+- [x] erase command + new_game command added to Runner
+
+### Backend / Visualization backlog (next sessions)
 - [ ] Pollution heat map: color overlay showing pollution levels (red = high)
+- [ ] Water network — second utility, forces two-grid planning
+- [ ] Zone density levels — low/medium/high density zoning
+- [ ] Service demand: zones without coverage gradually lose happiness over time
+- [ ] Balance tuning: large scenarios still bankrupt fast (root cause: low ready-zone ratio)
 
 ### Backend depth (backlog)
 - [ ] Water network — second utility, forces two-grid planning
