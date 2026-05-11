@@ -72,14 +72,16 @@ public partial class Toolbar : CanvasLayer
         // Pause / Resume button
         _pauseButton = new Button();
         _pauseButton.Text = "Pause";
-        _pauseButton.CustomMinimumSize = new Vector2(60, 32);
+        _pauseButton.CustomMinimumSize = new Vector2(80, 44);
+        _pauseButton.AddThemeFontSizeOverride("font_size", 14);
         _pauseButton.Pressed += OnPauseToggled;
         hbox.AddChild(_pauseButton);
 
         // New Game button
         var newGameBtn = new Button();
         newGameBtn.Text = "New Game";
-        newGameBtn.CustomMinimumSize = new Vector2(70, 32);
+        newGameBtn.CustomMinimumSize = new Vector2(90, 44);
+        newGameBtn.AddThemeFontSizeOverride("font_size", 14);
         newGameBtn.Pressed += () => EmitSignal(SignalName.NewGameRequested);
         hbox.AddChild(newGameBtn);
 
@@ -138,7 +140,8 @@ public partial class Toolbar : CanvasLayer
     {
         var btn = new Button();
         btn.Text = label;
-        btn.CustomMinimumSize = new Vector2(48, 32);
+        btn.CustomMinimumSize = new Vector2(64, 44);
+        btn.AddThemeFontSizeOverride("font_size", 14);
 
         var baseStyle = new StyleBoxFlat();
         baseStyle.BgColor = bgColor * 0.6f;  // slightly dark by default

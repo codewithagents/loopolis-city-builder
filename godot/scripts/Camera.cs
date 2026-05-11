@@ -9,10 +9,10 @@ public partial class Camera : Camera2D
 
     public override void _Ready()
     {
-        Zoom = new Vector2(3f, 3f); // 3x zoom — 16px tiles → 48px, city clearly visible
-        // Center on the starter city: power plant at tile (10,10), zones around (10-11, 12-13)
-        // World coords = tile * 16px. City center ≈ tile (10.5, 12) → world (168, 192)
-        Position = new Vector2(168, 200);
+        // 2x zoom: 16px tiles → 32px each. 32×32 grid = 512px × 2 = 1024px — fits 1440px window.
+        // Center on the grid: grid center = tile (16,16) → world (256, 256).
+        Zoom = new Vector2(2f, 2f);
+        Position = new Vector2(256, 256);
     }
 
     public override void _UnhandledInput(InputEvent @event)

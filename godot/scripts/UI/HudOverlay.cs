@@ -64,7 +64,7 @@ public partial class HudOverlay : CanvasLayer
         _milestoneLabel.Position = new Vector2(0, 8);
         _milestoneLabel.HorizontalAlignment = HorizontalAlignment.Center;
         _milestoneLabel.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.2f));
-        _milestoneLabel.AddThemeFontSizeOverride("font_size", 18);
+        _milestoneLabel.AddThemeFontSizeOverride("font_size", 22);
         AddChild(_milestoneLabel);
     }
 
@@ -128,7 +128,7 @@ public partial class HudOverlay : CanvasLayer
         var label = new Label();
         label.Text = text;
         label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
-        label.AddThemeFontSizeOverride("font_size", 12);
+        label.AddThemeFontSizeOverride("font_size", 16);
         return label;
     }
 
