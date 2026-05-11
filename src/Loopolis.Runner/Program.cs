@@ -125,7 +125,7 @@ static void RunServer(string scenario, double initialSpeed)
         {
             // 1. Read command
             var pausedBefore = paused;
-            ProcessCommand(commandFile, ref paused, ref speed,
+            ProcessCommand(commandFile, sharedDir, ref paused, ref speed,
                 ref skipRemaining, ref skipRequested, ref pauseAfterSkip, ref pauseOnEvent,
                 ref grid, ref engine, sessionId);
             // grid/engine may have been replaced by new_game — use current references below
@@ -232,8 +232,104 @@ static string? DetectSkipPauseReason(SimulationEngine engine, CityGrid grid, int
     return null;
 }
 
+static void WriteOverlay(
+    string sharedDir,
+    string sessionId,
+    SimulationEngine engine,
+    CityGrid grid,
+    string overlayType)
+{
+    var width  = grid.Width;
+    var height = grid.Height;
+    var tick   = engine.TickCount;
+
+    // Pre-compute service tile list + radii (same logic as WriteState / HappinessSystem)
+    var serviceRadii = new Dictionary<ZoneType, int>
+    {
+        { ZoneType.FireStation,   4 },
+        { ZoneType.PoliceStation, 4 },
+        { ZoneType.School,        5 },
+    };
+    var services = grid.AllTiles()
+        .Where(t => serviceRadii.ContainsKey(t.Zone))
+        .ToList();
+
+    var overlayTiles = new List<OverlayTile>(width * height);
+
+    for (var y = 0; y < height; y++)
+    for (var x = 0; x < width; x++)
+    {
+        var tile = grid.GetTile(x, y);
+        double value;
+
+        switch (overlayType)
+        {
+            case "power":
+                value = tile.HasPower ? 1.0 : 0.0;
+                break;
+
+            case "police":
+            {
+                var covered = services.Any(s =>
+                    s.Zone == ZoneType.PoliceStation &&
+                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.PoliceStation]);
+                value = covered ? 1.0 : 0.0;
+                break;
+            }
+
+            case "fire":
+            {
+                var covered = services.Any(s =>
+                    s.Zone == ZoneType.FireStation &&
+                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.FireStation]);
+                value = covered ? 1.0 : 0.0;
+                break;
+            }
+
+            case "school":
+            {
+                var covered = services.Any(s =>
+                    s.Zone == ZoneType.School &&
+                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.School]);
+                value = covered ? 1.0 : 0.0;
+                break;
+            }
+
+            case "pollution":
+                value = Math.Round(tile.PollutionLevel, 4);
+                break;
+
+            case "happiness":
+                value = Math.Round(tile.Happiness, 4);
+                break;
+
+            default:
+                value = 0.0;
+                break;
+        }
+
+        overlayTiles.Add(new OverlayTile(x, y, value));
+    }
+
+    var overlayState = new OverlayState(overlayType, tick, width, height, overlayTiles);
+    var options = new JsonSerializerOptions
+    {
+        WriteIndented        = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+    var overlayJson = JsonSerializer.Serialize(overlayState, options);
+
+    var overlayFile = Path.Combine(sharedDir, $"overlay-{sessionId}.json");
+    var overlayTmp  = Path.Combine(sharedDir, $"overlay-{sessionId}.tmp.json");
+    File.WriteAllText(overlayTmp, overlayJson);
+    File.Move(overlayTmp, overlayFile, overwrite: true);
+
+    Console.WriteLine($"[query_overlay] overlay={overlayType}, tick={tick}, tiles={overlayTiles.Count}, written to {overlayFile}");
+}
+
 static void ProcessCommand(
     string cmdPath,
+    string sharedDir,
     ref bool paused,
     ref double speed,
     ref int skipRemaining,
@@ -378,6 +474,18 @@ static void ProcessCommand(
                 }
                 break;
 
+            case "query_overlay":
+                if (root.TryGetProperty("overlay", out var overlayProp))
+                {
+                    var overlayType = overlayProp.GetString() ?? "";
+                    WriteOverlay(sharedDir, sessionId, engine, grid, overlayType);
+                }
+                else
+                {
+                    Console.WriteLine("[query_overlay] Missing 'overlay' property");
+                }
+                break;
+
             default:
                 Console.WriteLine($"[command] Unknown: {cmd}");
                 break;
@@ -497,10 +605,45 @@ static void WriteState(
         NeglectDecay:        Math.Round(-avgNeglectDecay, 4)
     );
 
-    // --- Powered / unpowered zoned tiles ---
+    // --- Coverage summary (power + services + pollution + happiness across all zoned tiles) ---
     var zonedTiles       = grid.AllTiles().Where(t => t.Zone is ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial).ToList();
     var poweredZoned     = zonedTiles.Count(t => t.HasPower);
     var unpoweredZoned   = zonedTiles.Count - poweredZoned;
+
+    // Pre-compute service tiles and radii for coverage percentage
+    var covServiceRadii = new Dictionary<ZoneType, int>
+    {
+        { ZoneType.FireStation,   4 },
+        { ZoneType.PoliceStation, 4 },
+        { ZoneType.School,        5 },
+    };
+    var covServices = grid.AllTiles()
+        .Where(t => covServiceRadii.ContainsKey(t.Zone))
+        .ToList();
+
+    int policeCovered = 0, fireCovered = 0, schoolCovered = 0;
+    double totalPollution = 0, totalHappiness = 0;
+    foreach (var zt in zonedTiles)
+    {
+        if (covServices.Any(s => s.Zone == ZoneType.PoliceStation && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.PoliceStation]))
+            policeCovered++;
+        if (covServices.Any(s => s.Zone == ZoneType.FireStation   && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.FireStation]))
+            fireCovered++;
+        if (covServices.Any(s => s.Zone == ZoneType.School        && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.School]))
+            schoolCovered++;
+        totalPollution  += zt.PollutionLevel;
+        totalHappiness  += zt.Happiness;
+    }
+    var zonedCount = zonedTiles.Count;
+    var coverageSummary = new CoverageSummary(
+        PoweredZonedTilesCount:   poweredZoned,
+        UnpoweredZonedTilesCount: unpoweredZoned,
+        PoliceCoveragePercent:    zonedCount > 0 ? Math.Round((double)policeCovered / zonedCount, 4) : 0.0,
+        FireCoveragePercent:      zonedCount > 0 ? Math.Round((double)fireCovered   / zonedCount, 4) : 0.0,
+        SchoolCoveragePercent:    zonedCount > 0 ? Math.Round((double)schoolCovered / zonedCount, 4) : 0.0,
+        AvgPollution:             zonedCount > 0 ? Math.Round(totalPollution  / zonedCount, 4) : 0.0,
+        AvgHappiness:             zonedCount > 0 ? Math.Round(totalHappiness  / zonedCount, 4) : 0.0
+    );
 
     // --- Employment ---
     var employmentState = new EmploymentState(
@@ -551,8 +694,7 @@ static void WriteState(
         EventHappinessPenalty:     engine.EventSystem.HappinessPenalty,
         HappinessBreakdown:        happinessBreakdown,
         Employment:                employmentState,
-        PoweredZonedTiles:         poweredZoned,
-        UnpoweredZonedTiles:       unpoweredZoned,
+        CoverageSummary:           coverageSummary,
         PauseReason:               pauseReason,
         TicksRun:                  ticksRun
     );
@@ -806,6 +948,27 @@ record TileState(
     [property: JsonPropertyName("buildingId")] string? BuildingId = null,
     [property: JsonPropertyName("buildingType")] string? BuildingType = null);
 
+record CoverageSummary(
+    [property: JsonPropertyName("poweredZonedTilesCount")]   int    PoweredZonedTilesCount,
+    [property: JsonPropertyName("unpoweredZonedTilesCount")] int    UnpoweredZonedTilesCount,
+    [property: JsonPropertyName("policeCoveragePercent")]    double PoliceCoveragePercent,
+    [property: JsonPropertyName("fireCoveragePercent")]      double FireCoveragePercent,
+    [property: JsonPropertyName("schoolCoveragePercent")]    double SchoolCoveragePercent,
+    [property: JsonPropertyName("avgPollution")]             double AvgPollution,
+    [property: JsonPropertyName("avgHappiness")]             double AvgHappiness);
+
+record OverlayTile(
+    [property: JsonPropertyName("x")]     int    X,
+    [property: JsonPropertyName("y")]     int    Y,
+    [property: JsonPropertyName("value")] double Value);
+
+record OverlayState(
+    [property: JsonPropertyName("overlay")] string            Overlay,
+    [property: JsonPropertyName("tick")]    int               Tick,
+    [property: JsonPropertyName("width")]   int               Width,
+    [property: JsonPropertyName("height")]  int               Height,
+    [property: JsonPropertyName("tiles")]   List<OverlayTile> Tiles);
+
 record ServerState(
     int Tick,
     bool Paused,
@@ -838,8 +1001,7 @@ record ServerState(
     double EventHappinessPenalty = 0.0,
     HappinessBreakdown? HappinessBreakdown = null,
     EmploymentState? Employment = null,
-    int PoweredZonedTiles = 0,
-    int UnpoweredZonedTiles = 0,
+    CoverageSummary? CoverageSummary = null,
     string? PauseReason = null,
     int? TicksRun = null);
 

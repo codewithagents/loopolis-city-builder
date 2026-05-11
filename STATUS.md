@@ -122,6 +122,7 @@
 | 2026-05-11 | mixed | 3 polluted R zones (adjacent to industrial) → happiness 0.2 vs 0.6 safe baseline. Confirmed average 0.491 matches formula: (8×0.6 + 3×0.2)/11. Pollution gradient working. | — |
 | 2026-05-11 | services | School at (15,12) covers some north R tiles (y=9 = distance 3, within 5). Happiness 0.667 average — mix of covered (0.75) and uncovered (0.6). Fire station at (15,18) too far from south R at y=21 (distance 3 from station to road). | Layout confirmed: service placement matters |
 | 2026-05-11 | town | Reached Town milestone at tick 38 (500 pop). Industrial far enough (dx>3) from residential → zero pollution. Happiness = 0.6 baseline throughout. Bankrupt at -$54/tick due to large grid cost. | Balance tuning needed for large scenarios |
+| 2026-05-11 | default (server) | pauseOnEvent skip: ran 179 ticks into a 2000-tick skip, stopped on FireBreak. state.json shows pauseReason="FireBreak", ticksRun=179, paused=true. buildings/buildingSummary/happinessBreakdown/employment/nextMilestone all present. | Fix: ServerState record was referencing non-existent BuildingInfo type and missing enriched fields — updated to match WriteState call signature. |
 | 2026-05-11 | all | All large scenarios go bankrupt. Root cause: residential zones at distance from roads can't develop (only 11-18 of 45-75 R tiles are ready). Maintenance costs (industrial, roads, powerlines) dwarf tax income. | Backlog: balance tuning or larger commercial footprint |
 
 ---
@@ -178,4 +179,4 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 ---
 
-*Last updated: 2026-05-11 — Session 6 (PollutionSystem + HappinessSystem + MilestoneSystem + Services, 108 tests)*
+*Last updated: 2026-05-11 — coverageSummary in state.json + query_overlay IPC command*
