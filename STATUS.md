@@ -58,18 +58,26 @@
 - [x] SharedState extended: happiness + milestoneReached added
 - [x] erase command + new_game command added to Runner
 
-### Backend / Visualization backlog (next sessions)
-- [ ] Pollution heat map: color overlay showing pollution levels (red = high)
-- [ ] Water network — second utility, forces two-grid planning
-- [ ] Zone density levels — low/medium/high density zoning
-- [ ] Service demand: zones without coverage gradually lose happiness over time
-- [ ] Balance tuning: large scenarios still bankrupt fast (root cause: low ready-zone ratio)
+### Balance + UX fixes ✅ Complete (Session 7 continued)
+- [x] TaxRate 0.09 → 0.12 (default scenario now +$5/tick at capacity, was -$1.5/tick)
+- [x] PowerPlant maintenance $10 → $8
+- [x] Industrial maintenance $0.50 → $0.25 (no income path — halved is fair)
+- [x] Bankruptcy fires at balance < -$10,000 (inhabited cities can now go bankrupt)
+- [x] GameState added to SharedState ("Active"/"Town"/"Bankrupt"/etc.)
+- [x] Starting balance $5k → $10k (standalone + new_game command)
+- [x] Tile hover tooltip: hover any tile to see power/road status + "Ready to develop" or "Needs power + road"
+- [x] GameOver panel: "CITY BANKRUPT" overlay with stats + contextual tip + New Game button
+- [x] Seeded starter city: 1PP + 2 Roads + 4 Residential at center — shows the chain working immediately
+- [x] Optimistic rendering: click-to-place in viewer mode is instant (no 1-tick lag)
+- [x] Window 1440×900, tile size 32px, camera re-centered
 
-### Backend depth (backlog)
-- [ ] Water network — second utility, forces two-grid planning
-- [ ] Zone density levels — low/medium/high density zoning
-- [ ] Service demand: zones without coverage gradually lose happiness over time
-- [ ] Balance tuning: scenarios still go bankrupt — tax rate or initial balance needs tuning for longer viability
+### Backlog (next sessions)
+- [ ] Pollution heat map overlay — red intensity shows pollution levels per tile
+- [ ] Water network — second utility system (forces two-grid planning)
+- [ ] Zone density levels — low/medium/high density (different capacity + cost)
+- [ ] Industrial income path — commercial adjacency tax boost so industrial is worth building
+- [ ] Population ceiling buster — once zones fill, give player new tools to grow (density upgrade, new zones)
+- [ ] Win screen — Loopolis milestone celebration UI
 
 ### Visualization improvements (backlog)
 - [ ] Powered vs unpowered — stronger visual (dim + icon vs bright)
