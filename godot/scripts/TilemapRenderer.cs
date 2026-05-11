@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using Loopolis.Core.Grid;
 
 namespace LoopolisGodot;
@@ -7,6 +8,9 @@ public partial class TilemapRenderer : Node2D
 {
     private CityGrid? _grid;
     public const int TileSize = 32;
+
+    private HashSet<(int, int)> _coverageHighlight = new();
+    private Color _coverageColor = Colors.Transparent;
 
     private static readonly Color ColorEmpty         = new Color(0.15f, 0.15f, 0.15f);
     private static readonly Color ColorResidential  = new Color(0.2f,  0.7f,  0.2f);
@@ -24,6 +28,20 @@ public partial class TilemapRenderer : Node2D
     public void Refresh(CityGrid grid)
     {
         _grid = grid;
+        QueueRedraw();
+    }
+
+    public void SetCoverageHighlight(IEnumerable<(int, int)> tiles, Color color)
+    {
+        _coverageHighlight = new HashSet<(int, int)>(tiles);
+        _coverageColor = color;
+        QueueRedraw();
+    }
+
+    public void ClearCoverageHighlight()
+    {
+        _coverageHighlight.Clear();
+        _coverageColor = Colors.Transparent;
         QueueRedraw();
     }
 
@@ -96,6 +114,17 @@ public partial class TilemapRenderer : Node2D
             {
                 var dotRect = new Rect2(rect.Position + rect.Size - new Vector2(6, 6), new Vector2(5, 5));
                 DrawRect(dotRect, new Color(1f, 0.9f, 0.1f, 0.8f));
+            }
+        }
+
+        // Coverage radius overlay: draw semi-transparent color over highlighted tiles
+        if (_coverageHighlight.Count > 0)
+        {
+            var overlayColor = new Color(_coverageColor.R, _coverageColor.G, _coverageColor.B, 0.3f);
+            foreach (var (cx, cy) in _coverageHighlight)
+            {
+                var rect = new Rect2(cx * TileSize, cy * TileSize, TileSize - 1, TileSize - 1);
+                DrawRect(rect, overlayColor);
             }
         }
     }

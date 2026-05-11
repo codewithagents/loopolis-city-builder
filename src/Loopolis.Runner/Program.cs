@@ -285,6 +285,20 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
     var residentialCount = grid.TilesOfType(ZoneType.Residential).Count();
     var maxCapacity = residentialCount * 50;
     var milestone = engine.MilestoneSystem.LatestMilestone;
+
+    // Compute next milestone inline: find first threshold > current population
+    var currentPop = engine.Population.Population;
+    (string Name, string Emoji, int Target)[] milestoneThresholds =
+    {
+        ("Town",       "🥉", 500),
+        ("City",       "🥈", 5_000),
+        ("Metropolis", "🥇", 25_000),
+        ("Loopolis",   "🏆", 100_000),
+    };
+    var nextMilestone = milestoneThresholds.FirstOrDefault(m => m.Target > currentPop);
+    var nextMilestoneName   = nextMilestone != default ? $"{nextMilestone.Name} {nextMilestone.Emoji}" : null;
+    var nextMilestoneTarget = nextMilestone != default ? nextMilestone.Target : 0;
+
     var state = new ServerState(
         Tick:                      engine.TickCount,
         Paused:                    paused,
@@ -300,7 +314,9 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         Pollution:                 Math.Round(engine.PollutionSystem.AveragePollution(grid), 3),
         GameState:                 engine.MilestoneSystem.CurrentState.ToString(),
         Milestones:                engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
-        Tiles:                     nonEmptyTiles
+        Tiles:                     nonEmptyTiles,
+        NextMilestoneName:         nextMilestoneName,
+        NextMilestoneTarget:       nextMilestoneTarget
     );
 
     var options = new JsonSerializerOptions
@@ -538,7 +554,9 @@ record ServerState(
     double Pollution,
     string GameState,
     List<string> Milestones,
-    List<TileState> Tiles);
+    List<TileState> Tiles,
+    string? NextMilestoneName = null,
+    int NextMilestoneTarget = 0);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

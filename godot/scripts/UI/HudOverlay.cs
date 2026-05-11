@@ -8,9 +8,10 @@ namespace LoopolisGodot;
 /// </summary>
 public partial class HudOverlay : CanvasLayer
 {
-    private Label _tickLabel      = null!;
-    private Label _popLabel       = null!;
-    private Label _capacityNudge  = null!;
+    private Label _tickLabel          = null!;
+    private Label _popLabel           = null!;
+    private Label _nextMilestoneLabel = null!;
+    private Label _capacityNudge      = null!;
     private Label _balanceLabel   = null!;
     private Label _netLabel       = null!;
     private Label _taxCostLabel   = null!;
@@ -40,6 +41,11 @@ public partial class HudOverlay : CanvasLayer
         _tickLabel     = MakeLabel("Tick: 0");
         _popLabel      = MakeLabel("Pop: 0");
 
+        _nextMilestoneLabel = new Label();
+        _nextMilestoneLabel.Text = "";
+        _nextMilestoneLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.85f, 1f));
+        _nextMilestoneLabel.AddThemeFontSizeOverride("font_size", 14);
+
         _capacityNudge = new Label();
         _capacityNudge.Text = "⚡ At capacity — build more zones!";
         _capacityNudge.Visible = false;
@@ -55,6 +61,7 @@ public partial class HudOverlay : CanvasLayer
 
         vbox.AddChild(_tickLabel);
         vbox.AddChild(_popLabel);
+        vbox.AddChild(_nextMilestoneLabel);
         vbox.AddChild(_capacityNudge);
         vbox.AddChild(_balanceLabel);
         vbox.AddChild(_netLabel);
@@ -99,6 +106,16 @@ public partial class HudOverlay : CanvasLayer
         else
             _popLabel.Text = $"Pop: {state.Population:N0}";
 
+        if (!string.IsNullOrEmpty(state.NextMilestoneName) && state.NextMilestoneTarget > 0)
+        {
+            _nextMilestoneLabel.Text = $"Next: {state.NextMilestoneName} ({state.Population:N0} / {state.NextMilestoneTarget:N0})";
+            _nextMilestoneLabel.Visible = true;
+        }
+        else
+        {
+            _nextMilestoneLabel.Visible = false;
+        }
+
         var nearCapacity = state.MaxCapacity > 0 && state.Population >= state.MaxCapacity - 5;
         _capacityNudge.Visible = nearCapacity;
 
@@ -123,6 +140,20 @@ public partial class HudOverlay : CanvasLayer
         {
             _lastShownMilestone = state.MilestoneReached;
             ShowMilestone(state.MilestoneReached);
+        }
+    }
+
+    /// <summary>Called by World.cs (standalone mode) to update the next milestone display directly.</summary>
+    public void UpdateNextMilestone(string? name, int target)
+    {
+        if (!string.IsNullOrEmpty(name) && target > 0)
+        {
+            _nextMilestoneLabel.Text = $"Next: {name}";
+            _nextMilestoneLabel.Visible = true;
+        }
+        else
+        {
+            _nextMilestoneLabel.Visible = false;
         }
     }
 

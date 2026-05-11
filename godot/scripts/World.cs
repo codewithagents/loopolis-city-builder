@@ -29,6 +29,12 @@ public partial class World : Node2D
     private BudgetSystem? _budget;
     private PopulationSystem? _population;
 
+    // Coverage radius overlay tracking
+    private int _coverageRadius = 0;
+    private Color _coverageColor = Colors.Transparent;
+    private int _lastCoverageHoverX = -1;
+    private int _lastCoverageHoverY = -1;
+
     public override void _Ready()
     {
         _renderer     = GetNode<TilemapRenderer>("TilemapRenderer");
@@ -110,6 +116,9 @@ public partial class World : Node2D
         // Tooltip always updates (both modes)
         UpdateTooltip();
 
+        // Coverage radius overlay: update whenever mouse moves to a new tile
+        UpdateCoverageHighlight();
+
         if (_viewerMode) return; // SharedStateReader handles everything else
 
         if (_standalonePaused) return;
@@ -158,6 +167,39 @@ public partial class World : Node2D
         _tooltip.ShowFor(tile, GetViewport().GetMousePosition());
     }
 
+    private void UpdateCoverageHighlight()
+    {
+        if (_coverageRadius <= 0) return;
+
+        var localPos = _renderer.GetLocalMousePosition();
+        var tileX = (int)(localPos.X / TilemapRenderer.TileSize);
+        var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
+
+        // Only update if the hover tile changed
+        if (tileX == _lastCoverageHoverX && tileY == _lastCoverageHoverY) return;
+        _lastCoverageHoverX = tileX;
+        _lastCoverageHoverY = tileY;
+
+        if (tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32)
+        {
+            _renderer.ClearCoverageHighlight();
+            return;
+        }
+
+        // Generate all tiles within Chebyshev distance (square) of coverage radius
+        var tiles = new System.Collections.Generic.List<(int, int)>();
+        for (var dy = -_coverageRadius; dy <= _coverageRadius; dy++)
+        for (var dx = -_coverageRadius; dx <= _coverageRadius; dx++)
+        {
+            var cx = tileX + dx;
+            var cy = tileY + dy;
+            if (cx >= 0 && cx < 32 && cy >= 0 && cy < 32)
+                tiles.Add((cx, cy));
+        }
+
+        _renderer.SetCoverageHighlight(tiles, _coverageColor);
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event is InputEventMouseButton mb)
@@ -196,6 +238,22 @@ public partial class World : Node2D
     private void OnZoneSelected(string zoneName)
     {
         _hud.SetSelectedZone(zoneName);
+
+        // Update coverage radius for service buildings
+        (_coverageRadius, _coverageColor) = zoneName switch
+        {
+            "FireStation"   => (4, new Color(1f, 0.4f, 0.1f, 0.3f)),
+            "PoliceStation" => (4, new Color(0.2f, 0.4f, 1f, 0.3f)),
+            "School"        => (5, new Color(0.7f, 0.3f, 0.9f, 0.3f)),
+            _               => (0, Colors.Transparent)
+        };
+
+        // Reset hover tracking so coverage updates on next _Process
+        _lastCoverageHoverX = -1;
+        _lastCoverageHoverY = -1;
+
+        if (_coverageRadius == 0)
+            _renderer.ClearCoverageHighlight();
     }
 
     private void OnPauseToggled()
@@ -285,6 +343,15 @@ public partial class World : Node2D
 
     // ── Standalone HUD sync ────────────────────────────────────────────────
 
+    // Milestone thresholds for standalone next-milestone computation
+    private static readonly (string Name, string Emoji, int Target)[] MilestoneThresholds =
+    {
+        ("Town",       "🥉", 500),
+        ("City",       "🥈", 5_000),
+        ("Metropolis", "🥇", 25_000),
+        ("Loopolis",   "🏆", 100_000),
+    };
+
     private void PushStandaloneHudUpdate()
     {
         if (_budget == null || _population == null) return;
@@ -296,6 +363,13 @@ public partial class World : Node2D
         var maxCapacity   = residentialCount * 50;
 
         var gameStateName = _engine.MilestoneSystem.CurrentState.ToString();
+
+        // Compute next milestone inline
+        var currentPop = _population.Population;
+        var nextM = System.Array.Find(MilestoneThresholds, m => m.Target > currentPop);
+        var nextMilestoneName   = nextM != default ? $"{nextM.Name} {nextM.Emoji}" : null;
+        var nextMilestoneTarget = nextM != default ? nextM.Target : 0;
+
         var state = new SharedState(
             Tick:                      _standaloneTick,
             Paused:                    _standalonePaused,
@@ -309,7 +383,9 @@ public partial class World : Node2D
             Happiness:                 happiness,
             MilestoneReached:          milestone,
             GameState:                 gameStateName,
-            Tiles:                     System.Array.Empty<SharedTile>()
+            Tiles:                     System.Array.Empty<SharedTile>(),
+            NextMilestoneName:         nextMilestoneName,
+            NextMilestoneTarget:       nextMilestoneTarget
         );
         _hud.UpdateStats(state);
     }

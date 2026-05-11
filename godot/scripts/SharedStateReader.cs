@@ -115,7 +115,9 @@ public record SharedState(
     double Happiness,
     string? MilestoneReached,
     string GameState,
-    SharedTile[] Tiles
+    SharedTile[] Tiles,
+    string? NextMilestoneName = null,
+    int NextMilestoneTarget = 0
 );
 
 public record SharedTile(
