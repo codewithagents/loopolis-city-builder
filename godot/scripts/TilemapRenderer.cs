@@ -36,6 +36,8 @@ public partial class TilemapRenderer : Node2D
     private static readonly Color UnpoweredTint     = new Color(0f, 0f, 0f, 0.45f);
     // Brownout overlay — amber tint on BFS-powered tiles when capacity < demand
     private static readonly Color BrownoutTint      = new Color(1f, 0.55f, 0f, 0.22f);
+    // Idle zone border — amber dashed outline on zoned tiles with no road access
+    private static readonly Color IdleBorderColor   = new Color(1f, 0.561f, 0f, 0.85f); // #FF8F00
 
     private bool _isBrownout = false;
 
@@ -65,6 +67,71 @@ public partial class TilemapRenderer : Node2D
         _coverageHighlight.Clear();
         _coverageColor = Colors.Transparent;
         QueueRedraw();
+    }
+
+    /// <summary>
+    /// Draws a dashed rectangular border around the tile at (px, py) with the given size.
+    /// Each edge is walked in pixel steps; a dash is drawn for <paramref name="dashLen"/> pixels,
+    /// then skipped for <paramref name="gapLen"/> pixels, cycling continuously.
+    /// The phase carries across edges so the pattern looks continuous around the perimeter.
+    /// </summary>
+    private void DrawDashedBorder(float px, float py, int size, Color color, float dashLen, float gapLen, float width)
+    {
+        float period = dashLen + gapLen;
+        float halfW  = width * 0.5f;
+        float inset  = halfW; // keep the line fully inside the tile rect
+
+        // The four corners of the inset border, going clockwise: TL → TR → BR → BL → TL
+        var corners = new (float x, float y)[]
+        {
+            (px + inset,            py + inset),
+            (px + size - inset,     py + inset),
+            (px + size - inset,     py + size - inset),
+            (px + inset,            py + size - inset),
+        };
+
+        float phase = 0f; // position within the current dash+gap cycle
+
+        for (int i = 0; i < corners.Length; i++)
+        {
+            var (ax, ay) = corners[i];
+            var (bx, by) = corners[(i + 1) % corners.Length];
+
+            float edgeLen = Mathf.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+            float dx = (bx - ax) / edgeLen;
+            float dy = (by - ay) / edgeLen;
+
+            float t = 0f;
+            while (t < edgeLen)
+            {
+                // Position within the dash/gap cycle
+                float cyclePos = phase % period;
+                float remaining = period - cyclePos;
+
+                if (cyclePos < dashLen)
+                {
+                    // We are in a dash segment
+                    float dashRemaining = dashLen - cyclePos;
+                    float drawLen = Mathf.Min(dashRemaining, edgeLen - t);
+
+                    var start = new Vector2(ax + dx * t,       ay + dy * t);
+                    var end   = new Vector2(ax + dx * (t + drawLen), ay + dy * (t + drawLen));
+                    DrawLine(start, end, color, width, false);
+
+                    phase += drawLen;
+                    t     += drawLen;
+                }
+                else
+                {
+                    // We are in a gap segment
+                    float gapRemaining = period - cyclePos;
+                    float skipLen = Mathf.Min(gapRemaining, edgeLen - t);
+
+                    phase += skipLen;
+                    t     += skipLen;
+                }
+            }
+        }
     }
 
     private bool IsSameZone(ZoneType zone, int x, int y)
@@ -136,6 +203,11 @@ public partial class TilemapRenderer : Node2D
                     // Dark overlay on zones that are zoned but not powered
                     if (!tile.HasPower)
                         DrawRect(fullRect, UnpoweredTint);
+
+                    // Dashed amber border on zones with no road access — these cost
+                    // maintenance every tick but can never develop a building.
+                    if (!tile.HasRoadAccess)
+                        DrawDashedBorder(px, py, TileSize, IdleBorderColor, dashLen: 4f, gapLen: 4f, width: 2f);
 
                     // Red semi-transparent overlay for pollution
                     if (tile.PollutionLevel > 0.05f)

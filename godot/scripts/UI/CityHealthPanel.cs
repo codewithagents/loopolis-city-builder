@@ -28,6 +28,7 @@ public partial class CityHealthPanel : CanvasLayer
         HappinessCritical,
         FireCoverage,
         PoliceCoverage,
+        NoRoadAccess,
     }
 
     private static readonly Color WarnRed    = new(1f,  0.3f, 0.3f);
@@ -170,6 +171,22 @@ public partial class CityHealthPanel : CanvasLayer
                 $"👮 Police coverage low ({pct}%) — add Police Stations");
         }
 
+        // Road-less zones: zoned tiles that cost maintenance but can never develop
+        var noRoadCount = 0;
+        foreach (var tile in state.Tiles)
+        {
+            if (!tile.HasRoadAccess &&
+                (tile.Zone == "Residential" || tile.Zone == "Commercial" || tile.Zone == "Industrial"))
+                noRoadCount++;
+        }
+        if (noRoadCount > 3)
+        {
+            result.Add(WarningId.NoRoadAccess);
+            var wasteCost = (int)(noRoadCount * 0.25);
+            UpdateLabel(WarningId.NoRoadAccess,
+                $"⚠ {noRoadCount} zones have no road access — wasting ${wasteCost}/tick");
+        }
+
         return result;
     }
 
@@ -227,6 +244,7 @@ public partial class CityHealthPanel : CanvasLayer
         AddWarningLabel(WarningId.HappinessCritical, "😟 Happiness critical",           WarnOrange);
         AddWarningLabel(WarningId.FireCoverage,    "🔥 Fire coverage low",             WarnYellow);
         AddWarningLabel(WarningId.PoliceCoverage,  "👮 Police coverage low",           WarnCyan);
+        AddWarningLabel(WarningId.NoRoadAccess,    "⚠ Zones with no road access",     WarnOrange);
     }
 
     private void AddWarningLabel(WarningId id, string defaultText, Color color)
