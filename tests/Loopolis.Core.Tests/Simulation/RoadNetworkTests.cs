@@ -182,4 +182,41 @@ public class RoadNetworkTests
 
         Assert.That(_roads.AccessibleZoneCount, Is.EqualTo(20));
     }
+
+    [Test]
+    public void ClusterAccess_EntireClusterAccessible_WhenOneTileTouchesRoad()
+    {
+        var grid = new CityGrid(10, 10);
+        // 2x2 Residential block at (2,2)-(3,3)
+        grid.SetZone(2, 2, ZoneType.Residential);
+        grid.SetZone(3, 2, ZoneType.Residential);
+        grid.SetZone(2, 3, ZoneType.Residential);
+        grid.SetZone(3, 3, ZoneType.Residential);
+        // Road only touches (2,2) from the left
+        grid.SetZone(1, 2, ZoneType.Road);
+
+        _roads.Propagate(grid);
+
+        // All four residential tiles should have road access via the cluster
+        Assert.That(grid.GetTile(2, 2).HasRoadAccess, Is.True, "Tile (2,2) adjacent to road — should have access");
+        Assert.That(grid.GetTile(3, 2).HasRoadAccess, Is.True, "Tile (3,2) not adjacent but in cluster — should have access");
+        Assert.That(grid.GetTile(2, 3).HasRoadAccess, Is.True, "Tile (2,3) not adjacent but in cluster — should have access");
+        Assert.That(grid.GetTile(3, 3).HasRoadAccess, Is.True, "Tile (3,3) corner of cluster — should have access");
+        Assert.That(_roads.AccessibleZoneCount, Is.EqualTo(4));
+    }
+
+    [Test]
+    public void ClusterAccess_IsolatedCluster_HasNoAccess()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetZone(6, 5, ZoneType.Residential);
+        // No road anywhere near
+
+        _roads.Propagate(grid);
+
+        Assert.That(grid.GetTile(5, 5).HasRoadAccess, Is.False);
+        Assert.That(grid.GetTile(6, 5).HasRoadAccess, Is.False);
+        Assert.That(_roads.AccessibleZoneCount, Is.EqualTo(0));
+    }
 }
