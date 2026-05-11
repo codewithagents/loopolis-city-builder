@@ -18,6 +18,7 @@ public partial class World : Node2D
     private Toolbar _toolbar = null!;
     private bool _viewerMode = false;
     private string _commandPath = "";
+    private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
 
     // Standalone mode state for HUD updates
     private int _standaloneTick = 0;
@@ -47,8 +48,8 @@ public partial class World : Node2D
         if (File.Exists(statePath))
         {
             GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
-            var reader = new SharedStateReader();
-            AddChild(reader);
+            _reader = new SharedStateReader();
+            AddChild(_reader);
             _viewerMode = true;
             return;
         }
@@ -155,6 +156,16 @@ public partial class World : Node2D
 
         if (_viewerMode)
         {
+            // Optimistic rendering: update visuals immediately, server confirms on next tick
+            if (_reader?.LastGrid is { } optimisticGrid)
+            {
+                if (selectedZone == "Erase")
+                    optimisticGrid.SetZone(tileX, tileY, ZoneType.Empty);
+                else if (System.Enum.TryParse<ZoneType>(selectedZone, out var optimisticZone))
+                    optimisticGrid.SetZone(tileX, tileY, optimisticZone);
+                _renderer.Refresh(optimisticGrid);
+            }
+
             string cmd;
             if (selectedZone == "Erase")
                 cmd = $"{{\"cmd\":\"erase\",\"x\":{tileX},\"y\":{tileY}}}";

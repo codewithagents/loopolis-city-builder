@@ -21,6 +21,9 @@ public partial class SharedStateReader : Node
     private double _pollTimer = 0;
     private const double PollInterval = 0.05; // 20Hz polling
 
+    /// <summary>Last grid received from the server. World.cs uses this for optimistic tile placement.</summary>
+    public CityGrid? LastGrid { get; private set; }
+
     public override void _Ready()
     {
         _renderer = GetNode<TilemapRenderer>("/root/World/TilemapRenderer");
@@ -51,6 +54,7 @@ public partial class SharedStateReader : Node
 
             _lastTick = state.Tick;
             var grid = RebuildGrid(state);
+            LastGrid = grid;
             _renderer.Refresh(grid);
             _hud.UpdateStats(state);
             _toolbar.SetPaused(state.Paused);
