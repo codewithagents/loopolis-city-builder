@@ -189,7 +189,10 @@ public partial class World : Node2D
     {
         if (_budget == null || _population == null) return;
 
-        var snapshot = _budget.Snapshot();
+        var snapshot  = _budget.Snapshot();
+        var happiness = _engine.HappinessSystem.AverageHappiness(_grid);
+        var milestone = _engine.MilestoneSystem.LatestMilestone?.Name;
+
         var state = new SharedState(
             Tick:                _standaloneTick,
             Paused:              _standalonePaused,
@@ -198,8 +201,8 @@ public partial class World : Node2D
             TaxPerTick:          snapshot.TaxIncome,
             MaintenancePerTick:  snapshot.MaintenanceCost,
             NetPerTick:          snapshot.NetIncome,
-            Happiness:           0.0,   // HappinessSystem not wired standalone
-            MilestoneReached:    null,
+            Happiness:           happiness,
+            MilestoneReached:    milestone,
             Tiles:               System.Array.Empty<SharedTile>()
         );
         _hud.UpdateStats(state);

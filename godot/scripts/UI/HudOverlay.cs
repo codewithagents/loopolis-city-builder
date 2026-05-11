@@ -18,6 +18,7 @@ public partial class HudOverlay : CanvasLayer
     private Label _pausedLabel    = null!;
     private Label _milestoneLabel = null!;
     private double _milestoneTimer = 0;
+    private string? _lastShownMilestone;
     private const double MilestoneDuration = 3.0; // seconds
 
     public override void _Ready()
@@ -99,8 +100,11 @@ public partial class HudOverlay : CanvasLayer
 
         _pausedLabel.Visible = state.Paused;
 
-        if (!string.IsNullOrEmpty(state.MilestoneReached))
+        if (!string.IsNullOrEmpty(state.MilestoneReached) && state.MilestoneReached != _lastShownMilestone)
+        {
+            _lastShownMilestone = state.MilestoneReached;
             ShowMilestone(state.MilestoneReached);
+        }
     }
 
     /// <summary>Called by Toolbar when the player changes the selected zone.</summary>
