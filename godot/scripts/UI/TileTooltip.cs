@@ -1,4 +1,5 @@
 using Godot;
+using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 
 namespace LoopolisGodot;
@@ -28,7 +29,67 @@ public partial class TileTooltip : CanvasLayer
     }
 
     /// <summary>
+    /// Show a unified tooltip for a multi-tile building. Hides per-tile
+    /// road/power connectivity lines because the building already exists and
+    /// was road-connected when it grew.
+    /// </summary>
+    public void ShowForBuilding(Building building, int totalPop, Tile anchorTile, Vector2 screenPos)
+    {
+        foreach (Node child in _vbox.GetChildren())
+            child.QueueFree();
+
+        // Pretty-print the TypeId, e.g. "res_townhouse_2x2" → "Townhouse 2×2"
+        var displayName = PrettifyTypeId(building.TypeId, building.Width, building.Height);
+
+        var zoneColor = building.Zone switch
+        {
+            ZoneType.Residential => new Color(0.3f, 1f, 0.4f),
+            ZoneType.Commercial  => new Color(0.4f, 0.6f, 1f),
+            ZoneType.Industrial  => new Color(1f, 0.9f, 0.2f),
+            _                    => new Color(0.9f, 0.9f, 0.9f),
+        };
+
+        AddLine(displayName, 15, zoneColor);
+
+        var zoneLabel = building.Zone switch
+        {
+            ZoneType.Residential => "Residential",
+            ZoneType.Commercial  => "Commercial",
+            ZoneType.Industrial  => "Industrial",
+            _                    => building.Zone.ToString(),
+        };
+        AddLine(zoneLabel, 12, zoneColor * 0.85f);
+
+        var capacity = building.MaxPopulation;
+        if (building.Zone == ZoneType.Residential)
+            AddLine($"Pop: {totalPop} / {capacity}", 13, new Color(0.8f, 0.8f, 0.8f));
+
+        // Show power status (building-wide — use anchor tile's HasPower)
+        var powerText  = anchorTile.HasPower ? "Power: ✓" : "Power: ✗";
+        var powerColor = anchorTile.HasPower ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.3f, 0.3f);
+        AddLine(powerText, 13, powerColor);
+
+        // Growth / happiness notes for residential buildings
+        if (building.Zone == ZoneType.Residential)
+        {
+            var demandFactor = anchorTile.HasDemandBoost ? 1.5f : 1.0f;
+            var growthMultiplier = demandFactor * (float)anchorTile.Happiness;
+            AddLine($"Growth: {growthMultiplier:F1}×", 13, new Color(0.8f, 0.8f, 0.8f));
+
+            if (anchorTile.Happiness < 0.5f)
+                AddLine("⚠ Pollution reducing growth", 12, new Color(1f, 0.4f, 0.2f));
+            else if (anchorTile.HasDemandBoost)
+                AddLine("✓ Commercial demand boost", 12, new Color(0.3f, 1f, 0.3f));
+            else if (anchorTile.Happiness > 0.9f)
+                AddLine("★ High happiness", 12, new Color(1f, 0.9f, 0.3f));
+        }
+
+        PositionAndShow(screenPos);
+    }
+
+    /// <summary>
     /// Populate and show the tooltip next to the given screen position.
+    /// Only called for bare zoned tiles with no building (BuildingId == null).
     /// </summary>
     public void ShowFor(Tile tile, Vector2 screenPos)
     {
@@ -99,12 +160,7 @@ public partial class TileTooltip : CanvasLayer
                 return;
         }
 
-        // Position near cursor, nudging so it doesn't sit under the mouse
-        const float offsetX = 16f;
-        const float offsetY = -8f;
-        _panel.Position = screenPos + new Vector2(offsetX, offsetY);
-
-        _panel.Visible = true;
+        PositionAndShow(screenPos);
     }
 
     public new void Hide()
@@ -113,6 +169,14 @@ public partial class TileTooltip : CanvasLayer
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private void PositionAndShow(Vector2 screenPos)
+    {
+        const float offsetX = 16f;
+        const float offsetY = -8f;
+        _panel.Position = screenPos + new Vector2(offsetX, offsetY);
+        _panel.Visible = true;
+    }
 
     private void AddPowerRoadLines(Tile tile)
     {
@@ -144,6 +208,40 @@ public partial class TileTooltip : CanvasLayer
             AddLine("✓ Commercial demand boost", 12, new Color(0.3f, 1f, 0.3f));
         else if (tile.Happiness > 0.9f)
             AddLine("★ High happiness", 12, new Color(1f, 0.9f, 0.3f));
+    }
+
+    /// <summary>
+    /// Converts a TypeId like "res_townhouse_2x2" to a display name like "Townhouse 2×2".
+    /// Falls back to width×height from the Building record if the TypeId suffix doesn't encode size.
+    /// </summary>
+    private static string PrettifyTypeId(string typeId, int width, int height)
+    {
+        // Strip zone prefix (res_, com_, ind_)
+        var withoutPrefix = typeId;
+        foreach (var prefix in new[] { "res_", "com_", "ind_" })
+        {
+            if (typeId.StartsWith(prefix))
+            {
+                withoutPrefix = typeId[prefix.Length..];
+                break;
+            }
+        }
+
+        // Strip trailing _WxH dimension suffix if present (e.g. "_2x2", "_4x4")
+        var parts = withoutPrefix.Split('_');
+        var nameParts = parts;
+        if (parts.Length > 1)
+        {
+            var last = parts[^1];
+            if (last.Contains('x') && last.Length <= 5)
+                nameParts = parts[..^1];
+        }
+
+        // Title-case each word
+        var title = string.Join(" ", System.Array.ConvertAll(nameParts,
+            p => p.Length == 0 ? p : char.ToUpper(p[0]) + p[1..]));
+
+        return $"{title} {width}×{height}";
     }
 
     private void AddLine(string text, int fontSize, Color color)

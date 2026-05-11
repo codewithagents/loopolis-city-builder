@@ -280,7 +280,9 @@ public partial class World : Node2D
         var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
 
         var grid = _viewerMode ? _reader?.LastGrid : _grid;
-        if (grid == null || tileX < 0 || tileX >= 64 || tileY < 0 || tileY >= 64)
+        var gridW = grid?.Width ?? 64;
+        var gridH = grid?.Height ?? 64;
+        if (grid == null || tileX < 0 || tileX >= gridW || tileY < 0 || tileY >= gridH)
         {
             _tooltip.Hide();
             return;
@@ -290,6 +292,23 @@ public partial class World : Node2D
         if (tile.Zone == Loopolis.Core.Grid.ZoneType.Empty)
         {
             _tooltip.Hide();
+            return;
+        }
+
+        // Multi-tile building: show one unified tooltip, no road-connectivity warning
+        if (tile.BuildingId != null && grid.Buildings.TryGetValue(tile.BuildingId, out var building))
+        {
+            // Sum population across all tiles that belong to this building
+            var totalPop = 0;
+            foreach (var (bx, by) in building.Tiles())
+            {
+                if (grid.IsInBounds(bx, by))
+                    totalPop += grid.GetTile(bx, by).Population;
+            }
+
+            // Use the anchor tile for power/happiness context
+            var anchorTile = grid.GetTile(building.AnchorX, building.AnchorY);
+            _tooltip.ShowForBuilding(building, totalPop, anchorTile, GetViewport().GetMousePosition());
             return;
         }
 
