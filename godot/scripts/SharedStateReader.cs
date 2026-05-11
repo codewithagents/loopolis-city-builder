@@ -121,7 +121,10 @@ public record SharedState(
     string GameState,
     SharedTile[] Tiles,
     string? NextMilestoneName = null,
-    int NextMilestoneTarget = 0
+    int NextMilestoneTarget = 0,
+    string? ActiveEventName = null,
+    string? ActiveEventDescription = null,
+    string? LatestEventBanner = null
 );
 
 public record SharedTile(

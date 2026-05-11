@@ -398,6 +398,8 @@ public partial class World : Node2D
         var nextMilestoneName   = nextM != default ? $"{nextM.Name} {nextM.Emoji}" : null;
         var nextMilestoneTarget = nextM != default ? nextM.Target : 0;
 
+        var activeEvent = _engine.EventSystem.ActiveEvent;
+
         var state = new SharedState(
             Tick:                      _standaloneTick,
             Paused:                    _standalonePaused,
@@ -409,11 +411,14 @@ public partial class World : Node2D
             MaintenancePerTick:        snapshot.MaintenanceCost,
             NetPerTick:                snapshot.NetIncome,
             Happiness:                 happiness,
-            MilestoneReached:          milestone,
+            MilestoneReached:          _engine.LatestEventBanner ?? milestone,
             GameState:                 gameStateName,
             Tiles:                     System.Array.Empty<SharedTile>(),
             NextMilestoneName:         nextMilestoneName,
-            NextMilestoneTarget:       nextMilestoneTarget
+            NextMilestoneTarget:       nextMilestoneTarget,
+            ActiveEventName:           activeEvent?.Name,
+            ActiveEventDescription:    activeEvent?.Description,
+            LatestEventBanner:         _engine.LatestEventBanner
         );
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);

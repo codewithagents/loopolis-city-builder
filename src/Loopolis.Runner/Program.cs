@@ -315,6 +315,8 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
     var nextMilestoneName   = nextMilestone != default ? $"{nextMilestone.Name} {nextMilestone.Emoji}" : null;
     var nextMilestoneTarget = nextMilestone != default ? nextMilestone.Target : 0;
 
+    var activeEvent = engine.EventSystem.ActiveEvent;
+
     var state = new ServerState(
         Tick:                      engine.TickCount,
         Paused:                    paused,
@@ -332,7 +334,10 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         Milestones:                engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
         Tiles:                     nonEmptyTiles,
         NextMilestoneName:         nextMilestoneName,
-        NextMilestoneTarget:       nextMilestoneTarget
+        NextMilestoneTarget:       nextMilestoneTarget,
+        ActiveEventName:           activeEvent?.Name,
+        ActiveEventDescription:    activeEvent?.Description,
+        LatestEventBanner:         engine.LatestEventBanner
     );
 
     var options = new JsonSerializerOptions
@@ -572,7 +577,10 @@ record ServerState(
     List<string> Milestones,
     List<TileState> Tiles,
     string? NextMilestoneName = null,
-    int NextMilestoneTarget = 0);
+    int NextMilestoneTarget = 0,
+    string? ActiveEventName = null,
+    string? ActiveEventDescription = null,
+    string? LatestEventBanner = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

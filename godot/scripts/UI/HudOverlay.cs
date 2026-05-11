@@ -16,6 +16,7 @@ public partial class HudOverlay : CanvasLayer
     private Label _netLabel       = null!;
     private Label _taxCostLabel   = null!;
     private Label _happyLabel     = null!;
+    private Label _eventLabel     = null!;
     private Label _selectedLabel  = null!;
     private Label _pausedLabel    = null!;
     private Label _milestoneLabel = null!;
@@ -58,6 +59,13 @@ public partial class HudOverlay : CanvasLayer
         _netLabel      = MakeLabel("Net: $0/tick");
         _taxCostLabel  = MakeLabel("Tax: $0/tick | Costs: $0/tick");
         _happyLabel    = MakeLabel("Happiness: 0%");
+
+        _eventLabel = new Label();
+        _eventLabel.Text = "";
+        _eventLabel.Visible = false;
+        _eventLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+        _eventLabel.AddThemeFontSizeOverride("font_size", 14);
+
         _selectedLabel = MakeLabel("[Selected: Road]");
         _pausedLabel   = MakeLabel("[Paused]");
 
@@ -69,6 +77,7 @@ public partial class HudOverlay : CanvasLayer
         vbox.AddChild(_netLabel);
         vbox.AddChild(_taxCostLabel);
         vbox.AddChild(_happyLabel);
+        vbox.AddChild(_eventLabel);
         vbox.AddChild(_selectedLabel);
         vbox.AddChild(_pausedLabel);
 
@@ -149,6 +158,16 @@ public partial class HudOverlay : CanvasLayer
 
         var happyPct = (int)(state.Happiness * 100);
         _happyLabel.Text = $"Happiness: {happyPct}%";
+
+        if (!string.IsNullOrEmpty(state.ActiveEventName))
+        {
+            _eventLabel.Text = $"! {state.ActiveEventName} — happiness -{(state.ActiveEventName.Contains("Fire") ? "15" : "10")}%";
+            _eventLabel.Visible = true;
+        }
+        else
+        {
+            _eventLabel.Visible = false;
+        }
 
         _pausedLabel.Visible = state.Paused;
 

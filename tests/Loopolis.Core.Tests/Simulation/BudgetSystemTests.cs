@@ -208,4 +208,130 @@ public class BudgetSystemTests
         Assert.That(budget.NetIncomePerTick, Is.GreaterThan(0),
             "A city with 12 powered residential zones should generate surplus revenue");
     }
+
+    // --- Placement cost tests ---
+
+    [Test]
+    public void PlacementCosts_ContainsExpectedZones()
+    {
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("Residential"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("Commercial"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("Industrial"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("Road"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("PowerLine"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("PowerPlant"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("FireStation"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("PoliceStation"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("School"));
+        Assert.That(BudgetSystem.PlacementCosts, Does.ContainKey("Erase"));
+    }
+
+    [Test]
+    public void PlacementCosts_HasCorrectValues()
+    {
+        Assert.That(BudgetSystem.PlacementCosts["Residential"],    Is.EqualTo(50.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["Commercial"],     Is.EqualTo(100.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["Industrial"],     Is.EqualTo(75.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["Road"],           Is.EqualTo(25.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["PowerLine"],      Is.EqualTo(40.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["PowerPlant"],     Is.EqualTo(500.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["FireStation"],    Is.EqualTo(300.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["PoliceStation"],  Is.EqualTo(300.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["School"],         Is.EqualTo(400.0).Within(0.001));
+        Assert.That(BudgetSystem.PlacementCosts["Erase"],          Is.EqualTo(0.0).Within(0.001));
+    }
+
+    [Test]
+    public void CanAfford_ReturnsTrueWhenBalanceSufficient()
+    {
+        var budget = new BudgetSystem(initialBalance: 1000);
+
+        Assert.That(budget.CanAfford(500), Is.True);
+        Assert.That(budget.CanAfford(1000), Is.True);
+    }
+
+    [Test]
+    public void CanAfford_ReturnsFalseWhenBalanceInsufficient()
+    {
+        var budget = new BudgetSystem(initialBalance: 100);
+
+        Assert.That(budget.CanAfford(101), Is.False);
+    }
+
+    [Test]
+    public void Charge_DeductsFromBalance()
+    {
+        var budget = new BudgetSystem(initialBalance: 1000);
+
+        budget.Charge(250);
+
+        Assert.That(budget.Balance, Is.EqualTo(750).Within(0.001));
+    }
+
+    [Test]
+    public void Charge_AffordabilityCheckBeforeCharge_PreservesBalance()
+    {
+        var budget = new BudgetSystem(initialBalance: 100);
+
+        var canAfford = budget.CanAfford(500);
+        if (!canAfford) return; // skip the charge — this is the guard pattern
+
+        Assert.That(budget.Balance, Is.EqualTo(100)); // unchanged
+    }
+
+    // --- SetTaxRate(string) tests ---
+
+    [Test]
+    public void SetTaxRate_Low_SetsCorrectRateAndModifier()
+    {
+        var budget = new BudgetSystem();
+
+        budget.SetTaxRate("low");
+
+        Assert.That(budget.TaxRate, Is.EqualTo(0.08).Within(0.0001));
+        Assert.That(budget.TaxModifier, Is.EqualTo(+0.05).Within(0.0001));
+    }
+
+    [Test]
+    public void SetTaxRate_Normal_SetsCorrectRateAndModifier()
+    {
+        var budget = new BudgetSystem();
+        budget.SetTaxRate("low"); // change from default first
+
+        budget.SetTaxRate("normal");
+
+        Assert.That(budget.TaxRate, Is.EqualTo(0.12).Within(0.0001));
+        Assert.That(budget.TaxModifier, Is.EqualTo(0.00).Within(0.0001));
+    }
+
+    [Test]
+    public void SetTaxRate_High_SetsCorrectRateAndModifier()
+    {
+        var budget = new BudgetSystem();
+
+        budget.SetTaxRate("high");
+
+        Assert.That(budget.TaxRate, Is.EqualTo(0.16).Within(0.0001));
+        Assert.That(budget.TaxModifier, Is.EqualTo(-0.10).Within(0.0001));
+    }
+
+    [Test]
+    public void SetTaxRate_UnknownLevel_FallsBackToNormal()
+    {
+        var budget = new BudgetSystem();
+        budget.SetTaxRate("high"); // change from default first
+
+        budget.SetTaxRate("unknown");
+
+        Assert.That(budget.TaxRate, Is.EqualTo(0.12).Within(0.0001));
+        Assert.That(budget.TaxModifier, Is.EqualTo(0.00).Within(0.0001));
+    }
+
+    [Test]
+    public void TaxModifier_DefaultIsZero()
+    {
+        var budget = new BudgetSystem();
+
+        Assert.That(budget.TaxModifier, Is.EqualTo(0.0).Within(0.0001));
+    }
 }

@@ -30,12 +30,16 @@ public class SimulationEngine
     public PollutionSystem PollutionSystem { get; }
     public HappinessSystem HappinessSystem { get; }
     public MilestoneSystem MilestoneSystem { get; }
+    public EventSystem EventSystem { get; }
     public int TickCount { get; private set; }
+
+    /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
+    public string? LatestEventBanner { get; private set; }
 
     public SimulationEngine(CityGrid grid, BudgetSystem budget, PopulationSystem population,
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,
         PollutionSystem? pollutionSystem = null, HappinessSystem? happinessSystem = null,
-        MilestoneSystem? milestoneSystem = null)
+        MilestoneSystem? milestoneSystem = null, EventSystem? eventSystem = null)
     {
         Grid = grid;
         Budget = budget;
@@ -46,15 +50,19 @@ public class SimulationEngine
         PollutionSystem = pollutionSystem ?? new PollutionSystem();
         HappinessSystem = happinessSystem ?? new HappinessSystem();
         MilestoneSystem = milestoneSystem ?? new MilestoneSystem();
+        EventSystem = eventSystem ?? new EventSystem();
     }
 
     public void Tick()
     {
+        LatestEventBanner = null;
         PowerNetwork.Propagate(Grid);
         RoadNetwork.Propagate(Grid);
         PollutionSystem.Propagate(Grid);  // pollution before happiness
         DemandSystem.Propagate(Grid);     // demand before happiness
-        HappinessSystem.Propagate(Grid, Budget.TaxModifier);  // happiness uses pollution + demand + tax modifier
+        var newEvent = EventSystem.Tick(Grid, Population.Population);
+        if (newEvent != null) LatestEventBanner = newEvent.Name;
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty);  // happiness uses pollution + demand + tax modifier + event penalty
         Population.Tick(Grid);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();

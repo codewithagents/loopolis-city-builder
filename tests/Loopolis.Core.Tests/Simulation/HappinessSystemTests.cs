@@ -304,4 +304,72 @@ public class HappinessSystemTests
         Assert.That(grid.GetTile(5, 5).Happiness, Is.GreaterThanOrEqualTo(0.3),
             "Final happiness should be >= 0.3 even at max neglect (0.6 base - 0.3 cap)");
     }
+
+    // --- Tax modifier tests ---
+
+    [Test]
+    public void LowTaxModifier_IncreasesHappiness()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        _happiness.Propagate(grid, taxModifier: 0.0);
+        var baseHappiness = grid.GetTile(5, 5).Happiness;
+
+        _happiness.Propagate(grid, taxModifier: +0.05);
+        var lowTaxHappiness = grid.GetTile(5, 5).Happiness;
+
+        Assert.That(lowTaxHappiness, Is.GreaterThan(baseHappiness),
+            "Low tax modifier (+0.05) should increase happiness above baseline");
+    }
+
+    [Test]
+    public void HighTaxModifier_DecreasesHappiness()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        _happiness.Propagate(grid, taxModifier: 0.0);
+        var baseHappiness = grid.GetTile(5, 5).Happiness;
+
+        _happiness.Propagate(grid, taxModifier: -0.10);
+        var highTaxHappiness = grid.GetTile(5, 5).Happiness;
+
+        Assert.That(highTaxHappiness, Is.LessThan(baseHappiness),
+            "High tax modifier (-0.10) should decrease happiness below baseline");
+    }
+
+    [Test]
+    public void TaxModifier_ClampedTo1Point0Maximum()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        // Place a fire station and commercial adjacent to push happiness near max
+        MakeCommercialReady(grid, 5, 6);
+        grid.SetZone(5, 8, ZoneType.FireStation);
+
+        // Large positive tax modifier that would push beyond 1.0
+        _happiness.Propagate(grid, taxModifier: +1.0);
+
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.LessThanOrEqualTo(1.0),
+            "Happiness with tax modifier should be clamped to 1.0 maximum");
+    }
+
+    [Test]
+    public void TaxModifier_ClampedTo0Point1Minimum()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        grid.SetPollution(5, 5, 1.0); // max pollution already reduces happiness
+
+        // Large negative tax modifier pushing below 0.1
+        _happiness.Propagate(grid, taxModifier: -1.0);
+
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.GreaterThanOrEqualTo(0.1),
+            "Happiness with tax modifier should be clamped to 0.1 minimum");
+    }
 }
