@@ -7,10 +7,8 @@
 
 ## Current Milestone
 
-**Milestone 1 — Simulation Foundation** 🔄 In Progress
-
-Goal: All core simulation systems built, tested, agent feedback loop operational.
-Next milestone: Milestone 2 — First Playable (Godot visual + player input).
+**Milestone 1 — Simulation Foundation** ✅ Complete
+**Milestone 2 — First Playable** 🔄 In Progress — Phase 1 (static render) done, Phase 2 (player input) next.
 
 ---
 
@@ -35,10 +33,12 @@ Next milestone: Milestone 2 — First Playable (Godot visual + player input).
 
 ## Short-Term Task Queue (Next 2–3 Sessions)
 
-### Session Next
-- [x] `DemandSystem` — R/C/I zones need each other to grow beyond base capacity (done)
-- [x] `SimulationEngine` — orchestrator class replacing manual system wiring in Runner (done)
-- [ ] Run loopolis-designer agent against GAME_DESIGN.md for design review
+### Session Next (Phase 2 — Player Input)
+- [ ] Click tile to place zone (Residential / Commercial / Industrial)
+- [ ] Click to place Road tiles
+- [ ] Click to place Power Line tiles
+- [ ] Toolbar: zone selector buttons (R / C / I / Road / PowerLine / Erase)
+- [ ] Basic UI labels: population count, budget balance, tick counter
 
 ### Session +2 ✅ Complete
 - [x] Install Godot 4 .NET edition (godotengine.org) — installed at `/Applications/Godot_mono.app`
