@@ -15,7 +15,7 @@ public partial class HintOverlay : CanvasLayer
         "💡 Connect a Power Plant with Power Lines to your zones — no power, no growth",
         "💡 Add Residential zones connected by Roads — watch them grow when powered",
         "💡 Build Fire/Police/School stations — neglected cities lose happiness and stall",
-        "💡 Milestones: 500 pop = Village · 5 000 = Town · 25 000 = City · 100 000 = Metropolis",
+        "💡 Milestones: 500 pop = Town · 5 000 = City · 25 000 = Metropolis · 100 000 = Loopolis",
     };
 
     private Label          _hintLabel = null!;

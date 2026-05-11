@@ -144,11 +144,11 @@ public partial class HudOverlay : CanvasLayer
     }
 
     /// <summary>Called by World.cs (standalone mode) to update the next milestone display directly.</summary>
-    public void UpdateNextMilestone(string? name, int target)
+    public void UpdateNextMilestone(string? name, int target, int currentPop)
     {
         if (!string.IsNullOrEmpty(name) && target > 0)
         {
-            _nextMilestoneLabel.Text = $"Next: {name}";
+            _nextMilestoneLabel.Text = $"Next: {name} ({currentPop:N0} / {target:N0})";
             _nextMilestoneLabel.Visible = true;
         }
         else
