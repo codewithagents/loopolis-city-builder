@@ -627,7 +627,10 @@ public partial class World : Node2D
             ActiveEventName:           activeEvent?.Name,
             ActiveEventDescription:    activeEvent?.Description,
             LatestEventBanner:         _engine.LatestEventBanner,
-            TaxModifier:               _budget.TaxModifier
+            TaxModifier:               _budget.TaxModifier,
+            AvailableJobs:             _engine.EmploymentSystem.AvailableJobs,
+            RequiredJobs:              _engine.EmploymentSystem.RequiredJobs,
+            EmploymentRatio:           _engine.EmploymentSystem.EmploymentRatio
         );
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);

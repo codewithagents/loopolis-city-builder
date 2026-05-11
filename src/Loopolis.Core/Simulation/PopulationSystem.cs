@@ -36,7 +36,7 @@ public class PopulationSystem
     ///
     /// Total Population = sum of residential tile populations only.
     /// </summary>
-    public void Tick(CityGrid grid)
+    public void Tick(CityGrid grid, double employmentMultiplier = 1.0)
     {
         var totalPopulation = 0;
 
@@ -64,8 +64,8 @@ public class PopulationSystem
             int newPop;
             if (canDevelop && tile.HasPower)
             {
-                // Grow toward capacity, modified by demand factor and happiness
-                var growthMultiplier = tile.DemandFactor * tile.Happiness;
+                // Grow toward capacity, modified by demand factor, happiness, and employment
+                var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier;
                 var growth = (int)(GrowthRate * ResidentsPerZone * growthMultiplier);
                 newPop = Math.Min(ResidentsPerZone, current + growth);
             }

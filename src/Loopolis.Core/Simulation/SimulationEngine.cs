@@ -31,6 +31,7 @@ public class SimulationEngine
     public HappinessSystem HappinessSystem { get; }
     public MilestoneSystem MilestoneSystem { get; }
     public EventSystem EventSystem { get; }
+    public EmploymentSystem EmploymentSystem { get; }
     public int TickCount { get; private set; }
 
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
@@ -43,7 +44,8 @@ public class SimulationEngine
     public SimulationEngine(CityGrid grid, BudgetSystem budget, PopulationSystem population,
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,
         PollutionSystem? pollutionSystem = null, HappinessSystem? happinessSystem = null,
-        MilestoneSystem? milestoneSystem = null, EventSystem? eventSystem = null)
+        MilestoneSystem? milestoneSystem = null, EventSystem? eventSystem = null,
+        EmploymentSystem? employmentSystem = null)
     {
         Grid = grid;
         Budget = budget;
@@ -55,6 +57,7 @@ public class SimulationEngine
         HappinessSystem = happinessSystem ?? new HappinessSystem();
         MilestoneSystem = milestoneSystem ?? new MilestoneSystem();
         EventSystem = eventSystem ?? new EventSystem();
+        EmploymentSystem = employmentSystem ?? new EmploymentSystem();
     }
 
     public void Tick()
@@ -85,7 +88,8 @@ public class SimulationEngine
             MilestoneSystem.RecoverFromAbandonment();
         }
 
-        Population.Tick(Grid);
+        var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
+        Population.Tick(Grid, employmentMultiplier);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();
         Budget.CollectCommercialIncome(Grid);

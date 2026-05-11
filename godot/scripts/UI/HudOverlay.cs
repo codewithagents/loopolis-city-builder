@@ -16,6 +16,7 @@ public partial class HudOverlay : CanvasLayer
     private Label _netLabel       = null!;
     private Label _taxCostLabel   = null!;
     private Label _happyLabel     = null!;
+    private Label _jobsLabel      = null!;
     private Label _eventLabel     = null!;
     private Label _selectedLabel  = null!;
     private Label _pausedLabel    = null!;
@@ -60,6 +61,8 @@ public partial class HudOverlay : CanvasLayer
         _taxCostLabel  = MakeLabel("Tax: $0/tick | Costs: $0/tick");
         _happyLabel    = MakeLabel("Happiness: 0%");
 
+        _jobsLabel = MakeLabel("Jobs: ✓ 0 available");
+
         _eventLabel = new Label();
         _eventLabel.Text = "";
         _eventLabel.Visible = false;
@@ -77,6 +80,7 @@ public partial class HudOverlay : CanvasLayer
         vbox.AddChild(_netLabel);
         vbox.AddChild(_taxCostLabel);
         vbox.AddChild(_happyLabel);
+        vbox.AddChild(_jobsLabel);
         vbox.AddChild(_eventLabel);
         vbox.AddChild(_selectedLabel);
         vbox.AddChild(_pausedLabel);
@@ -165,6 +169,18 @@ public partial class HudOverlay : CanvasLayer
 
         var happyPct = (int)(state.Happiness * 100);
         _happyLabel.Text = $"Happiness: {happyPct}%";
+
+        if (state.EmploymentRatio < 1.0 && state.RequiredJobs > 0)
+        {
+            var unemploymentPct = (int)((1.0 - state.EmploymentRatio) * 100);
+            _jobsLabel.Text = $"Jobs: {state.AvailableJobs}/{state.RequiredJobs} (⚠️ {unemploymentPct}% gap)";
+            _jobsLabel.AddThemeColorOverride("font_color", new Color(1f, 0.6f, 0.1f));
+        }
+        else
+        {
+            _jobsLabel.Text = $"Jobs: ✓ {state.AvailableJobs} available";
+            _jobsLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
+        }
 
         if (!string.IsNullOrEmpty(state.ActiveEventName))
         {

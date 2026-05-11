@@ -201,7 +201,10 @@ public record SharedState(
     string? ActiveEventDescription = null,
     string? LatestEventBanner = null,
     double TaxModifier = 0.0,
-    string? SessionId = null
+    string? SessionId = null,
+    int AvailableJobs = 0,
+    int RequiredJobs = 0,
+    double EmploymentRatio = 1.0
 );
 
 public record SharedTile(

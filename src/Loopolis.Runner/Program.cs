@@ -376,7 +376,10 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         ActiveEventDescription:    activeEvent?.Description,
         LatestEventBanner:         engine.LatestEventBanner,
         TaxModifier:               engine.Budget.TaxModifier,
-        SessionId:                 sessionId.Length > 0 ? sessionId : null
+        SessionId:                 sessionId.Length > 0 ? sessionId : null,
+        AvailableJobs:             engine.EmploymentSystem.AvailableJobs,
+        RequiredJobs:              engine.EmploymentSystem.RequiredJobs,
+        EmploymentRatio:           Math.Round(engine.EmploymentSystem.EmploymentRatio, 3)
     );
 
     var options = new JsonSerializerOptions
@@ -621,7 +624,10 @@ record ServerState(
     string? ActiveEventDescription = null,
     string? LatestEventBanner = null,
     double TaxModifier = 0.0,
-    string? SessionId = null);
+    string? SessionId = null,
+    int AvailableJobs = 0,
+    int RequiredJobs = 0,
+    double EmploymentRatio = 1.0);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 
