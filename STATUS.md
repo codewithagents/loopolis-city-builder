@@ -47,8 +47,9 @@
 | CoalPlant/NuclearPlant (ZoneType) | ✅ Done | (in PowerCapacitySystemTests) |
 | PowerCapacitySystem | ✅ Done | 27 |
 | LandValueSystem | ✅ Done | 18 |
+| CommutePenalty (HappinessSystem) | ✅ Done | 14 |
 
-**Total: 290 tests · 0 failures · ~0.34s runtime**
+**Total: 304 tests · 0 failures · ~0.36s runtime**
 
 ---
 
@@ -189,5 +190,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 ---
 
 | 2026-05-11 | default | M8 Phase 3 land value: flat-terrain residential gets 0.8× tax multiplier → 12.24→9.79/tick at pop 102. LandValue avg=0.16, max=0.25 on default grid (no hills, minimal power at tick 1). landValueAvg/landValueMax in coverageSummary confirmed. res_villa_hillside_3x3 in catalog, HillTerrain+MinLandValue conditions working. | Working correctly |
+| 2026-05-11 | town | Commute penalty + Chebyshev-3 mixed-use: town scenario avg happiness 0.537 at tick 0 (down from 0.6 baseline) — industrial at y=16-24 is ~10+ tiles from residential y=10-14, triggering −0.10 commute tier. happinessBreakdown.commutePenalty = −0.0462 in live state.json. default scenario: commutePenalty = 0.0 (no industrial). | Working correctly |
 
 *Last updated: 2026-05-11 — M8 Phase 3: LandValueSystem + hillside villa + tax modifiers*
