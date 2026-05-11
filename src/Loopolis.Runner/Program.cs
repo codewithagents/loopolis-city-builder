@@ -240,6 +240,10 @@ static string? DetectActionableSkipPauseReason(SimulationEngine engine, CityGrid
     if (engine.Budget.Balance < oneTick && engine.Budget.Balance < 0)
         return "BankruptcyWarning";
 
+    // Brownout: supply dropped below demand this tick
+    if (engine.PowerCapacitySystem.IsBrownout)
+        return "Brownout";
+
     // Abandonment warning: happiness dropping below threshold
     var avgHappiness = engine.HappinessSystem.AverageHappiness(grid);
     if (avgHappiness < 0.30)
@@ -793,6 +797,14 @@ static void WriteState(
 
     var activeEvent = engine.EventSystem.ActiveEvent;
 
+    // --- Power capacity ---
+    var pcs = engine.PowerCapacitySystem;
+    var powerState = new PowerState(
+        SupplyMW:      pcs.TotalSupplyMW,
+        DemandMW:      pcs.TotalDemandMW,
+        CapacityRatio: Math.Round(pcs.CapacityRatio, 4),
+        IsBrownout:    pcs.IsBrownout);
+
     var state = new ServerState(
         Tick:                      engine.TickCount,
         Paused:                    paused,
@@ -829,7 +841,8 @@ static void WriteState(
         PauseReason:               pauseReason,
         TicksRun:                  ticksRun,
         RecentEvents:              recentEvents ?? new List<string>(),
-        Error:                     error
+        Error:                     error,
+        Power:                     powerState
     );
 
     var options = new JsonSerializerOptions
@@ -1093,6 +1106,12 @@ record CoverageSummary(
     [property: JsonPropertyName("overloadedRoadCount")]      int    OverloadedRoadCount = 0,
     [property: JsonPropertyName("avgTrafficLoad")]           double AvgTrafficLoad = 0.0);
 
+record PowerState(
+    [property: JsonPropertyName("supplyMW")]       int    SupplyMW,
+    [property: JsonPropertyName("demandMW")]       int    DemandMW,
+    [property: JsonPropertyName("capacityRatio")]  double CapacityRatio,
+    [property: JsonPropertyName("isBrownout")]     bool   IsBrownout);
+
 record OverlayTile(
     [property: JsonPropertyName("x")]     int    X,
     [property: JsonPropertyName("y")]     int    Y,
@@ -1145,7 +1164,8 @@ record ServerState(
     string? PauseReason = null,
     int? TicksRun = null,
     List<string>? RecentEvents = null,
-    string? Error = null);
+    string? Error = null,
+    PowerState? Power = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 
@@ -1178,13 +1198,15 @@ static class AsciiRenderer
                 var tile = grid.GetTile(x, y);
                 var (symbol, color) = tile.Zone switch
                 {
-                    ZoneType.Residential => ("R", Green),
-                    ZoneType.Commercial  => ("C", Blue),
-                    ZoneType.Industrial  => ("I", Yellow),
-                    ZoneType.Road        => ("░", Gray),
-                    ZoneType.PowerPlant  => ("P", Red),
-                    ZoneType.PowerLine   => ("╌", Cyan),
-                    _                    => ("·", Gray),
+                    ZoneType.Residential  => ("R", Green),
+                    ZoneType.Commercial   => ("C", Blue),
+                    ZoneType.Industrial   => ("I", Yellow),
+                    ZoneType.Road         => ("░", Gray),
+                    ZoneType.PowerPlant   => ("P", Red),
+                    ZoneType.CoalPlant    => ("K", Red),
+                    ZoneType.NuclearPlant => ("N", White),
+                    ZoneType.PowerLine    => ("╌", Cyan),
+                    _                     => ("·", Gray),
                 };
                 Console.Write($"{color}{symbol}{Reset}");
             }

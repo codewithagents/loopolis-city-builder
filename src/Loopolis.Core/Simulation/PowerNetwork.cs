@@ -3,9 +3,10 @@ using Loopolis.Core.Grid;
 namespace Loopolis.Core.Simulation;
 
 /// <summary>
-/// Propagates power from PowerPlant tiles to all connected non-empty tiles via BFS.
+/// Propagates power from CoalPlant/NuclearPlant (and legacy PowerPlant) tiles to all
+/// connected non-empty tiles via BFS.
 ///
-/// Conductors: PowerPlant, PowerLine, Road, Residential, Commercial, Industrial
+/// Conductors: CoalPlant, NuclearPlant, PowerPlant (legacy), PowerLine, Road, Residential, Commercial, Industrial
 /// Insulators: Empty (breaks the chain — you must connect zones with roads or power lines)
 ///
 /// Call Propagate() each simulation tick or whenever the grid changes.
@@ -14,7 +15,9 @@ public class PowerNetwork
 {
     private static readonly HashSet<ZoneType> Conductors = new()
     {
-        ZoneType.PowerPlant,
+        ZoneType.PowerPlant,    // legacy alias
+        ZoneType.CoalPlant,
+        ZoneType.NuclearPlant,
         ZoneType.PowerLine,
         ZoneType.Road,
         ZoneType.Avenue,
@@ -29,10 +32,17 @@ public class PowerNetwork
         ZoneType.Hospital,
     };
 
+    private static readonly HashSet<ZoneType> PowerSources = new()
+    {
+        ZoneType.PowerPlant,    // legacy alias
+        ZoneType.CoalPlant,
+        ZoneType.NuclearPlant,
+    };
+
     public int PoweredTileCount { get; private set; }
 
     /// <summary>
-    /// Clears all power state on the grid, then BFS-floods from every PowerPlant.
+    /// Clears all power state on the grid, then BFS-floods from every power source.
     /// All reachable conductor tiles are marked as powered.
     /// </summary>
     public void Propagate(CityGrid grid)
@@ -43,13 +53,13 @@ public class PowerNetwork
         var visited = new bool[grid.Width, grid.Height];
         var queue = new Queue<(int x, int y)>();
 
-        // Seed BFS from every power plant
-        foreach (var plant in grid.TilesOfType(ZoneType.PowerPlant))
+        // Seed BFS from every power plant (CoalPlant, NuclearPlant, and legacy PowerPlant)
+        foreach (var tile in grid.AllTiles())
         {
-            if (!visited[plant.X, plant.Y])
+            if (PowerSources.Contains(tile.Zone) && !visited[tile.X, tile.Y])
             {
-                queue.Enqueue((plant.X, plant.Y));
-                visited[plant.X, plant.Y] = true;
+                queue.Enqueue((tile.X, tile.Y));
+                visited[tile.X, tile.Y] = true;
             }
         }
 

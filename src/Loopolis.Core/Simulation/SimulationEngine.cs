@@ -7,17 +7,18 @@ namespace Loopolis.Core.Simulation;
 /// Orchestrates all simulation systems in the correct tick order.
 ///
 /// Tick order:
-///   1. PowerNetwork.Propagate      — mark tiles that have electricity
-///   2. RoadNetwork.Propagate       — mark zones with road access
-///   3. RoadTrafficSystem.Propagate — compute traffic load + overload flags per road/avenue tile
-///   4. PollutionSystem.Propagate   — industrial zones emit pollution
-///   5. DemandSystem.Propagate      — demand depends on which zones are ready (powered + road)
-///   6. HappinessSystem.Propagate   — happiness uses pollution + demand + services + traffic penalty
-///   7. Population.Tick             — grow/decline based on ready zones + demand + happiness + traffic
-///   8. Budget.SetPopulation        — sync population to budget
-///   9. Budget.CollectTaxes         — income from current population
-///  10. Budget.DeductMaintenance    — costs from current grid
-///  11. MilestoneSystem.Check       — check for milestone progression and bankruptcy
+///   1. PowerNetwork.Propagate         — mark tiles that have electricity
+///   2. PowerCapacitySystem.Propagate  — compute city-level supply/demand + brownout flag
+///   3. RoadNetwork.Propagate          — mark zones with road access
+///   4. RoadTrafficSystem.Propagate    — compute traffic load + overload flags per road/avenue tile
+///   5. PollutionSystem.Propagate      — industrial zones + CoalPlant emit pollution
+///   6. DemandSystem.Propagate         — demand depends on which zones are ready (powered + road)
+///   7. HappinessSystem.Propagate      — happiness uses pollution + demand + services + traffic + brownout penalty
+///   8. Population.Tick                — grow/decline based on ready zones + demand + happiness + traffic + brownout multiplier
+///   9. Budget.SetPopulation           — sync population to budget
+///  10. Budget.CollectTaxes            — income from current population
+///  11. Budget.DeductMaintenance       — costs from current grid
+///  12. MilestoneSystem.Check          — check for milestone progression and bankruptcy
 ///
 /// This class has no Godot dependencies and is safe to use from tests, Runner, and Godot.
 /// </summary>
@@ -27,6 +28,7 @@ public class SimulationEngine
     public BudgetSystem Budget { get; }
     public PopulationSystem Population { get; }
     public PowerNetwork PowerNetwork { get; }
+    public PowerCapacitySystem PowerCapacitySystem { get; }
     public RoadNetwork RoadNetwork { get; }
     public RoadTrafficSystem RoadTrafficSystem { get; }
     public DemandSystem DemandSystem { get; }
@@ -49,12 +51,14 @@ public class SimulationEngine
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,
         PollutionSystem? pollutionSystem = null, HappinessSystem? happinessSystem = null,
         MilestoneSystem? milestoneSystem = null, EventSystem? eventSystem = null,
-        EmploymentSystem? employmentSystem = null, RoadTrafficSystem? roadTrafficSystem = null)
+        EmploymentSystem? employmentSystem = null, RoadTrafficSystem? roadTrafficSystem = null,
+        PowerCapacitySystem? powerCapacitySystem = null)
     {
         Grid = grid;
         Budget = budget;
         Population = population;
         PowerNetwork = powerNetwork;
+        PowerCapacitySystem = powerCapacitySystem ?? new PowerCapacitySystem();
         RoadNetwork = roadNetwork;
         RoadTrafficSystem = roadTrafficSystem ?? new RoadTrafficSystem();
         DemandSystem = demandSystem;
@@ -69,13 +73,14 @@ public class SimulationEngine
     {
         LatestEventBanner = null;
         PowerNetwork.Propagate(Grid);
+        PowerCapacitySystem.Propagate(Grid);   // supply/demand after BFS power is known
         RoadNetwork.Propagate(Grid);
         RoadTrafficSystem.Propagate(Grid); // traffic load after road access is known
         PollutionSystem.Propagate(Grid);   // pollution before happiness
         DemandSystem.Propagate(Grid);      // demand before happiness
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
-        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem);  // happiness uses pollution + demand + tax modifier + event penalty + traffic
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout
 
         // Track low-happiness ticks for abandonment loss condition
         var avgHappiness = HappinessSystem.AverageHappiness(Grid);
@@ -97,7 +102,7 @@ public class SimulationEngine
         BuildingGrowthSystem.Initialize(Grid);
         BuildingGrowthSystem.TryGrow(Grid, MilestoneSystem.CurrentState);
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
-        Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem);
+        Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();
         Budget.CollectCommercialIncome(Grid);

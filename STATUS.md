@@ -44,8 +44,10 @@
 | Toolbar + zone selector (Godot) | ✅ Done | — |
 | RoadTrafficSystem | ✅ Done | 22 |
 | Avenue (ZoneType) | ✅ Done | (in RoadTrafficSystemTests) |
+| CoalPlant/NuclearPlant (ZoneType) | ✅ Done | (in PowerCapacitySystemTests) |
+| PowerCapacitySystem | ✅ Done | 27 |
 
-**Total: 245 tests · 0 failures · ~0.21s runtime**
+**Total: 272 tests · 0 failures · ~0.23s runtime**
 
 ---
 
@@ -129,6 +131,7 @@
 | 2026-05-11 | all | All large scenarios go bankrupt. Root cause: residential zones at distance from roads can't develop (only 11-18 of 45-75 R tiles are ready). Maintenance costs (industrial, roads, powerlines) dwarf tax income. | Backlog: balance tuning or larger commercial footprint |
 | 2026-05-11 | default | Traffic system: 2 road tiles, avg load = 4.0 (8 zone tiles / 2 roads), neither overloaded (threshold 8). System is dormant on light grids as designed — only activates at 9+ zone tiles per road. Avenue threshold of 16 gives meaningful upgrade path. | Working correctly |
 | 2026-05-11 | default + services | M8 service tiers: PoliceHQ/FireHQ radius-10 confirmed, Hospital event penalty halving confirmed in tests. default survives 500t (+$2.24/tick), services bankrupt as pre-existing (layout issue). All 245 tests green. | Working correctly |
+| 2026-05-11 | default | M8 Phase 2 power variants: CoalPlant/NuclearPlant added. Legacy PowerPlant tiles continue to work (alias). default scenario: 500 ticks, pop 102, balance +$4,989, +$2.24/tick. PowerCapacitySystem: 500 MW supply / 19 MW demand = ratio 26x, no brownout. Legacy PowerPlant now emits pollution at 0.4 strength (avg 0.068 on default grid). Brownout correctly triggers when 102 industrial tiles (510 MW) exceed 1 coal plant (500 MW). NuclearPlant correctly blocked below 500 pop. All 272 tests green. | Working correctly |
 
 ---
 
@@ -184,4 +187,4 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 ---
 
-*Last updated: 2026-05-11 — RoadTrafficSystem + Avenue ZoneType + query_overlay traffic*
+*Last updated: 2026-05-11 — M8 Phase 2: CoalPlant/NuclearPlant + PowerCapacitySystem + brownout mechanics*

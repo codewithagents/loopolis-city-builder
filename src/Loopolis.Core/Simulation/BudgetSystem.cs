@@ -12,7 +12,9 @@ public class BudgetSystem
     public static readonly IReadOnlyDictionary<ZoneType, double> MaintenanceCostPerTile =
         new Dictionary<ZoneType, double>
         {
-            { ZoneType.PowerPlant,    8.0 },
+            { ZoneType.PowerPlant,    8.0 },   // legacy alias
+            { ZoneType.CoalPlant,     8.0 },
+            { ZoneType.NuclearPlant, 50.0 },
             { ZoneType.PowerLine,     0.5 },
             { ZoneType.Road,          1.0 },
             { ZoneType.Avenue,        2.0 },
@@ -34,20 +36,22 @@ public class BudgetSystem
     public static readonly IReadOnlyDictionary<string, double> PlacementCosts =
         new Dictionary<string, double>
         {
-            { "Residential",   50.0 },
-            { "Commercial",   100.0 },
-            { "Industrial",    75.0 },
-            { "Road",          25.0 },
-            { "Avenue",        50.0 },
-            { "PowerLine",     40.0 },
-            { "PowerPlant",   500.0 },
-            { "FireStation",  300.0 },
-            { "PoliceStation",300.0 },
-            { "School",       400.0 },
-            { "PoliceHQ",   2_000.0 },
-            { "FireHQ",     2_000.0 },
-            { "Hospital",   3_000.0 },
-            { "Erase",          0.0 },
+            { "Residential",    50.0 },
+            { "Commercial",    100.0 },
+            { "Industrial",     75.0 },
+            { "Road",           25.0 },
+            { "Avenue",         50.0 },
+            { "PowerLine",      40.0 },
+            { "PowerPlant",    500.0 },   // legacy alias
+            { "CoalPlant",     500.0 },
+            { "NuclearPlant", 8_000.0 },
+            { "FireStation",   300.0 },
+            { "PoliceStation", 300.0 },
+            { "School",        400.0 },
+            { "PoliceHQ",    2_000.0 },
+            { "FireHQ",      2_000.0 },
+            { "Hospital",    3_000.0 },
+            { "Erase",           0.0 },
         };
 
     /// <summary>Extra maintenance cost per tick per tile on a hill.</summary>

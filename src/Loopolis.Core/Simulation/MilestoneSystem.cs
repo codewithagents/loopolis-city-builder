@@ -75,12 +75,20 @@ public class MilestoneSystem
 
     /// <summary>
     /// Returns whether a zone type is available to place given the current milestone state.
+    /// Town-milestone-gated types (NuclearPlant) require population ≥ 500.
     /// City-milestone-gated types (PoliceHQ, FireHQ, Hospital) require population ≥ 5,000.
     /// Returns (true, null) if placement is allowed, or (false, errorMessage) if blocked.
     /// </summary>
     public (bool allowed, string? error) CanPlace(ZoneType zone, int currentPopulation)
     {
+        const int TownMilestonePopulation = 500;
         const int CityMilestonePopulation = 5_000;
+
+        if (zone == ZoneType.NuclearPlant)
+        {
+            if (currentPopulation >= TownMilestonePopulation) return (true, null);
+            return (false, "NuclearPlant requires Town milestone (500 population)");
+        }
 
         var isCityGated = zone is ZoneType.PoliceHQ or ZoneType.FireHQ or ZoneType.Hospital;
         if (!isCityGated) return (true, null);

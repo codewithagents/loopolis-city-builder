@@ -7,7 +7,7 @@ public enum ZoneType
     Commercial,
     Industrial,
     Road,
-    PowerPlant,
+    PowerPlant,     // kept for backward compatibility — alias for CoalPlant
     PowerLine,
     FireStation,    // coverage radius 4, happiness +0.15
     PoliceStation,  // coverage radius 4, happiness +0.15
@@ -16,6 +16,8 @@ public enum ZoneType
     PoliceHQ,       // coverage radius 10, happiness +0.15 — unlocks at City milestone (pop ≥ 5,000)
     FireHQ,         // coverage radius 10, happiness +0.15 — unlocks at City milestone (pop ≥ 5,000)
     Hospital,       // coverage radius 8, happiness +0.15 — halves EventPenalty for covered tiles — unlocks at City milestone
+    CoalPlant,      // 500 MW output, $500 placement, $8/tick maintenance, emits pollution radius 3 strength 0.4
+    NuclearPlant,   // 3,000 MW output, $8,000 placement, $50/tick maintenance, zero pollution — unlocks at Town milestone (pop ≥ 500)
 }
 
 public record Tile(int X, int Y)

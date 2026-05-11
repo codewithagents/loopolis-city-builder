@@ -52,7 +52,7 @@ public class HappinessSystem
     private readonly Dictionary<(int, int), double> _neglect = new();
 
     public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
-        RoadTrafficSystem? trafficSystem = null)
+        RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null)
     {
         grid.ClearHappiness();
 
@@ -63,6 +63,9 @@ public class HappinessSystem
 
         // Pre-compute: which Hospital tiles exist for event penalty reduction
         var hospitals = services.Where(t => t.Zone == ZoneType.Hospital).ToList();
+
+        // Brownout penalty: applies to BFS-powered tiles only
+        var brownoutPenalty = powerCapacitySystem?.BrownoutHappinessPenalty ?? 0.0;
 
         foreach (var tile in grid.TilesOfType(ZoneType.Residential))
         {
@@ -113,6 +116,11 @@ public class HappinessSystem
                     Math.Abs(h.X - tile.X) + Math.Abs(h.Y - tile.Y) <= ServiceRadius[ZoneType.Hospital]);
                 happiness += coveredByHospital ? eventPenalty * 0.5 : eventPenalty;
             }
+
+            // Brownout penalty: applies only to BFS-powered tiles (already gated by IsReadyToDevelop).
+            // brownoutPenalty is negative (e.g. −0.02), add it directly.
+            if (brownoutPenalty != 0.0 && tile.HasPower)
+                happiness += brownoutPenalty;
 
             // Traffic congestion penalty: −0.10 if adjacent to an overloaded road/avenue
             if (trafficSystem != null)

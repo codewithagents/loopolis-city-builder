@@ -3,37 +3,54 @@ using Loopolis.Core.Grid;
 namespace Loopolis.Core.Simulation;
 
 /// <summary>
-/// Propagates pollution from industrial zones to surrounding tiles.
+/// Propagates pollution from industrial zones and CoalPlant tiles to surrounding tiles.
 ///
-/// Industrial zones emit pollution in a radius-3 circle. Pollution strength decays
-/// linearly with Euclidean distance — full strength at the source, zero at the edge.
+/// Industrial zones emit at full strength (strength factor 1.0).
+/// CoalPlant tiles emit at strength factor 0.4 — meaningful but less than full industrial.
+/// NuclearPlant emits zero pollution.
+/// Pollution radius is 3. Strength decays linearly with Euclidean distance.
 /// Multiple sources accumulate, clamped to [0, 1].
 ///
 /// Call Propagate() each tick before HappinessSystem.
 /// </summary>
 public class PollutionSystem
 {
-    private const int PollutionRadius = 3;
+    private const int    PollutionRadius         = 3;
+    private const double IndustrialStrength       = 1.0;
+    private const double CoalPlantStrength        = 0.4;
 
     public void Propagate(CityGrid grid)
     {
         grid.ClearPollution();
 
-        foreach (var source in grid.TilesOfType(ZoneType.Industrial))
+        foreach (var tile in grid.AllTiles())
         {
-            for (var dx = -PollutionRadius; dx <= PollutionRadius; dx++)
-            for (var dy = -PollutionRadius; dy <= PollutionRadius; dy++)
-            {
-                var nx = source.X + dx;
-                var ny = source.Y + dy;
-                if (!grid.IsInBounds(nx, ny)) continue;
+            double emissionStrength;
+            if (tile.Zone == ZoneType.Industrial)
+                emissionStrength = IndustrialStrength;
+            else if (tile.Zone == ZoneType.CoalPlant || tile.Zone == ZoneType.PowerPlant)
+                emissionStrength = CoalPlantStrength;
+            else
+                continue;
 
-                var distance = Math.Sqrt(dx * dx + dy * dy);
-                if (distance > PollutionRadius) continue;
+            EmitPollution(grid, tile.X, tile.Y, emissionStrength);
+        }
+    }
 
-                var strength = 1.0 - (distance / PollutionRadius); // 1.0 at center, 0 at edge
-                grid.AddPollution(nx, ny, strength);
-            }
+    private static void EmitPollution(CityGrid grid, int srcX, int srcY, double emissionStrength)
+    {
+        for (var dx = -PollutionRadius; dx <= PollutionRadius; dx++)
+        for (var dy = -PollutionRadius; dy <= PollutionRadius; dy++)
+        {
+            var nx = srcX + dx;
+            var ny = srcY + dy;
+            if (!grid.IsInBounds(nx, ny)) continue;
+
+            var distance = Math.Sqrt(dx * dx + dy * dy);
+            if (distance > PollutionRadius) continue;
+
+            var strength = emissionStrength * (1.0 - (distance / PollutionRadius)); // decays to 0 at edge
+            grid.AddPollution(nx, ny, strength);
         }
     }
 

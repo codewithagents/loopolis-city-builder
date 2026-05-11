@@ -36,9 +36,13 @@ public class PopulationSystem
     ///
     /// Total Population = sum of residential tile populations only.
     /// </summary>
-    public void Tick(CityGrid grid, double employmentMultiplier = 1.0, RoadTrafficSystem? trafficSystem = null)
+    public void Tick(CityGrid grid, double employmentMultiplier = 1.0, RoadTrafficSystem? trafficSystem = null,
+        PowerCapacitySystem? powerCapacitySystem = null)
     {
         var totalPopulation = 0;
+
+        // Brownout growth multiplier: throttles all zone growth when supply < demand
+        var brownoutGrowthMultiplier = powerCapacitySystem?.GrowthMultiplier ?? 1.0;
 
         foreach (var tile in grid.TilesOfType(ZoneType.Residential))
         {
@@ -51,11 +55,11 @@ public class PopulationSystem
             int newPop;
             if (canDevelop && tile.HasPower)
             {
-                // Grow toward capacity, modified by demand factor, happiness, and employment.
+                // Grow toward capacity, modified by demand factor, happiness, employment, traffic, and brownout.
                 // Guarantee at least 1 unit of growth only when employment is adequate (≥40%).
                 // With severe unemployment (<40%) growth CAN stall — a real signal to build industrial.
                 var trafficMultiplier = trafficSystem?.GetGrowthMultiplier(grid, tile.X, tile.Y) ?? 1.0;
-                var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier * trafficMultiplier;
+                var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier * trafficMultiplier * brownoutGrowthMultiplier;
                 var rawGrowth = GrowthRate * ResidentsPerZone * growthMultiplier;
                 var minGrowth = employmentMultiplier >= 0.4 ? 1 : 0;
                 var growth = current < ResidentsPerZone ? Math.Max(minGrowth, (int)rawGrowth) : 0;
