@@ -28,8 +28,12 @@ public class PopulationSystem
         var readyTiles = residentialTiles.Where(t => t.IsReadyToDevelop).ToList();
         var capacity   = readyTiles.Count * ResidentsPerZone;
 
-        // Grow toward capacity from ready zones, weighted by each zone's demand factor
-        var growth = (int)(readyTiles.Sum(t => GrowthRate * ResidentsPerZone * t.DemandFactor));
+        // Grow toward capacity from ready zones, weighted by each zone's demand factor and happiness
+        var growth = 0;
+        foreach (var tile in readyTiles)
+        {
+            growth += (int)(GrowthRate * ResidentsPerZone * tile.DemandFactor * tile.Happiness);
+        }
 
         // Decline only when existing population exceeds new capacity (services lost)
         var excess  = Math.Max(0, Population - capacity);

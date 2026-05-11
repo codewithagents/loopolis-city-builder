@@ -8,7 +8,10 @@ public enum ZoneType
     Industrial,
     Road,
     PowerPlant,
-    PowerLine
+    PowerLine,
+    FireStation,    // coverage radius 4, happiness +0.15
+    PoliceStation,  // coverage radius 4, happiness +0.15
+    School,         // coverage radius 5, happiness +0.20
 }
 
 public record Tile(int X, int Y)
@@ -18,16 +21,18 @@ public record Tile(int X, int Y)
     public bool HasWater { get; init; } = false;
     public bool HasRoadAccess { get; init; } = false;
     public double DemandFactor { get; init; } = 1.0;
+    public double PollutionLevel { get; init; } = 0.0;
+    public double Happiness { get; init; } = 1.0;
 
     /// <summary>
     /// A zone is ready to develop when it has both power and road access.
-    /// Infrastructure tiles (roads, power lines, power plants) are always considered ready.
+    /// Infrastructure tiles (roads, power lines, power plants, service buildings) are always considered ready.
     /// </summary>
     public bool IsReadyToDevelop => Zone switch
     {
         ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial => HasPower && HasRoadAccess,
         ZoneType.Empty => false,
-        _ => true  // infrastructure tiles don't need access to themselves
+        _ => true  // infrastructure tiles (roads, power, services) don't need access to themselves
     };
 }
 
@@ -98,6 +103,39 @@ public class CityGrid
         for (var x = 0; x < Width; x++)
         for (var y = 0; y < Height; y++)
             _tiles[x, y] = _tiles[x, y] with { DemandFactor = 1.0 };
+    }
+
+    public void SetPollution(int x, int y, double level)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { PollutionLevel = Math.Clamp(level, 0.0, 1.0) };
+    }
+
+    public void AddPollution(int x, int y, double amount)
+    {
+        AssertInBounds(x, y);
+        var newLevel = Math.Clamp(_tiles[x, y].PollutionLevel + amount, 0.0, 1.0);
+        _tiles[x, y] = _tiles[x, y] with { PollutionLevel = newLevel };
+    }
+
+    public void ClearPollution()
+    {
+        for (var x = 0; x < Width; x++)
+        for (var y = 0; y < Height; y++)
+            _tiles[x, y] = _tiles[x, y] with { PollutionLevel = 0.0 };
+    }
+
+    public void SetHappiness(int x, int y, double happiness)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { Happiness = happiness };
+    }
+
+    public void ClearHappiness()
+    {
+        for (var x = 0; x < Width; x++)
+        for (var y = 0; y < Height; y++)
+            _tiles[x, y] = _tiles[x, y] with { Happiness = 1.0 };
     }
 
     public bool IsInBounds(int x, int y) =>
