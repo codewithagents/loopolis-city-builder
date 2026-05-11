@@ -253,13 +253,14 @@ public record EmploymentDto(
     double UnemploymentRate
 );
 
-/// <summary>Coverage summary for power, fire, police, school and pollution.</summary>
+/// <summary>Coverage summary for power, fire, police, school, hospital and pollution.</summary>
 public record CoverageSummaryDto(
     int PoweredZonedTilesCount,
     int UnpoweredZonedTilesCount,
     double PoliceCoveragePercent,
     double FireCoveragePercent,
     double SchoolCoveragePercent,
+    double HospitalCoveragePercent,
     double AvgPollution,
     double AvgHappiness
 );

@@ -278,6 +278,9 @@ static void WriteOverlay(
         { ZoneType.FireStation,   4 },
         { ZoneType.PoliceStation, 4 },
         { ZoneType.School,        5 },
+        { ZoneType.PoliceHQ,     10 },
+        { ZoneType.FireHQ,       10 },
+        { ZoneType.Hospital,      8 },
     };
     var services = grid.AllTiles()
         .Where(t => serviceRadii.ContainsKey(t.Zone))
@@ -299,18 +302,20 @@ static void WriteOverlay(
 
             case "police":
             {
+                // PoliceStation (radius 4) or PoliceHQ (radius 10) both count as police coverage
                 var covered = services.Any(s =>
-                    s.Zone == ZoneType.PoliceStation &&
-                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.PoliceStation]);
+                    (s.Zone == ZoneType.PoliceStation || s.Zone == ZoneType.PoliceHQ) &&
+                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[s.Zone]);
                 value = covered ? 1.0 : 0.0;
                 break;
             }
 
             case "fire":
             {
+                // FireStation (radius 4) or FireHQ (radius 10) both count as fire coverage
                 var covered = services.Any(s =>
-                    s.Zone == ZoneType.FireStation &&
-                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.FireStation]);
+                    (s.Zone == ZoneType.FireStation || s.Zone == ZoneType.FireHQ) &&
+                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[s.Zone]);
                 value = covered ? 1.0 : 0.0;
                 break;
             }
@@ -320,6 +325,15 @@ static void WriteOverlay(
                 var covered = services.Any(s =>
                     s.Zone == ZoneType.School &&
                     Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.School]);
+                value = covered ? 1.0 : 0.0;
+                break;
+            }
+
+            case "hospital":
+            {
+                var covered = services.Any(s =>
+                    s.Zone == ZoneType.Hospital &&
+                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.Hospital]);
                 value = covered ? 1.0 : 0.0;
                 break;
             }
@@ -467,6 +481,14 @@ static void ProcessCommand(
                         if (zoneType != ZoneType.Empty && grid.GetTile(x, y).Zone != ZoneType.Empty)
                         {
                             Console.WriteLine($"[place_zone] ({x},{y}) occupied by {grid.GetTile(x,y).Zone} — use erase first");
+                            break;
+                        }
+                        // Milestone gate: PoliceHQ, FireHQ, Hospital require City milestone
+                        var (allowed, gateError) = engine.MilestoneSystem.CanPlace(zoneType, engine.Population.Population);
+                        if (!allowed)
+                        {
+                            Console.WriteLine($"[place_zone] milestone_gate: {gateError}");
+                            WriteStateWithError(tmpPath, statePath, engine, grid, paused, sessionId, gateError!, recentEvents);
                             break;
                         }
                         engine.Budget.Charge(placementCost);
@@ -655,27 +677,38 @@ static void WriteState(
     double avgNeglectDecay       = 0;
     if (readyResidential.Count > 0)
     {
-        // Service coverage contribution: each covered service type adds +0.15, max 2 types
+        // Service coverage contribution: each covered service category adds +0.15, max 2 categories
+        // PoliceHQ counts as PoliceStation, FireHQ counts as FireStation
         var services = grid.AllTiles()
-            .Where(t => t.Zone is ZoneType.FireStation or ZoneType.PoliceStation or ZoneType.School)
+            .Where(t => t.Zone is ZoneType.FireStation or ZoneType.PoliceStation or ZoneType.School
+                             or ZoneType.PoliceHQ or ZoneType.FireHQ or ZoneType.Hospital)
             .ToList();
         var serviceRadii = new Dictionary<ZoneType, int>
         {
             { ZoneType.FireStation,   4 },
             { ZoneType.PoliceStation, 4 },
             { ZoneType.School,        5 },
+            { ZoneType.PoliceHQ,     10 },
+            { ZoneType.FireHQ,       10 },
+            { ZoneType.Hospital,      8 },
+        };
+        static ZoneType ServiceCat(ZoneType z) => z switch
+        {
+            ZoneType.PoliceHQ => ZoneType.PoliceStation,
+            ZoneType.FireHQ   => ZoneType.FireStation,
+            _                 => z,
         };
 
         foreach (var tile in readyResidential)
         {
-            var coveredTypes = new HashSet<ZoneType>();
+            var coveredCategories = new HashSet<ZoneType>();
             foreach (var svc in services)
             {
                 var dist = Math.Abs(svc.X - tile.X) + Math.Abs(svc.Y - tile.Y);
                 if (serviceRadii.TryGetValue(svc.Zone, out var radius) && dist <= radius)
-                    coveredTypes.Add(svc.Zone);
+                    coveredCategories.Add(ServiceCat(svc.Zone));
             }
-            avgServiceCoverage += Math.Min(coveredTypes.Count, 2) * 0.15;
+            avgServiceCoverage += Math.Min(coveredCategories.Count, 2) * 0.15;
             avgNeglectDecay    += engine.HappinessSystem.GetNeglect(tile.X, tile.Y);
         }
         avgServiceCoverage    /= readyResidential.Count;
@@ -696,26 +729,36 @@ static void WriteState(
     var unpoweredZoned   = zonedTiles.Count - poweredZoned;
 
     // Pre-compute service tiles and radii for coverage percentage
+    // PoliceHQ (radius 10) counts as police coverage; FireHQ (radius 10) counts as fire coverage
     var covServiceRadii = new Dictionary<ZoneType, int>
     {
         { ZoneType.FireStation,   4 },
         { ZoneType.PoliceStation, 4 },
         { ZoneType.School,        5 },
+        { ZoneType.PoliceHQ,     10 },
+        { ZoneType.FireHQ,       10 },
+        { ZoneType.Hospital,      8 },
     };
     var covServices = grid.AllTiles()
         .Where(t => covServiceRadii.ContainsKey(t.Zone))
         .ToList();
 
-    int policeCovered = 0, fireCovered = 0, schoolCovered = 0;
+    int policeCovered = 0, fireCovered = 0, schoolCovered = 0, hospitalCovered = 0;
     double totalPollution = 0, totalHappiness = 0;
     foreach (var zt in zonedTiles)
     {
-        if (covServices.Any(s => s.Zone == ZoneType.PoliceStation && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.PoliceStation]))
+        if (covServices.Any(s => (s.Zone == ZoneType.PoliceStation || s.Zone == ZoneType.PoliceHQ)
+                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[s.Zone]))
             policeCovered++;
-        if (covServices.Any(s => s.Zone == ZoneType.FireStation   && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.FireStation]))
+        if (covServices.Any(s => (s.Zone == ZoneType.FireStation || s.Zone == ZoneType.FireHQ)
+                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[s.Zone]))
             fireCovered++;
-        if (covServices.Any(s => s.Zone == ZoneType.School        && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.School]))
+        if (covServices.Any(s => s.Zone == ZoneType.School
+                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.School]))
             schoolCovered++;
+        if (covServices.Any(s => s.Zone == ZoneType.Hospital
+                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.Hospital]))
+            hospitalCovered++;
         totalPollution  += zt.PollutionLevel;
         totalHappiness  += zt.Happiness;
     }
@@ -723,9 +766,10 @@ static void WriteState(
     var coverageSummary = new CoverageSummary(
         PoweredZonedTilesCount:   poweredZoned,
         UnpoweredZonedTilesCount: unpoweredZoned,
-        PoliceCoveragePercent:    zonedCount > 0 ? Math.Round((double)policeCovered / zonedCount, 4) : 0.0,
-        FireCoveragePercent:      zonedCount > 0 ? Math.Round((double)fireCovered   / zonedCount, 4) : 0.0,
-        SchoolCoveragePercent:    zonedCount > 0 ? Math.Round((double)schoolCovered / zonedCount, 4) : 0.0,
+        PoliceCoveragePercent:    zonedCount > 0 ? Math.Round((double)policeCovered    / zonedCount, 4) : 0.0,
+        FireCoveragePercent:      zonedCount > 0 ? Math.Round((double)fireCovered      / zonedCount, 4) : 0.0,
+        SchoolCoveragePercent:    zonedCount > 0 ? Math.Round((double)schoolCovered    / zonedCount, 4) : 0.0,
+        HospitalCoveragePercent:  zonedCount > 0 ? Math.Round((double)hospitalCovered  / zonedCount, 4) : 0.0,
         AvgPollution:             zonedCount > 0 ? Math.Round(totalPollution  / zonedCount, 4) : 0.0,
         AvgHappiness:             zonedCount > 0 ? Math.Round(totalHappiness  / zonedCount, 4) : 0.0,
         OverloadedRoadCount:      engine.RoadTrafficSystem.OverloadedRoadCount,
@@ -1043,6 +1087,7 @@ record CoverageSummary(
     [property: JsonPropertyName("policeCoveragePercent")]    double PoliceCoveragePercent,
     [property: JsonPropertyName("fireCoveragePercent")]      double FireCoveragePercent,
     [property: JsonPropertyName("schoolCoveragePercent")]    double SchoolCoveragePercent,
+    [property: JsonPropertyName("hospitalCoveragePercent")]  double HospitalCoveragePercent,
     [property: JsonPropertyName("avgPollution")]             double AvgPollution,
     [property: JsonPropertyName("avgHappiness")]             double AvgHappiness,
     [property: JsonPropertyName("overloadedRoadCount")]      int    OverloadedRoadCount = 0,

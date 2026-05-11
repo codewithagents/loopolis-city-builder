@@ -13,6 +13,9 @@ public enum ZoneType
     PoliceStation,  // coverage radius 4, happiness +0.15
     School,         // coverage radius 5, happiness +0.20
     Avenue,         // wider road: cost $20, maintenance $2/tick, overload threshold 16 (vs Road: $10/$1/8)
+    PoliceHQ,       // coverage radius 10, happiness +0.15 — unlocks at City milestone (pop ≥ 5,000)
+    FireHQ,         // coverage radius 10, happiness +0.15 — unlocks at City milestone (pop ≥ 5,000)
+    Hospital,       // coverage radius 8, happiness +0.15 — halves EventPenalty for covered tiles — unlocks at City milestone
 }
 
 public record Tile(int X, int Y)

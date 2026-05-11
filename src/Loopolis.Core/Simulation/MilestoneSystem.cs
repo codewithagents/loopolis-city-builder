@@ -1,3 +1,5 @@
+using Loopolis.Core.Grid;
+
 namespace Loopolis.Core.Simulation;
 
 public enum GameState { Active, Town, City, Metropolis, Loopolis, Bankrupt, Abandoned }
@@ -70,4 +72,22 @@ public class MilestoneSystem
     }
 
     public bool IsOver => CurrentState == GameState.Bankrupt || CurrentState == GameState.Abandoned || CurrentState == GameState.Loopolis;
+
+    /// <summary>
+    /// Returns whether a zone type is available to place given the current milestone state.
+    /// City-milestone-gated types (PoliceHQ, FireHQ, Hospital) require population ≥ 5,000.
+    /// Returns (true, null) if placement is allowed, or (false, errorMessage) if blocked.
+    /// </summary>
+    public (bool allowed, string? error) CanPlace(ZoneType zone, int currentPopulation)
+    {
+        const int CityMilestonePopulation = 5_000;
+
+        var isCityGated = zone is ZoneType.PoliceHQ or ZoneType.FireHQ or ZoneType.Hospital;
+        if (!isCityGated) return (true, null);
+
+        if (currentPopulation >= CityMilestonePopulation) return (true, null);
+
+        var zoneName = zone.ToString();
+        return (false, $"{zoneName} requires City milestone (5,000 population)");
+    }
 }

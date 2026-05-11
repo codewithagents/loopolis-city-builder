@@ -22,6 +22,9 @@ public class BudgetSystem
             { ZoneType.FireStation,   3.0 },
             { ZoneType.PoliceStation, 3.0 },
             { ZoneType.School,        5.0 },
+            { ZoneType.PoliceHQ,     25.0 },
+            { ZoneType.FireHQ,       25.0 },
+            { ZoneType.Hospital,     35.0 },
         };
 
     /// <summary>
@@ -41,6 +44,9 @@ public class BudgetSystem
             { "FireStation",  300.0 },
             { "PoliceStation",300.0 },
             { "School",       400.0 },
+            { "PoliceHQ",   2_000.0 },
+            { "FireHQ",     2_000.0 },
+            { "Hospital",   3_000.0 },
             { "Erase",          0.0 },
         };
 

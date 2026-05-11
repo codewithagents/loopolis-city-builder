@@ -731,26 +731,33 @@ public partial class World : Node2D
             System.Linq.Enumerable.Where(_grid.AllTiles(),
                 t => t.Zone is Loopolis.Core.Grid.ZoneType.FireStation
                            or Loopolis.Core.Grid.ZoneType.PoliceStation
-                           or Loopolis.Core.Grid.ZoneType.School));
+                           or Loopolis.Core.Grid.ZoneType.School
+                           or Loopolis.Core.Grid.ZoneType.PoliceHQ
+                           or Loopolis.Core.Grid.ZoneType.FireHQ
+                           or Loopolis.Core.Grid.ZoneType.Hospital));
 
-        int policeCovered = 0, fireCovered = 0, schoolCovered = 0;
+        int policeCovered = 0, fireCovered = 0, schoolCovered = 0, hospitalCovered = 0;
         foreach (var zt in zonedTiles)
         {
             foreach (var svc in covServices)
             {
                 var dist = System.Math.Abs(svc.X - zt.X) + System.Math.Abs(svc.Y - zt.Y);
-                if (svc.Zone == Loopolis.Core.Grid.ZoneType.PoliceStation && dist <= 4) policeCovered++;
-                if (svc.Zone == Loopolis.Core.Grid.ZoneType.FireStation   && dist <= 4) fireCovered++;
-                if (svc.Zone == Loopolis.Core.Grid.ZoneType.School        && dist <= 5) schoolCovered++;
+                if ((svc.Zone == Loopolis.Core.Grid.ZoneType.PoliceStation && dist <= 4) ||
+                    (svc.Zone == Loopolis.Core.Grid.ZoneType.PoliceHQ      && dist <= 10)) policeCovered++;
+                if ((svc.Zone == Loopolis.Core.Grid.ZoneType.FireStation   && dist <= 4) ||
+                    (svc.Zone == Loopolis.Core.Grid.ZoneType.FireHQ        && dist <= 10)) fireCovered++;
+                if (svc.Zone == Loopolis.Core.Grid.ZoneType.School         && dist <= 5) schoolCovered++;
+                if (svc.Zone == Loopolis.Core.Grid.ZoneType.Hospital       && dist <= 8) hospitalCovered++;
             }
         }
         var zc = zonedTiles.Count;
         var coverageSummary = new CoverageSummaryDto(
             PoweredZonedTilesCount:   poweredZoned,
             UnpoweredZonedTilesCount: unpoweredZoned,
-            PoliceCoveragePercent:    zc > 0 ? (double)policeCovered / zc : 0.0,
-            FireCoveragePercent:      zc > 0 ? (double)fireCovered   / zc : 0.0,
-            SchoolCoveragePercent:    zc > 0 ? (double)schoolCovered / zc : 0.0,
+            PoliceCoveragePercent:    zc > 0 ? (double)policeCovered    / zc : 0.0,
+            FireCoveragePercent:      zc > 0 ? (double)fireCovered      / zc : 0.0,
+            SchoolCoveragePercent:    zc > 0 ? (double)schoolCovered    / zc : 0.0,
+            HospitalCoveragePercent:  zc > 0 ? (double)hospitalCovered  / zc : 0.0,
             AvgPollution:             0.0,  // not needed for warnings
             AvgHappiness:             0.0
         );

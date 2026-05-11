@@ -24,6 +24,9 @@ public class PowerNetwork
         ZoneType.FireStation,
         ZoneType.PoliceStation,
         ZoneType.School,
+        ZoneType.PoliceHQ,
+        ZoneType.FireHQ,
+        ZoneType.Hospital,
     };
 
     public int PoweredTileCount { get; private set; }
