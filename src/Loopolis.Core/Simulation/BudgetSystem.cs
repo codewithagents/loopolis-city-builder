@@ -23,10 +23,30 @@ public class BudgetSystem
             { ZoneType.School,        5.0 },
         };
 
+    /// <summary>
+    /// One-time placement cost when the player places a zone.
+    /// Makes placement decisions meaningful — budget must cover the upfront cost.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, double> PlacementCosts =
+        new Dictionary<string, double>
+        {
+            { "Residential",   50.0 },
+            { "Commercial",   100.0 },
+            { "Industrial",    75.0 },
+            { "Road",          25.0 },
+            { "PowerLine",     40.0 },
+            { "PowerPlant",   500.0 },
+            { "FireStation",  300.0 },
+            { "PoliceStation",300.0 },
+            { "School",       400.0 },
+            { "Erase",          0.0 },
+        };
+
     private const double CommercialIncomePerReadyTile = 3.0;
 
     public double Balance { get; private set; }
     public double TaxRate { get; private set; } = 0.12;
+    public double TaxModifier { get; private set; } = 0.0;
     public int Population { get; private set; }
     public double LastMaintenanceCost { get; private set; }
     public double CommercialIncomePerTick { get; private set; }
@@ -41,6 +61,35 @@ public class BudgetSystem
 
     public void SetTaxRate(double rate) =>
         TaxRate = Math.Clamp(rate, 0.0, 1.0);
+
+    /// <summary>
+    /// Sets the tax rate using a named level. Also adjusts the happiness modifier.
+    /// Low → 8% tax, +0.05 happiness. Normal → 12% tax, 0.0 happiness. High → 16% tax, -0.10 happiness.
+    /// </summary>
+    public void SetTaxRate(string level)
+    {
+        switch (level)
+        {
+            case "low":
+                TaxRate = 0.08;
+                TaxModifier = +0.05;
+                break;
+            case "high":
+                TaxRate = 0.16;
+                TaxModifier = -0.10;
+                break;
+            default:
+                TaxRate = 0.12;
+                TaxModifier = 0.00;
+                break;
+        }
+    }
+
+    /// <summary>Returns true if the current balance can cover the given cost.</summary>
+    public bool CanAfford(double cost) => Balance >= cost;
+
+    /// <summary>Deducts the given cost from balance (placement fee).</summary>
+    public void Charge(double cost) => Balance -= cost;
 
     public double CalculateTaxIncome() =>
         Population * TaxRate;

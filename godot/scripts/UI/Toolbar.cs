@@ -22,23 +22,37 @@ public partial class Toolbar : CanvasLayer
     [Signal]
     public delegate void NewGameRequestedEventHandler();
 
+    // Fired when the player changes the tax rate.
+    [Signal]
+    public delegate void TaxRateChangedEventHandler(string level);
+
     private string _selectedZone = "Road";
+    private string _taxLevel = "normal";
     private readonly Dictionary<string, Button> _buttons = new();
     private Button? _pauseButton;
+    private readonly Dictionary<string, Button> _taxButtons = new();
 
     // Zone definitions: (label, zone name, background color, tooltip)
     private static readonly (string Label, string Zone, Color Color, string Tooltip)[] ZoneButtons =
     {
-        ("R",       "Residential",   new Color(0.2f,  0.7f,  0.2f), "Residential — $0.50/tick"),
-        ("C",       "Commercial",    new Color(0.2f,  0.4f,  0.9f), "Commercial — $0.50/tick"),
-        ("I",       "Industrial",    new Color(0.9f,  0.8f,  0.1f), "Industrial — $0.25/tick"),
-        ("Road",    "Road",          new Color(0.5f,  0.5f,  0.5f), "Road — $1.00/tick"),
-        ("Line",    "PowerLine",     new Color(0.1f,  0.9f,  0.9f), "Power Line — $0.50/tick"),
-        ("Plant",   "PowerPlant",    new Color(0.9f,  0.3f,  0.1f), "Power Plant — $8.00/tick"),
-        ("Fire",    "FireStation",   new Color(1.0f,  0.4f,  0.1f), "Fire Station — $3.00/tick"),
-        ("Police",  "PoliceStation", new Color(0.2f,  0.4f,  1.0f), "Police Station — $3.00/tick"),
-        ("School",  "School",        new Color(0.7f,  0.3f,  0.9f), "School — $5.00/tick"),
+        ("R",       "Residential",   new Color(0.2f,  0.7f,  0.2f), "Residential — Place: $50 · Maint: $0.50/tick"),
+        ("C",       "Commercial",    new Color(0.2f,  0.4f,  0.9f), "Commercial — Place: $100 · Maint: $0.50/tick"),
+        ("I",       "Industrial",    new Color(0.9f,  0.8f,  0.1f), "Industrial — Place: $75 · Maint: $0.25/tick"),
+        ("Road",    "Road",          new Color(0.5f,  0.5f,  0.5f), "Road — Place: $25 · Maint: $1.00/tick"),
+        ("Line",    "PowerLine",     new Color(0.1f,  0.9f,  0.9f), "Power Line — Place: $40 · Maint: $0.50/tick"),
+        ("Plant",   "PowerPlant",    new Color(0.9f,  0.3f,  0.1f), "Power Plant — Place: $500 · Maint: $8.00/tick"),
+        ("Fire",    "FireStation",   new Color(1.0f,  0.4f,  0.1f), "Fire Station — Place: $300 · Maint: $3.00/tick"),
+        ("Police",  "PoliceStation", new Color(0.2f,  0.4f,  1.0f), "Police Station — Place: $300 · Maint: $3.00/tick"),
+        ("School",  "School",        new Color(0.7f,  0.3f,  0.9f), "School — Place: $400 · Maint: $5.00/tick"),
         ("Erase",   "Erase",         new Color(0.6f,  0.15f, 0.15f), "Erase — no cost"),
+    };
+
+    // Tax rate button definitions: (label, level, background color)
+    private static readonly (string Label, string Level, Color Color)[] TaxButtonDefs =
+    {
+        ("Tax: Low",  "low",    new Color(0.2f, 0.8f, 0.3f)),
+        ("Tax: Norm", "normal", new Color(0.4f, 0.4f, 0.7f)),
+        ("Tax: High", "high",   new Color(0.85f, 0.3f, 0.2f)),
     };
 
     public override void _Ready()
@@ -68,6 +82,24 @@ public partial class Toolbar : CanvasLayer
         // Separator
         var sep = new VSeparator();
         hbox.AddChild(sep);
+
+        // Tax rate buttons
+        foreach (var (label, level, color) in TaxButtonDefs)
+        {
+            var taxBtn = MakeZoneButton(label, color);
+            taxBtn.CustomMinimumSize = new Vector2(72, 44);
+            var capturedLevel = level;
+            taxBtn.Pressed += () => SelectTaxLevel(capturedLevel);
+            hbox.AddChild(taxBtn);
+            _taxButtons[level] = taxBtn;
+        }
+
+        // Highlight the default tax level
+        HighlightTaxButton(_taxLevel);
+
+        // Separator
+        var sep2 = new VSeparator();
+        hbox.AddChild(sep2);
 
         // Pause / Resume button
         _pauseButton = new Button();
@@ -141,6 +173,70 @@ public partial class Toolbar : CanvasLayer
     private void OnPauseToggled()
     {
         EmitSignal(SignalName.PauseToggled);
+    }
+
+    private void SelectTaxLevel(string level)
+    {
+        _taxLevel = level;
+        HighlightTaxButton(level);
+        EmitSignal(SignalName.TaxRateChanged, level);
+    }
+
+    private void HighlightTaxButton(string activeLevel)
+    {
+        foreach (var (level, btn) in _taxButtons)
+        {
+            var isActive = level == activeLevel;
+            foreach (var (_, lvl, color) in TaxButtonDefs)
+            {
+                if (lvl != level) continue;
+                if (isActive)
+                {
+                    var style = new StyleBoxFlat();
+                    style.BgColor = color * 0.9f;
+                    style.BorderColor = new Color(1f, 1f, 1f);
+                    style.BorderWidthBottom = 3;
+                    style.BorderWidthTop    = 3;
+                    style.BorderWidthLeft   = 3;
+                    style.BorderWidthRight  = 3;
+                    style.CornerRadiusTopLeft     = 3;
+                    style.CornerRadiusTopRight    = 3;
+                    style.CornerRadiusBottomLeft  = 3;
+                    style.CornerRadiusBottomRight = 3;
+                    style.ContentMarginLeft   = 4;
+                    style.ContentMarginRight  = 4;
+                    style.ContentMarginTop    = 4;
+                    style.ContentMarginBottom = 4;
+                    btn.AddThemeStyleboxOverride("normal",  style);
+                    btn.AddThemeStyleboxOverride("hover",   style);
+                    btn.AddThemeStyleboxOverride("pressed", style);
+                    btn.AddThemeStyleboxOverride("focus",   style);
+                }
+                else
+                {
+                    var style = new StyleBoxFlat();
+                    style.BgColor = color * 0.5f;
+                    style.BorderColor = color;
+                    style.BorderWidthBottom = 2;
+                    style.BorderWidthTop    = 2;
+                    style.BorderWidthLeft   = 2;
+                    style.BorderWidthRight  = 2;
+                    style.CornerRadiusTopLeft     = 3;
+                    style.CornerRadiusTopRight    = 3;
+                    style.CornerRadiusBottomLeft  = 3;
+                    style.CornerRadiusBottomRight = 3;
+                    style.ContentMarginLeft   = 4;
+                    style.ContentMarginRight  = 4;
+                    style.ContentMarginTop    = 4;
+                    style.ContentMarginBottom = 4;
+                    btn.AddThemeStyleboxOverride("normal",  style);
+                    btn.AddThemeStyleboxOverride("hover",   MakeHoverStyle(style));
+                    btn.AddThemeStyleboxOverride("pressed", style);
+                    btn.AddThemeStyleboxOverride("focus",   style);
+                }
+                break;
+            }
+        }
     }
 
     private static Button MakeZoneButton(string label, Color bgColor, string tooltip = "")

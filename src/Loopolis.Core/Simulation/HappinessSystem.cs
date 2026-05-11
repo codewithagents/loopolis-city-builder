@@ -33,7 +33,7 @@ public class HappinessSystem
     // Option B: track neglect per tile in a dictionary — no CityGrid API change needed
     private readonly Dictionary<(int, int), double> _neglect = new();
 
-    public void Propagate(CityGrid grid)
+    public void Propagate(CityGrid grid, double taxModifier = 0.0)
     {
         grid.ClearHappiness();
 
@@ -78,6 +78,9 @@ public class HappinessSystem
 
             // Apply neglect penalty after all other calculations
             happiness -= neglect;
+
+            // Tax modifier: low taxes improve happiness; high taxes reduce it
+            happiness += taxModifier;
 
             // Clamp
             happiness = Math.Clamp(happiness, 0.1, 1.0);

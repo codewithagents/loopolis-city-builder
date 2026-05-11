@@ -29,6 +29,7 @@ public partial class World : Node2D
     private bool _gameOver = false;
     private BudgetSystem? _budget;
     private PopulationSystem? _population;
+    private string _taxLevel = "normal";
 
     // Coverage radius overlay tracking
     private int _coverageRadius = 0;
@@ -49,6 +50,7 @@ public partial class World : Node2D
         _toolbar.ZoneSelected     += OnZoneSelected;
         _toolbar.PauseToggled     += OnPauseToggled;
         _toolbar.NewGameRequested += OnNewGameRequested;
+        _toolbar.TaxRateChanged   += OnTaxRateChanged;
 
         // Wire game-over panel
         _gameOverPanel.NewGameRequested += OnNewGameRequested;
@@ -291,6 +293,19 @@ public partial class World : Node2D
         }
     }
 
+    private void OnTaxRateChanged(string level)
+    {
+        _taxLevel = level;
+        if (_viewerMode)
+        {
+            WriteCommand($"{{\"cmd\":\"set_tax\",\"level\":\"{level}\"}}");
+        }
+        else
+        {
+            _budget?.SetTaxRate(level);
+        }
+    }
+
     // ── Click-to-place ─────────────────────────────────────────────────────
 
     private void HandlePlaceTile()
@@ -331,8 +346,18 @@ public partial class World : Node2D
             }
             else
             {
+                Loopolis.Core.Simulation.BudgetSystem.PlacementCosts.TryGetValue(selectedZone, out var placementCost);
+                if (_budget != null && !_budget.CanAfford(placementCost))
+                {
+                    // Flash the balance label red briefly to signal insufficient funds
+                    _hud.FlashBalanceWarning();
+                    return;
+                }
                 if (System.Enum.TryParse<ZoneType>(selectedZone, out var zoneType))
+                {
+                    _budget?.Charge(placementCost);
                     _grid.SetZone(tileX, tileY, zoneType);
+                }
             }
             _renderer.Refresh(_grid);
         }

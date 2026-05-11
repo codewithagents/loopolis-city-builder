@@ -54,7 +54,7 @@ public class SimulationEngine
         RoadNetwork.Propagate(Grid);
         PollutionSystem.Propagate(Grid);  // pollution before happiness
         DemandSystem.Propagate(Grid);     // demand before happiness
-        HappinessSystem.Propagate(Grid);  // happiness uses pollution + demand
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier);  // happiness uses pollution + demand + tax modifier
         Population.Tick(Grid);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();

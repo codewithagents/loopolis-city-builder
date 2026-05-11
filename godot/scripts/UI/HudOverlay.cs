@@ -20,8 +20,10 @@ public partial class HudOverlay : CanvasLayer
     private Label _pausedLabel    = null!;
     private Label _milestoneLabel = null!;
     private double _milestoneTimer = 0;
+    private double _balanceWarningTimer = 0;
     private string? _lastShownMilestone;
     private const double MilestoneDuration = 3.0; // seconds
+    private const double BalanceWarningDuration = 0.8; // seconds
 
     public override void _Ready()
     {
@@ -95,6 +97,20 @@ public partial class HudOverlay : CanvasLayer
             if (_milestoneTimer <= 0)
                 _milestoneLabel.Visible = false;
         }
+
+        if (_balanceWarningTimer > 0)
+        {
+            _balanceWarningTimer -= delta;
+            _balanceLabel.AddThemeColorOverride("font_color", new Color(1f, 0.25f, 0.25f));
+            if (_balanceWarningTimer <= 0)
+                _balanceLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        }
+    }
+
+    /// <summary>Flash the balance label red briefly to signal insufficient funds.</summary>
+    public void FlashBalanceWarning()
+    {
+        _balanceWarningTimer = BalanceWarningDuration;
     }
 
     /// <summary>Called by SharedStateReader (viewer mode) and World (standalone mode) each tick.</summary>

@@ -208,10 +208,17 @@ static void ProcessCommand(
                     var x    = xProp.GetInt32();
                     var y    = yProp.GetInt32();
                     var zone = zoneProp.GetString() ?? "";
+                    var placementCost = BudgetSystem.PlacementCosts.GetValueOrDefault(zone, 0.0);
+                    if (!engine.Budget.CanAfford(placementCost))
+                    {
+                        Console.WriteLine($"[place_zone] insufficient_funds: need ${placementCost:N0}, have ${engine.Budget.Balance:N0}");
+                        break;
+                    }
                     if (Enum.TryParse<ZoneType>(zone, out var zoneType))
                     {
+                        engine.Budget.Charge(placementCost);
                         grid.SetZone(x, y, zoneType);
-                        Console.WriteLine($"[place_zone] ({x},{y}) => {zoneType}");
+                        Console.WriteLine($"[place_zone] ({x},{y}) => {zoneType} (cost: ${placementCost:N0})");
                     }
                     else
                     {
@@ -260,6 +267,15 @@ static void ProcessCommand(
                     skipRemaining = count;
                     pauseAfterSkip = root.TryGetProperty("pauseAfter", out var paProp) && paProp.GetBoolean();
                     Console.WriteLine($"[skip] Starting {count} ticks...");
+                }
+                break;
+
+            case "set_tax":
+                if (root.TryGetProperty("level", out var levelProp))
+                {
+                    var level = levelProp.GetString() ?? "normal";
+                    engine.Budget.SetTaxRate(level);
+                    Console.WriteLine($"[set_tax] level={level} taxRate={engine.Budget.TaxRate:P0} modifier={engine.Budget.TaxModifier:+0.00;-0.00;0.00}");
                 }
                 break;
 
