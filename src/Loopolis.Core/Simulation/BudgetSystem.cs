@@ -82,6 +82,9 @@ public class BudgetSystem
     public int Population { get; private set; }
     public double LastMaintenanceCost { get; private set; }
     public double CommercialIncomePerTick { get; private set; }
+    /// <summary>Tax income actually collected last tick (land-value-weighted when grid is available).</summary>
+    public double LastTaxIncome { get; private set; }
+    private bool _taxIncomeEverCollected;
 
     public BudgetSystem(double initialBalance = 4_000)
     {
@@ -123,8 +126,45 @@ public class BudgetSystem
     /// <summary>Deducts the given cost from balance (placement fee).</summary>
     public void Charge(double cost) => Balance -= cost;
 
+    /// <summary>
+    /// Basic tax income — population × tax rate (no land value modifier).
+    /// Used when no grid context is available or in tests that don't use land value.
+    /// </summary>
     public double CalculateTaxIncome() =>
         Population * TaxRate;
+
+    /// <summary>
+    /// Land-value-aware tax income. Residential tiles are weighted by their LandValue:
+    ///   LandValue ≥ 0.7  → ×1.5 (premium location)
+    ///   LandValue 0.4–0.7 → ×1.0 (normal)
+    ///   LandValue &lt; 0.4  → ×0.8 (cheap district)
+    ///
+    /// Non-residential population (if any) is taxed at the flat rate.
+    /// </summary>
+    public double CalculateTaxIncome(CityGrid grid)
+    {
+        var residentialTiles = grid.TilesOfType(ZoneType.Residential).ToList();
+        if (residentialTiles.Count == 0)
+            return Population * TaxRate;
+
+        // Total capacity so we can prorate population to individual tiles
+        var totalCapacity = residentialTiles.Count * 50;
+        if (totalCapacity == 0)
+            return Population * TaxRate;
+
+        // Sum land-value-weighted tax contributions per tile
+        double income = 0.0;
+        foreach (var tile in residentialTiles)
+        {
+            // Each tile contributes Population * (tileCapacity / totalCapacity) people
+            var tilePop = Population * (50.0 / totalCapacity);
+            var modifier = tile.LandValue >= 0.7 ? 1.5
+                : tile.LandValue >= 0.4           ? 1.0
+                                                  : 0.8;
+            income += tilePop * TaxRate * modifier;
+        }
+        return income;
+    }
 
     public double CalculateMaintenanceCost(CityGrid grid) =>
         grid.AllTiles()
@@ -139,8 +179,23 @@ public class BudgetSystem
             .Count(t => t.HasPower && t.HasRoadAccess)
         * CommercialIncomePerReadyTile;
 
-    public void CollectTaxes() =>
-        Balance += CalculateTaxIncome();
+    /// <summary>Collect taxes using flat population × rate (no land value modifier).</summary>
+    public void CollectTaxes()
+    {
+        var income = CalculateTaxIncome();
+        LastTaxIncome = income;
+        _taxIncomeEverCollected = true;
+        Balance += income;
+    }
+
+    /// <summary>Collect taxes using land-value-weighted residential income.</summary>
+    public void CollectTaxes(CityGrid grid)
+    {
+        var income = CalculateTaxIncome(grid);
+        LastTaxIncome = income;
+        _taxIncomeEverCollected = true;
+        Balance += income;
+    }
 
     /// <summary>
     /// Adds commercial income to Balance and stores the per-tick amount for reporting.
@@ -166,7 +221,14 @@ public class BudgetSystem
 
     public bool IsInDeficit => Balance < 0;
 
-    public double NetIncomePerTick => CalculateTaxIncome() + CommercialIncomePerTick - LastMaintenanceCost;
+    /// <summary>
+    /// Net income based on last-collected tax (land-value-weighted when engine calls CollectTaxes(grid))
+    /// plus commercial income, minus maintenance.
+    /// Falls back to flat CalculateTaxIncome() if CollectTaxes has never been called (e.g. in direct unit tests).
+    /// </summary>
+    public double NetIncomePerTick =>
+        (_taxIncomeEverCollected ? LastTaxIncome : CalculateTaxIncome())
+        + CommercialIncomePerTick - LastMaintenanceCost;
 
     public BudgetSnapshot Snapshot() =>
         new(Balance, TaxRate, Population, CalculateTaxIncome(), CommercialIncomePerTick, LastMaintenanceCost, NetIncomePerTick);

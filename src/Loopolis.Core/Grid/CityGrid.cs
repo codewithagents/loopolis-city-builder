@@ -35,6 +35,9 @@ public record Tile(int X, int Y)
     /// <summary>Count of R/C/I zone tiles within Chebyshev distance 2. Set each tick by RoadTrafficSystem.</summary>
     public int TrafficLoad { get; init; } = 0;
 
+    /// <summary>Land value score (0.0–1.0). Computed each tick by LandValueSystem. Water tiles have 0.</summary>
+    public double LandValue { get; init; } = 0.0;
+
     /// <summary>True when a commercial zone is adjacent and grants a demand boost to this residential tile.</summary>
     public bool HasDemandBoost => Zone == ZoneType.Residential && DemandFactor > 1.0;
 
@@ -241,6 +244,20 @@ public class CityGrid
         for (var y = 0; y < Height; y++)
             if (_tiles[x, y].TrafficLoad != 0)
                 _tiles[x, y] = _tiles[x, y] with { TrafficLoad = 0 };
+    }
+
+    public void SetLandValue(int x, int y, double value)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { LandValue = Math.Clamp(value, 0.0, 1.0) };
+    }
+
+    public void ClearLandValue()
+    {
+        for (var x = 0; x < Width; x++)
+        for (var y = 0; y < Height; y++)
+            if (_tiles[x, y].LandValue != 0.0)
+                _tiles[x, y] = _tiles[x, y] with { LandValue = 0.0 };
     }
 
     private void AssertInBounds(int x, int y)

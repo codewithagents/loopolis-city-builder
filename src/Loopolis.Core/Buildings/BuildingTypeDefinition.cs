@@ -3,9 +3,9 @@ namespace Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Simulation;
 
-public record BuildingCondition(BuildingConditionType Type, int Param = 0, ZoneType? ServiceZone = null);
+public record BuildingCondition(BuildingConditionType Type, int Param = 0, ZoneType? ServiceZone = null, double DoubleParam = 0.0);
 
-public enum BuildingConditionType { RoadAccess, ForestNearby, ServiceCoverage }
+public enum BuildingConditionType { RoadAccess, ForestNearby, ServiceCoverage, HillTerrain, MinLandValue }
 
 public record BuildingTypeDefinition(
     string TypeId,
@@ -27,15 +27,19 @@ public static class BuildingCatalog
     public static readonly BuildingTypeDefinition[] All =
     [
         // Residential
-        new("res_apartment_4x4",  ZoneType.Residential, 4, 4, GameState.City, [
+        new("res_apartment_4x4",       ZoneType.Residential, 4, 4, GameState.City, [
             new(BuildingConditionType.ServiceCoverage, ServiceZone: ZoneType.School),
             new(BuildingConditionType.ServiceCoverage, ServiceZone: ZoneType.PoliceStation),
             new(BuildingConditionType.ServiceCoverage, ServiceZone: ZoneType.FireStation),
         ]),
-        new("res_villa_2x3",      ZoneType.Residential, 2, 3, GameState.Town, [new(BuildingConditionType.ForestNearby, 3)]),
-        new("res_villa_3x2",      ZoneType.Residential, 3, 2, GameState.Town, [new(BuildingConditionType.ForestNearby, 3)]),
-        new("res_townhouse_2x2",  ZoneType.Residential, 2, 2, GameState.Active, []),
-        new("res_house_1x1",      ZoneType.Residential, 1, 1, GameState.Active, []),
+        new("res_villa_hillside_3x3",  ZoneType.Residential, 3, 3, GameState.Town, [
+            new(BuildingConditionType.HillTerrain),
+            new(BuildingConditionType.MinLandValue, DoubleParam: 0.7),
+        ]),
+        new("res_villa_2x3",           ZoneType.Residential, 2, 3, GameState.Town, [new(BuildingConditionType.ForestNearby, 3)]),
+        new("res_villa_3x2",           ZoneType.Residential, 3, 2, GameState.Town, [new(BuildingConditionType.ForestNearby, 3)]),
+        new("res_townhouse_2x2",       ZoneType.Residential, 2, 2, GameState.Active, []),
+        new("res_house_1x1",           ZoneType.Residential, 1, 1, GameState.Active, []),
 
         // Commercial
         new("com_shopping_3x3",   ZoneType.Commercial, 3, 3, GameState.City, []),

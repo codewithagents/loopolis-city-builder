@@ -146,9 +146,43 @@ public class BuildingGrowthSystem
                     if (!HasServiceCoverage(grid, ax, ay, target.Width, target.Height, condition.ServiceZone!.Value))
                         return false;
                     break;
+                case BuildingConditionType.HillTerrain:
+                    if (!HasHillTerrain(grid, ax, ay, target.Width, target.Height))
+                        return false;
+                    break;
+                case BuildingConditionType.MinLandValue:
+                    if (!HasMinLandValue(grid, ax, ay, target.Width, target.Height, condition.DoubleParam))
+                        return false;
+                    break;
             }
         }
         return true;
+    }
+
+    private static bool HasHillTerrain(CityGrid grid, int ax, int ay, int w, int h)
+    {
+        // At least one tile in the footprint must be Hill terrain
+        for (var dx = 0; dx < w; dx++)
+        for (var dy = 0; dy < h; dy++)
+        {
+            var tx = ax + dx; var ty = ay + dy;
+            if (!grid.IsInBounds(tx, ty)) continue;
+            if (grid.GetTerrain(tx, ty) == TerrainType.Hill) return true;
+        }
+        return false;
+    }
+
+    private static bool HasMinLandValue(CityGrid grid, int ax, int ay, int w, int h, double minValue)
+    {
+        // At least one tile in the footprint must meet the minimum land value threshold
+        for (var dx = 0; dx < w; dx++)
+        for (var dy = 0; dy < h; dy++)
+        {
+            var tx = ax + dx; var ty = ay + dy;
+            if (!grid.IsInBounds(tx, ty)) continue;
+            if (grid.GetTile(tx, ty).LandValue >= minValue) return true;
+        }
+        return false;
     }
 
     private static bool HasForestNearby(CityGrid grid, int ax, int ay, int w, int h, int radius)

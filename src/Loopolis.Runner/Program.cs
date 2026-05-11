@@ -47,7 +47,7 @@ for (var tick = 0; tick < ticks; tick++)
             Population: population.Population,
             Balance: Math.Round(budget.Balance, 2),
             IsInDeficit: budget.IsInDeficit,
-            TaxIncome: Math.Round(budget.CalculateTaxIncome(), 2),
+            TaxIncome: Math.Round(budget.LastTaxIncome, 2),
             MaintenanceCost: Math.Round(budget.LastMaintenanceCost, 2),
             NetPerTick: Math.Round(budget.NetIncomePerTick, 2),
             AverageHappiness: Math.Round(cliEngine.HappinessSystem.AverageHappiness(cliGrid), 3),
@@ -367,6 +367,13 @@ static void WriteOverlay(
                 }
                 break;
             }
+
+            case "landvalue":
+                // Non-water tiles only; sparse encoding (skip value=0).
+                value = tile.Terrain != TerrainType.Water
+                    ? Math.Round(tile.LandValue, 4)
+                    : 0.0;
+                break;
 
             default:
                 value = 0.0;
@@ -777,7 +784,9 @@ static void WriteState(
         AvgPollution:             zonedCount > 0 ? Math.Round(totalPollution  / zonedCount, 4) : 0.0,
         AvgHappiness:             zonedCount > 0 ? Math.Round(totalHappiness  / zonedCount, 4) : 0.0,
         OverloadedRoadCount:      engine.RoadTrafficSystem.OverloadedRoadCount,
-        AvgTrafficLoad:           Math.Round(engine.RoadTrafficSystem.AvgTrafficLoad, 4)
+        AvgTrafficLoad:           Math.Round(engine.RoadTrafficSystem.AvgTrafficLoad, 4),
+        LandValueAvg:             Math.Round(engine.LandValueSystem.AverageLandValue(grid), 4),
+        LandValueMax:             Math.Round(engine.LandValueSystem.MaxLandValue(grid), 4)
     );
 
     // --- Employment ---
@@ -811,7 +820,7 @@ static void WriteState(
         Population:                currentPop,
         MaxCapacity:               maxCapacity,
         Balance:                   Math.Round(engine.Budget.Balance, 2),
-        TaxPerTick:                Math.Round(engine.Budget.CalculateTaxIncome(), 2),
+        TaxPerTick:                Math.Round(engine.Budget.LastTaxIncome, 2),
         CommercialIncomePerTick:   Math.Round(engine.Budget.CommercialIncomePerTick, 2),
         MaintenancePerTick:        Math.Round(engine.Budget.LastMaintenanceCost, 2),
         NetPerTick:                Math.Round(engine.Budget.NetIncomePerTick, 2),
@@ -1104,7 +1113,9 @@ record CoverageSummary(
     [property: JsonPropertyName("avgPollution")]             double AvgPollution,
     [property: JsonPropertyName("avgHappiness")]             double AvgHappiness,
     [property: JsonPropertyName("overloadedRoadCount")]      int    OverloadedRoadCount = 0,
-    [property: JsonPropertyName("avgTrafficLoad")]           double AvgTrafficLoad = 0.0);
+    [property: JsonPropertyName("avgTrafficLoad")]           double AvgTrafficLoad = 0.0,
+    [property: JsonPropertyName("landValueAvg")]             double LandValueAvg = 0.0,
+    [property: JsonPropertyName("landValueMax")]             double LandValueMax = 0.0);
 
 record PowerState(
     [property: JsonPropertyName("supplyMW")]       int    SupplyMW,
@@ -1226,7 +1237,7 @@ static class AsciiRenderer
         Console.WriteLine($"  ┌─── After {ticks} ticks ──────────────────┐");
         Console.WriteLine($"  │  Population : {pop.Population,8}                │");
         Console.WriteLine($"  │  Balance    : {balanceColor}${budget.Balance,+12:N0}{Reset}          │");
-        Console.WriteLine($"  │  Tax/tick   : ${budget.CalculateTaxIncome(),10:N2}                │");
+        Console.WriteLine($"  │  Tax/tick   : ${budget.LastTaxIncome,10:N2}                │");
         Console.WriteLine($"  │  Status     : {survived,-28}│");
         Console.WriteLine($"  │                                          │");
         Console.WriteLine($"  │  Zones ▸  {Green}R{Reset}:{grid.TilesOfType(ZoneType.Residential).Count(),3}  " +

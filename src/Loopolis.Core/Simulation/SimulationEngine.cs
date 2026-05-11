@@ -14,11 +14,13 @@ namespace Loopolis.Core.Simulation;
 ///   5. PollutionSystem.Propagate      — industrial zones + CoalPlant emit pollution
 ///   6. DemandSystem.Propagate         — demand depends on which zones are ready (powered + road)
 ///   7. HappinessSystem.Propagate      — happiness uses pollution + demand + services + traffic + brownout penalty
-///   8. Population.Tick                — grow/decline based on ready zones + demand + happiness + traffic + brownout multiplier
-///   9. Budget.SetPopulation           — sync population to budget
-///  10. Budget.CollectTaxes            — income from current population
-///  11. Budget.DeductMaintenance       — costs from current grid
-///  12. MilestoneSystem.Check          — check for milestone progression and bankruptcy
+///   8. LandValueSystem.Propagate      — land value from terrain, pollution, happiness, power
+///   9. Population.Tick                — grow/decline based on ready zones + demand + happiness + traffic + brownout multiplier
+///  10. Budget.SetPopulation           — sync population to budget
+///  11. Budget.CollectTaxes            — income from current population (modified by land value for residential)
+///  12. Budget.CollectCommercialIncome — commercial tile income
+///  13. Budget.DeductMaintenance       — costs from current grid
+///  14. MilestoneSystem.Check          — check for milestone progression and bankruptcy
 ///
 /// This class has no Godot dependencies and is safe to use from tests, Runner, and Godot.
 /// </summary>
@@ -38,6 +40,7 @@ public class SimulationEngine
     public EventSystem EventSystem { get; }
     public EmploymentSystem EmploymentSystem { get; }
     public BuildingGrowthSystem BuildingGrowthSystem { get; } = new();
+    public LandValueSystem LandValueSystem { get; } = new();
     public int TickCount { get; private set; }
 
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
@@ -81,6 +84,7 @@ public class SimulationEngine
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
         HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout
+        LandValueSystem.Propagate(Grid);   // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition
         var avgHappiness = HappinessSystem.AverageHappiness(Grid);
@@ -104,7 +108,7 @@ public class SimulationEngine
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem);
         Budget.SetPopulation(Population.Population);
-        Budget.CollectTaxes();
+        Budget.CollectTaxes(Grid);  // land-value-weighted residential tax
         Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
         MilestoneSystem.Check(Population.Population, Budget.Balance, Budget.NetIncomePerTick, TickCount);
