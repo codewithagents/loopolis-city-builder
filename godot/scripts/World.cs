@@ -12,12 +12,32 @@ public partial class World : Node2D
     private const double TickInterval = 0.5; // seconds per sim tick
 
     private TilemapRenderer _renderer = null!;
+    private bool _viewerMode = false;
 
     public override void _Ready()
     {
-        // Find child nodes by name — avoids Export wiring in .tscn
         _renderer = GetNode<TilemapRenderer>("TilemapRenderer");
 
+        // Check for shared state file → viewer mode
+        var projectDir = ProjectSettings.GlobalizePath("res://");
+        var statePath = System.IO.Path.Combine(projectDir, "shared", "state.json");
+
+        if (System.IO.File.Exists(statePath))
+        {
+            GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
+            var reader = new SharedStateReader();
+            AddChild(reader);
+            _viewerMode = true;
+            return;
+        }
+
+        // Standalone mode — run own simulation
+        GD.Print("[world] Standalone mode — running own simulation.");
+        SetupStandaloneSimulation();
+    }
+
+    private void SetupStandaloneSimulation()
+    {
         _grid = new CityGrid(32, 32);
 
         // Default scenario: wired starter city
@@ -43,6 +63,8 @@ public partial class World : Node2D
 
     public override void _Process(double delta)
     {
+        if (_viewerMode) return; // SharedStateReader handles updates
+
         _tickTimer += delta;
         if (_tickTimer >= TickInterval)
         {

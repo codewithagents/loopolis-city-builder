@@ -13,6 +13,10 @@ export_presets.cfg
 *.translation
 mono/
 
+# SimulationRunner shared state (runtime files, not tracked)
+godot/shared/*.json
+godot/shared/*.tmp.json
+
 # OS
 .DS_Store
 Thumbs.db
