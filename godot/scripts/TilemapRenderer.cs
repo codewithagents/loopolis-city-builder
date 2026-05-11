@@ -6,7 +6,7 @@ namespace LoopolisGodot;
 public partial class TilemapRenderer : Node2D
 {
     private CityGrid? _grid;
-    private const int TileSize = 16;
+    public const int TileSize = 32;
 
     private static readonly Color ColorEmpty         = new Color(0.15f, 0.15f, 0.15f);
     private static readonly Color ColorResidential  = new Color(0.2f,  0.7f,  0.2f);

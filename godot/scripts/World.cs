@@ -146,8 +146,8 @@ public partial class World : Node2D
     {
         // Get mouse position in TilemapRenderer local coordinates
         var localPos = _renderer.GetLocalMousePosition();
-        var tileX = (int)(localPos.X / 16);
-        var tileY = (int)(localPos.Y / 16);
+        var tileX = (int)(localPos.X / TilemapRenderer.TileSize);
+        var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
 
         if (tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32) return;
 
