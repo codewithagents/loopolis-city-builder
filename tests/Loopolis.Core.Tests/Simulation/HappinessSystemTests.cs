@@ -37,10 +37,12 @@ public class HappinessSystemTests
         grid.SetZone(5, 5, ZoneType.Residential);
         MakeReady(grid, 5, 5);
         // No commercial adjacent, no services, no pollution
+        // Note: first tick accumulates 0.001 neglect (no services), so happiness = 0.599
 
         _happiness.Propagate(grid);
 
-        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.6).Within(0.001));
+        // Tolerance of 0.002 to account for first-tick neglect accumulation (0.001/tick)
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.6).Within(0.002));
     }
 
     [Test]
@@ -53,8 +55,9 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // base 0.6 + 0.25 commercial = 0.85
-        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.85).Within(0.001));
+        // base 0.6 + 0.25 commercial = 0.85 (minus 0.001 first-tick neglect = 0.849)
+        // Tolerance of 0.002 to account for first-tick neglect accumulation
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.85).Within(0.002));
     }
 
     [Test]
@@ -68,7 +71,7 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // base 0.6 + 0.15 fire station = 0.75
+        // base 0.6 + 0.15 fire station = 0.75 (covered → no neglect on first tick)
         Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.75).Within(0.001));
     }
 
@@ -83,7 +86,7 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // base 0.6 + 0.15 police = 0.75
+        // base 0.6 + 0.15 police = 0.75 (covered → no neglect on first tick)
         Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.75).Within(0.001));
     }
 
@@ -98,7 +101,7 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // base 0.6 + 0.15 school = 0.75
+        // base 0.6 + 0.15 school = 0.75 (covered → no neglect on first tick)
         Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.75).Within(0.001));
     }
 
@@ -115,7 +118,7 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // base 0.6 + min(3, 2) * 0.15 = 0.6 + 0.30 = 0.90
+        // base 0.6 + min(3, 2) * 0.15 = 0.6 + 0.30 = 0.90 (covered → no neglect on first tick)
         Assert.That(grid.GetTile(7, 7).Happiness, Is.EqualTo(0.90).Within(0.001));
     }
 
@@ -129,8 +132,9 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // base 0.6 - 0.5 * 0.4 = 0.6 - 0.2 = 0.4
-        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.4).Within(0.001));
+        // base 0.6 - 0.5 * 0.4 = 0.6 - 0.2 = 0.4 (minus 0.001 first-tick neglect = 0.399)
+        // Tolerance of 0.002 to account for first-tick neglect accumulation
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.4).Within(0.002));
     }
 
     [Test]
@@ -144,8 +148,9 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // 0.6 + 0.25 - 0.2 = 0.65
-        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.65).Within(0.001));
+        // 0.6 + 0.25 - 0.2 = 0.65 (minus 0.001 first-tick neglect = 0.649)
+        // Tolerance of 0.002 to account for first-tick neglect accumulation
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.65).Within(0.002));
     }
 
     [Test]
@@ -168,7 +173,8 @@ public class HappinessSystemTests
         // 0.6 - 1.0*0.4 = 0.2 — above floor, but let's verify clamp is >= 0.1
         Assert.That(grid.GetTile(5, 5).Happiness, Is.GreaterThanOrEqualTo(0.1),
             "Happiness should never fall below the 0.1 floor");
-        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.2).Within(0.001));
+        // Tolerance of 0.002 to account for first-tick neglect accumulation (0.001/tick)
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.2).Within(0.002));
     }
 
     [Test]
@@ -197,8 +203,9 @@ public class HappinessSystemTests
 
         _happiness.Propagate(grid);
 
-        // base 0.6 only — fire station too far away
-        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.6).Within(0.001));
+        // base 0.6 only — fire station too far away (uncovered → first-tick neglect 0.001)
+        // Tolerance of 0.002 to account for first-tick neglect accumulation
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.6).Within(0.002));
     }
 
     [Test]
@@ -216,17 +223,85 @@ public class HappinessSystemTests
     public void AverageHappiness_CalculatesCorrectly()
     {
         var grid = new CityGrid(10, 10);
-        // Zone A: base only → 0.6
+        // Zone A: base only → 0.6 (uncovered, first-tick neglect 0.001 → 0.599)
         grid.SetZone(2, 2, ZoneType.Residential);
         MakeReady(grid, 2, 2);
-        // Zone B: with commercial adjacent → 0.85
+        // Zone B: with commercial adjacent → 0.85 (uncovered, first-tick neglect 0.001 → 0.849)
         grid.SetZone(5, 5, ZoneType.Residential);
         MakeReady(grid, 5, 5);
         MakeCommercialReady(grid, 5, 6);
 
         _happiness.Propagate(grid);
 
-        // Average = (0.6 + 0.85) / 2 = 0.725
-        Assert.That(_happiness.AverageHappiness(grid), Is.EqualTo(0.725).Within(0.001));
+        // Average = (0.599 + 0.849) / 2 ≈ 0.724 — tolerance 0.002 for first-tick neglect
+        Assert.That(_happiness.AverageHappiness(grid), Is.EqualTo(0.725).Within(0.002));
+    }
+
+    [Test]
+    public void ServiceNeglect_AccumulatesWhenUncovered()
+    {
+        // Ready residential zone with no services → neglect should increase each tick
+        // After 100 ticks, happiness should be lower than baseline (0.6)
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        // No services anywhere
+
+        for (var i = 0; i < 100; i++)
+            _happiness.Propagate(grid);
+
+        // After 100 ticks: neglect = 100 * 0.001 = 0.1 → happiness = 0.6 - 0.1 = 0.5
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.LessThan(0.6),
+            "Happiness should have dropped below baseline after 100 uncovered ticks");
+        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.1).Within(0.001),
+            "Neglect should be 0.1 after 100 ticks at 0.001/tick");
+    }
+
+    [Test]
+    public void ServiceNeglect_ResetsWhenCovered()
+    {
+        // Accumulate neglect for 100 ticks, then add service, then recover
+        var grid = new CityGrid(15, 15);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        // 100 ticks with no coverage → neglect = 0.1
+        for (var i = 0; i < 100; i++)
+            _happiness.Propagate(grid);
+
+        var happinessAfterNeglect = grid.GetTile(5, 5).Happiness;
+
+        // Add a fire station within range
+        grid.SetZone(5, 8, ZoneType.FireStation); // Manhattan distance 3, within radius 4
+
+        // 150 more ticks → recovery: 0.1 / 0.002 = 50 ticks to fully recover
+        for (var i = 0; i < 150; i++)
+            _happiness.Propagate(grid);
+
+        var happinessAfterRecovery = grid.GetTile(5, 5).Happiness;
+
+        Assert.That(happinessAfterRecovery, Is.GreaterThan(happinessAfterNeglect),
+            "Happiness should recover after service coverage is established");
+        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.0).Within(0.001),
+            "Neglect should fully recover to 0 within 150 ticks (50 ticks needed at 0.002/tick)");
+    }
+
+    [Test]
+    public void ServiceNeglect_CappedAt0Point3()
+    {
+        // After 400+ ticks with no coverage, neglect shouldn't exceed 0.3
+        // Minimum final happiness should still be >= 0.3 (0.6 base - 0.3 max neglect)
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        // Run 400 ticks — far past the 300-tick threshold to max neglect
+        for (var i = 0; i < 400; i++)
+            _happiness.Propagate(grid);
+
+        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.3).Within(0.001),
+            "Service neglect should be capped at 0.3");
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.GreaterThanOrEqualTo(0.3),
+            "Final happiness should be >= 0.3 even at max neglect (0.6 base - 0.3 cap)");
     }
 }
