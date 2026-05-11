@@ -16,6 +16,8 @@ public partial class World : Node2D
     private TilemapRenderer _renderer = null!;
     private HudOverlay _hud = null!;
     private Toolbar _toolbar = null!;
+    private TileTooltip _tooltip = null!;
+    private GameOverPanel _gameOverPanel = null!;
     private bool _viewerMode = false;
     private string _commandPath = "";
     private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
@@ -23,19 +25,25 @@ public partial class World : Node2D
     // Standalone mode state for HUD updates
     private int _standaloneTick = 0;
     private bool _standalonePaused = false;
+    private bool _gameOver = false;
     private BudgetSystem? _budget;
     private PopulationSystem? _population;
 
     public override void _Ready()
     {
-        _renderer = GetNode<TilemapRenderer>("TilemapRenderer");
-        _hud      = GetNode<HudOverlay>("HudOverlay");
-        _toolbar  = GetNode<Toolbar>("Toolbar");
+        _renderer     = GetNode<TilemapRenderer>("TilemapRenderer");
+        _hud          = GetNode<HudOverlay>("HudOverlay");
+        _toolbar      = GetNode<Toolbar>("Toolbar");
+        _tooltip      = GetNode<TileTooltip>("TileTooltip");
+        _gameOverPanel = GetNode<GameOverPanel>("GameOverPanel");
 
         // Wire toolbar signals
-        _toolbar.ZoneSelected    += OnZoneSelected;
-        _toolbar.PauseToggled    += OnPauseToggled;
+        _toolbar.ZoneSelected     += OnZoneSelected;
+        _toolbar.PauseToggled     += OnPauseToggled;
         _toolbar.NewGameRequested += OnNewGameRequested;
+
+        // Wire game-over panel
+        _gameOverPanel.NewGameRequested += OnNewGameRequested;
 
         // Update HUD with initial selection
         _hud.SetSelectedZone(_toolbar.SelectedZone);
@@ -62,25 +70,50 @@ public partial class World : Node2D
     private void SetupStandaloneSimulation()
     {
         _grid = new CityGrid(32, 32);
-        // Blank grid — let the player build from scratch
+        SeedStarterCity(_grid);
 
-        _budget     = new BudgetSystem(initialBalance: 5_000);
+        _budget     = new BudgetSystem(initialBalance: 10_000);
         _population = new PopulationSystem();
         var power   = new PowerNetwork();
         var roads   = new RoadNetwork();
         var demand  = new DemandSystem();
 
-        _engine = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
+        _engine   = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
+        _gameOver = false;
 
         _renderer.Refresh(_grid);
         PushStandaloneHudUpdate();
     }
 
+    /// <summary>
+    /// Pre-seed a minimal working city so new players immediately see the
+    /// power → road → residential chain in action.
+    ///
+    /// Layout centred around (14,14)–(16,15):
+    ///   PowerPlant  at (15,13)
+    ///   Road        at (15,14) and (15,15)
+    ///   Residential at (14,14), (16,14), (14,15), (16,15)
+    /// </summary>
+    private static void SeedStarterCity(CityGrid grid)
+    {
+        grid.SetZone(15, 13, ZoneType.PowerPlant);
+        grid.SetZone(15, 14, ZoneType.Road);
+        grid.SetZone(15, 15, ZoneType.Road);
+        grid.SetZone(14, 14, ZoneType.Residential);
+        grid.SetZone(16, 14, ZoneType.Residential);
+        grid.SetZone(14, 15, ZoneType.Residential);
+        grid.SetZone(16, 15, ZoneType.Residential);
+    }
+
     public override void _Process(double delta)
     {
-        if (_viewerMode) return; // SharedStateReader handles updates
+        // Tooltip always updates (both modes)
+        UpdateTooltip();
+
+        if (_viewerMode) return; // SharedStateReader handles everything else
 
         if (_standalonePaused) return;
+        if (_gameOver) return;
 
         _tickTimer += delta;
         if (_tickTimer >= TickInterval)
@@ -90,7 +123,39 @@ public partial class World : Node2D
             _standaloneTick++;
             _renderer.Refresh(_grid);
             PushStandaloneHudUpdate();
+
+            // Bankrupt check
+            if (_engine.MilestoneSystem.CurrentState == Loopolis.Core.Simulation.GameState.Bankrupt)
+            {
+                _gameOver = true;
+                _standalonePaused = true;
+                _toolbar.SetPaused(true);
+                _gameOverPanel.ShowBankrupt(_standaloneTick, _budget!.Balance, _population!.Population);
+            }
         }
+    }
+
+    private void UpdateTooltip()
+    {
+        var localPos = _renderer.GetLocalMousePosition();
+        var tileX = (int)(localPos.X / TilemapRenderer.TileSize);
+        var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
+
+        var grid = _viewerMode ? _reader?.LastGrid : _grid;
+        if (grid == null || tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32)
+        {
+            _tooltip.Hide();
+            return;
+        }
+
+        var tile = grid.GetTile(tileX, tileY);
+        if (tile.Zone == Loopolis.Core.Grid.ZoneType.Empty)
+        {
+            _tooltip.Hide();
+            return;
+        }
+
+        _tooltip.ShowFor(tile, GetViewport().GetMousePosition());
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -135,9 +200,11 @@ public partial class World : Node2D
         else
         {
             SetupStandaloneSimulation();
-            _standaloneTick    = 0;
-            _standalonePaused  = false;
+            _standaloneTick   = 0;
+            _standalonePaused = false;
+            _gameOver         = false;
             _toolbar.SetPaused(false);
+            _gameOverPanel.Hide();
         }
     }
 
@@ -204,6 +271,7 @@ public partial class World : Node2D
         var happiness = _engine.HappinessSystem.AverageHappiness(_grid);
         var milestone = _engine.MilestoneSystem.LatestMilestone?.Name;
 
+        var gameStateName = _engine.MilestoneSystem.CurrentState.ToString();
         var state = new SharedState(
             Tick:                _standaloneTick,
             Paused:              _standalonePaused,
@@ -214,6 +282,7 @@ public partial class World : Node2D
             NetPerTick:          snapshot.NetIncome,
             Happiness:           happiness,
             MilestoneReached:    milestone,
+            GameState:           gameStateName,
             Tiles:               System.Array.Empty<SharedTile>()
         );
         _hud.UpdateStats(state);

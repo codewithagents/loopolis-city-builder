@@ -18,6 +18,8 @@ public partial class SharedStateReader : Node
     private TilemapRenderer _renderer = null!;
     private HudOverlay _hud = null!;
     private Toolbar _toolbar = null!;
+    private GameOverPanel _gameOverPanel = null!;
+    private bool _bankruptShown = false;
     private double _pollTimer = 0;
     private const double PollInterval = 0.05; // 20Hz polling
 
@@ -26,9 +28,10 @@ public partial class SharedStateReader : Node
 
     public override void _Ready()
     {
-        _renderer = GetNode<TilemapRenderer>("/root/World/TilemapRenderer");
-        _hud      = GetNode<HudOverlay>("/root/World/HudOverlay");
-        _toolbar  = GetNode<Toolbar>("/root/World/Toolbar");
+        _renderer      = GetNode<TilemapRenderer>("/root/World/TilemapRenderer");
+        _hud           = GetNode<HudOverlay>("/root/World/HudOverlay");
+        _toolbar       = GetNode<Toolbar>("/root/World/Toolbar");
+        _gameOverPanel = GetNode<GameOverPanel>("/root/World/GameOverPanel");
 
         // Resolve path relative to Godot project directory
         var projectDir = ProjectSettings.GlobalizePath("res://");
@@ -58,6 +61,21 @@ public partial class SharedStateReader : Node
             _renderer.Refresh(grid);
             _hud.UpdateStats(state);
             _toolbar.SetPaused(state.Paused);
+
+            // Bankrupt detection — show panel once and pause the server
+            if (!_bankruptShown && state.GameState == "Bankrupt")
+            {
+                _bankruptShown = true;
+                _gameOverPanel.ShowBankrupt(state);
+                // Ask the runner to pause so the city freezes at the moment of bankruptcy
+                try
+                {
+                    var projectDir = ProjectSettings.GlobalizePath("res://");
+                    var commandPath = System.IO.Path.Combine(projectDir, "shared", "command.json");
+                    System.IO.File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
+                }
+                catch { /* runner may not be listening */ }
+            }
         }
         catch (Exception)
         {
