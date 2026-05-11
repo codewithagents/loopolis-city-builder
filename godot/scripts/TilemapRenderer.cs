@@ -48,13 +48,21 @@ public partial class TilemapRenderer : Node2D
         QueueRedraw();
     }
 
+    private bool IsSameZone(ZoneType zone, int x, int y)
+    {
+        if (_grid == null) return false;
+        if (!_grid.IsInBounds(x, y)) return false;
+        return _grid.GetTile(x, y).Zone == zone;
+    }
+
     public override void _Draw()
     {
         if (_grid == null) return;
 
         foreach (var tile in _grid.AllTiles())
         {
-            var rect = new Rect2(tile.X * TileSize, tile.Y * TileSize, TileSize - 1, TileSize - 1);
+            float px = tile.X * TileSize;
+            float py = tile.Y * TileSize;
 
             Color color;
             switch (tile.Zone)
@@ -73,11 +81,78 @@ public partial class TilemapRenderer : Node2D
                     var fillFraction = Mathf.Clamp(tile.Population / 50f, 0f, 1f);
                     var emptyColor = baseColor * 0.35f;
                     color = emptyColor.Lerp(baseColor, fillFraction);
-                    break;
+
+                    // Fill full tile — no gap between same-zone neighbours
+                    var fullRect = new Rect2(px, py, TileSize, TileSize);
+                    DrawRect(fullRect, color);
+
+                    // Draw dark border only on edges that face a different zone (cluster boundary)
+                    var borderColor = color * 0.45f;
+                    const int borderW = 2;
+
+                    bool adjLeft  = IsSameZone(tile.Zone, tile.X - 1, tile.Y);
+                    bool adjRight = IsSameZone(tile.Zone, tile.X + 1, tile.Y);
+                    bool adjUp    = IsSameZone(tile.Zone, tile.X,     tile.Y - 1);
+                    bool adjDown  = IsSameZone(tile.Zone, tile.X,     tile.Y + 1);
+
+                    if (!adjLeft)  DrawRect(new Rect2(px,                      py,      borderW, TileSize), borderColor);
+                    if (!adjRight) DrawRect(new Rect2(px + TileSize - borderW, py,      borderW, TileSize), borderColor);
+                    if (!adjUp)    DrawRect(new Rect2(px,  py,                 TileSize, borderW),           borderColor);
+                    if (!adjDown)  DrawRect(new Rect2(px,  py + TileSize - borderW, TileSize, borderW),      borderColor);
+
+                    // Density-based inner building rectangle
+                    if (fillFraction > 0.25f)
+                    {
+                        var buildingScale = Mathf.Lerp(0.4f, 0.75f, (fillFraction - 0.25f) / 0.75f);
+                        var margin = (int)(TileSize * (1f - buildingScale) / 2f);
+                        var buildingRect = new Rect2(
+                            px + margin, py + margin,
+                            TileSize - margin * 2, TileSize - margin * 2
+                        );
+                        var buildingColor = color * 1.25f;
+                        buildingColor.A = 1f;
+                        DrawRect(buildingRect, buildingColor);
+                    }
+
+                    // Dark overlay on zones that are zoned but not powered
+                    if (!tile.HasPower)
+                        DrawRect(fullRect, UnpoweredTint);
+
+                    // Red semi-transparent overlay for pollution
+                    if (tile.PollutionLevel > 0.05f)
+                    {
+                        var pollutionColor = new Color(1f, 0f, 0f, (float)tile.PollutionLevel * 0.55f);
+                        DrawRect(fullRect, pollutionColor);
+                    }
+
+                    // Yellow dot in corner for residential tiles with demand boost
+                    if (tile.HasDemandBoost && tile.Zone == ZoneType.Residential)
+                    {
+                        var dotRect = new Rect2(px + TileSize - 7, py + TileSize - 7, 5, 5);
+                        DrawRect(dotRect, new Color(1f, 0.9f, 0.1f, 0.8f));
+                    }
+
+                    continue;
                 }
                 case ZoneType.Road:
-                    color = ColorRoad;
-                    break;
+                {
+                    var roadFull = new Rect2(px, py, TileSize, TileSize);
+                    DrawRect(roadFull, ColorRoad);
+
+                    // Darker border only on non-road edges
+                    bool rLeft  = IsSameZone(ZoneType.Road, tile.X - 1, tile.Y);
+                    bool rRight = IsSameZone(ZoneType.Road, tile.X + 1, tile.Y);
+                    bool rUp    = IsSameZone(ZoneType.Road, tile.X,     tile.Y - 1);
+                    bool rDown  = IsSameZone(ZoneType.Road, tile.X,     tile.Y + 1);
+                    var roadEdge = ColorRoad * 0.55f;
+
+                    if (!rLeft)  DrawRect(new Rect2(px,                  py, 2, TileSize), roadEdge);
+                    if (!rRight) DrawRect(new Rect2(px + TileSize - 2,   py, 2, TileSize), roadEdge);
+                    if (!rUp)    DrawRect(new Rect2(px, py,               TileSize, 2),    roadEdge);
+                    if (!rDown)  DrawRect(new Rect2(px, py + TileSize - 2, TileSize, 2),   roadEdge);
+
+                    continue;
+                }
                 case ZoneType.PowerPlant:
                     color = ColorPowerPlant;
                     break;
@@ -104,29 +179,12 @@ public partial class TilemapRenderer : Node2D
                     break;
             }
 
+            // Service buildings and terrain: keep 1px gap (stand-alone structures)
+            var rect = new Rect2(px, py, TileSize - 1, TileSize - 1);
             DrawRect(rect, color);
 
             // Water tiles have no overlays — skip pollution, power tint, and demand dot
             if (tile.Terrain == Loopolis.Core.Grid.TerrainType.Water) continue;
-
-            // Dark overlay on zones that are zoned but not powered
-            var isZone = tile.Zone is ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial;
-            if (isZone && !tile.HasPower)
-                DrawRect(rect, UnpoweredTint);
-
-            // Red semi-transparent overlay for pollution
-            if (tile.PollutionLevel > 0.05f)
-            {
-                var pollutionColor = new Color(1f, 0f, 0f, (float)tile.PollutionLevel * 0.55f);
-                DrawRect(rect, pollutionColor);
-            }
-
-            // Yellow dot in corner for residential tiles with demand boost
-            if (tile.HasDemandBoost && tile.Zone == ZoneType.Residential)
-            {
-                var dotRect = new Rect2(rect.Position + rect.Size - new Vector2(6, 6), new Vector2(5, 5));
-                DrawRect(dotRect, new Color(1f, 0.9f, 0.1f, 0.8f));
-            }
         }
 
         // Coverage radius overlay: draw semi-transparent color over highlighted tiles
