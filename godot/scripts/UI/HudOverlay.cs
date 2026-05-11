@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Godot;
 
 namespace LoopolisGodot;
@@ -17,6 +19,8 @@ public partial class HudOverlay : CanvasLayer
     private Label _taxCostLabel   = null!;
     private Label _happyLabel     = null!;
     private Label _jobsLabel      = null!;
+    private Label _commerceLabel  = null!;
+    private Label _industryLabel  = null!;
     private Label _powerLabel     = null!;
     private Label _eventLabel     = null!;
     private Label _selectedLabel  = null!;
@@ -64,6 +68,9 @@ public partial class HudOverlay : CanvasLayer
 
         _jobsLabel = MakeLabel("Jobs: ✓ 0 available");
 
+        _commerceLabel = MakeLabel("Commerce: 0 zones | $0/tick | Demand: ░░░░░░░░░░ 0%");
+        _industryLabel = MakeLabel("Industry: 0 zones | 0 jobs | Utilization: ░░░░░░░░░░ 0%");
+
         _powerLabel = new Label();
         _powerLabel.Text = "";
         _powerLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
@@ -87,6 +94,8 @@ public partial class HudOverlay : CanvasLayer
         vbox.AddChild(_taxCostLabel);
         vbox.AddChild(_happyLabel);
         vbox.AddChild(_jobsLabel);
+        vbox.AddChild(_commerceLabel);
+        vbox.AddChild(_industryLabel);
         vbox.AddChild(_powerLabel);
         vbox.AddChild(_eventLabel);
         vbox.AddChild(_selectedLabel);
@@ -189,6 +198,51 @@ public partial class HudOverlay : CanvasLayer
             _jobsLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
         }
 
+        // Commerce row
+        {
+            var commerceTiles   = state.Tiles.Count(t => t.Zone == "Commercial");
+            var commerceBoost   = state.Tiles.Count(t => t.Zone == "Commercial" && t.HasDemandBoost);
+            var demandPct       = commerceTiles > 0 ? (int)((double)commerceBoost / commerceTiles * 100) : 0;
+            var demandBar       = MakeBar(demandPct);
+            var demandColor     = demandPct >= 70 ? new Color(0.3f, 1f, 0.3f)
+                                : demandPct >= 40 ? new Color(1f, 0.85f, 0.1f)
+                                                  : new Color(1f, 0.35f, 0.35f);
+            if (commerceTiles > 0)
+            {
+                _commerceLabel.Text = $"Commerce: {commerceTiles} zones | ${state.CommercialIncomePerTick:F1}/tick | Demand: {demandBar} {demandPct}%";
+                _commerceLabel.AddThemeColorOverride("font_color", demandColor);
+                _commerceLabel.Visible = true;
+            }
+            else
+            {
+                _commerceLabel.Visible = false;
+            }
+        }
+
+        // Industry row
+        {
+            var industrialTiles = state.Tiles.Count(t => t.Zone == "Industrial");
+            // max theoretical jobs = tiles * 20 (50 pop-units * 0.4 jobs/unit)
+            var maxJobs         = industrialTiles * 20;
+            var jobs            = state.Employment?.Jobs ?? state.AvailableJobs;
+            var utilPct         = maxJobs > 0 ? (int)((double)jobs / maxJobs * 100) : 0;
+            utilPct             = Math.Min(utilPct, 100);
+            var utilBar         = MakeBar(utilPct);
+            var utilColor       = utilPct >= 60 ? new Color(0.3f, 1f, 0.3f)
+                                : utilPct >= 30 ? new Color(1f, 0.85f, 0.1f)
+                                               : new Color(1f, 0.35f, 0.35f);
+            if (industrialTiles > 0)
+            {
+                _industryLabel.Text = $"Industry: {industrialTiles} zones | {jobs:N0} jobs | Utilization: {utilBar} {utilPct}%";
+                _industryLabel.AddThemeColorOverride("font_color", utilColor);
+                _industryLabel.Visible = true;
+            }
+            else
+            {
+                _industryLabel.Visible = false;
+            }
+        }
+
         // Power row
         if (state.Power != null)
         {
@@ -265,6 +319,13 @@ public partial class HudOverlay : CanvasLayer
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    /// <summary>Builds a 10-character unicode block bar for a 0–100% value.</summary>
+    private static string MakeBar(int percent)
+    {
+        var filled = Math.Clamp(percent, 0, 100) / 10;
+        return new string('█', filled) + new string('░', 10 - filled);
+    }
 
     private static Label MakeLabel(string text)
     {

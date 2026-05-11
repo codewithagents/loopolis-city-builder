@@ -5,65 +5,68 @@ namespace LoopolisGodot;
 
 /// <summary>
 /// Horizontal toolbar at the bottom of the screen.
-/// Lets the player choose a zone/tool, pause/resume, and start a new game.
-/// Writes command.json in viewer mode; calls back to World in standalone mode.
+/// Buttons are grouped into three tabs: Zones (Z), Utilities (U), Services (S).
+/// Always-visible strip: Erase, Tax, Pause, Speed, New Game, Menu.
+///
+/// Tab keyboard shortcuts: Z = Zones, U = Utilities, S = Services.
+/// Zone shortcuts R/C/I/Road always work regardless of active tab.
 /// </summary>
 public partial class Toolbar : CanvasLayer
 {
-    // Fired when the player selects a tool. World.cs subscribes.
-    [Signal]
-    public delegate void ZoneSelectedEventHandler(string zoneName);
+    // ── Signals ────────────────────────────────────────────────────────────────
 
-    // Fired when the player clicks Pause/Resume.
-    [Signal]
-    public delegate void PauseToggledEventHandler();
+    [Signal] public delegate void ZoneSelectedEventHandler(string zoneName);
+    [Signal] public delegate void PauseToggledEventHandler();
+    [Signal] public delegate void NewGameRequestedEventHandler();
+    [Signal] public delegate void MainMenuRequestedEventHandler();
+    [Signal] public delegate void TaxRateChangedEventHandler(string level);
+    [Signal] public delegate void SpeedChangedEventHandler(float ticksPerSecond);
 
-    // Fired when the player clicks New Game.
-    [Signal]
-    public delegate void NewGameRequestedEventHandler();
-
-    // Fired when the player clicks Menu.
-    [Signal]
-    public delegate void MainMenuRequestedEventHandler();
-
-    // Fired when the player changes the tax rate.
-    [Signal]
-    public delegate void TaxRateChangedEventHandler(string level);
-
-    // Fired when the player changes the game speed.
-    [Signal]
-    public delegate void SpeedChangedEventHandler(float ticksPerSecond);
+    // ── State ──────────────────────────────────────────────────────────────────
 
     private string _selectedZone = "Road";
-    private string _taxLevel = "normal";
-    private float _selectedSpeed = 2.0f;
-    private readonly Dictionary<string, Button> _buttons = new();
-    private Button? _pauseButton;
-    private readonly Dictionary<string, Button> _taxButtons = new();
-    private readonly Dictionary<float, Button> _speedButtons = new();
-    private int _lastKnownPop = 0; // for milestone-lock refresh
+    private string _taxLevel     = "normal";
+    private float  _selectedSpeed = 2.0f;
+    private int    _activeTab    = 0;   // 0 = Zones, 1 = Utilities, 2 = Services
+    private int    _lastKnownPop = 0;
 
-    // Zone definitions: (label, zone name, background color, tooltip, milestone unlock pop threshold)
-    // milestoneMin = 0 means always available; 500 = Town; 5000 = City
-    private static readonly (string Label, string Zone, Color Color, string Tooltip, int MilestoneMin)[] ZoneButtons =
+    private readonly Dictionary<string, Button> _buttons    = new();
+    private readonly Dictionary<string, Button> _taxButtons = new();
+    private readonly Dictionary<float,  Button> _speedButtons = new();
+    private Button? _pauseButton;
+
+    // Tab containers: each holds the buttons for one tab
+    private readonly Container[] _tabContainers = new Container[3];
+    // Tab header buttons
+    private readonly Button[] _tabHeaders = new Button[3];
+
+    // ── Zone / tool definitions ────────────────────────────────────────────────
+
+    // Tab index: 0 = Zones, 1 = Utilities, 2 = Services
+    // milestoneMin = 0 always available; 500 = Town; 5000 = City
+    private static readonly (string Label, string Zone, Color Color, string Tooltip, int MilestoneMin, int Tab)[] ZoneButtons =
     {
-        ("R",         "Residential",   new Color(0.2f,  0.7f,  0.2f), "Residential — Place: $50 · Maint: $0.50/tick",          0),
-        ("C",         "Commercial",    new Color(0.2f,  0.4f,  0.9f), "Commercial — Place: $100 · Maint: $0.50/tick",          0),
-        ("I",         "Industrial",    new Color(0.9f,  0.8f,  0.1f), "Industrial — Place: $75 · Maint: $0.25/tick",           0),
-        ("Road",      "Road",          new Color(0.5f,  0.5f,  0.5f), "Road — Place: $25 · Maint: $1.00/tick",                 0),
-        ("Line",      "PowerLine",     new Color(0.1f,  0.9f,  0.9f), "Power Line — Place: $40 · Maint: $0.50/tick",           0),
-        ("Coal",      "CoalPlant",     new Color(0.259f,0.259f,0.259f),"Coal Plant — Place: $500 · Maint: $8.00/tick\n500 MW output — emits pollution", 0),
-        ("Nuclear",   "NuclearPlant",  new Color(0.976f,0.659f,0.145f),"Nuclear Plant — Place: $8,000 · Maint: $50.00/tick\n3,000 MW · clean — Requires Town (500 pop)", 500),
-        ("Fire",      "FireStation",   new Color(1.0f,  0.4f,  0.1f), "Fire Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles", 0),
-        ("Fire HQ",   "FireHQ",        new Color(0.718f,0.110f,0.110f),"Fire HQ — Place: $2,000 · Maint: $25.00/tick\nCoverage radius: 10 tiles — Requires City (5,000 pop)", 5000),
-        ("Police",    "PoliceStation", new Color(0.2f,  0.4f,  1.0f), "Police Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles", 0),
-        ("Police HQ", "PoliceHQ",      new Color(0.102f,0.137f,0.494f),"Police HQ — Place: $2,000 · Maint: $25.00/tick\nCoverage radius: 10 tiles — Requires City (5,000 pop)", 5000),
-        ("School",    "School",        new Color(0.7f,  0.3f,  0.9f), "School — Place: $400 · Maint: $5.00/tick\nCoverage radius: 5 tiles",       0),
-        ("Hospital",  "Hospital",      new Color(0.647f,0.839f,0.647f),"Hospital — Place: $3,000 · Maint: $35.00/tick\nCoverage radius: 8 tiles — Requires City (5,000 pop)", 5000),
-        ("Erase",     "Erase",         new Color(0.6f,  0.15f, 0.15f), "Erase — no cost",                                      0),
+        // Tab 0 — Zones
+        ("R",       "Residential", new Color(0.2f,  0.7f,  0.2f),  "Residential — Place: $50 · Maint: $0.50/tick",          0, 0),
+        ("C",       "Commercial",  new Color(0.2f,  0.4f,  0.9f),  "Commercial — Place: $100 · Maint: $0.50/tick",          0, 0),
+        ("I",       "Industrial",  new Color(0.9f,  0.8f,  0.1f),  "Industrial — Place: $75 · Maint: $0.25/tick",           0, 0),
+        ("Road",    "Road",        new Color(0.5f,  0.5f,  0.5f),  "Road — Place: $25 · Maint: $1.00/tick",                 0, 0),
+        ("Avenue",  "Avenue",      new Color(0.62f, 0.62f, 0.62f), "Avenue — Place: $60 · Maint: $2.00/tick\nHigher capacity road — Requires Town (500 pop)", 500, 0),
+        ("Line",    "PowerLine",   new Color(0.1f,  0.9f,  0.9f),  "Power Line — Place: $40 · Maint: $0.50/tick",           0, 0),
+
+        // Tab 1 — Utilities
+        ("Coal",    "CoalPlant",    new Color(0.259f,0.259f,0.259f),"Coal Plant — Place: $500 · Maint: $8.00/tick\n500 MW output — emits pollution",           0, 1),
+        ("Nuclear", "NuclearPlant", new Color(0.976f,0.659f,0.145f),"Nuclear Plant — Place: $8,000 · Maint: $50.00/tick\n3,000 MW · clean — Requires Town (500 pop)", 500, 1),
+
+        // Tab 2 — Services
+        ("Fire",      "FireStation",   new Color(1.0f,  0.4f,  0.1f),  "Fire Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles",                  0,    2),
+        ("Fire HQ",   "FireHQ",        new Color(0.718f,0.110f,0.110f), "Fire HQ — Place: $2,000 · Maint: $25.00/tick\nCoverage radius: 10 tiles — Requires City (5,000 pop)", 5000, 2),
+        ("Police",    "PoliceStation", new Color(0.2f,  0.4f,  1.0f),  "Police Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles",                 0,    2),
+        ("Police HQ", "PoliceHQ",      new Color(0.102f,0.137f,0.494f),"Police HQ — Place: $2,000 · Maint: $25.00/tick\nCoverage radius: 10 tiles — Requires City (5,000 pop)", 5000, 2),
+        ("School",    "School",        new Color(0.7f,  0.3f,  0.9f),  "School — Place: $400 · Maint: $5.00/tick\nCoverage radius: 5 tiles",                        0,    2),
+        ("Hospital",  "Hospital",      new Color(0.647f,0.839f,0.647f),"Hospital — Place: $3,000 · Maint: $35.00/tick\nCoverage radius: 8 tiles — Requires City (5,000 pop)", 5000, 2),
     };
 
-    // Tax rate button definitions: (label, level, background color)
     private static readonly (string Label, string Level, Color Color)[] TaxButtonDefs =
     {
         ("Tax: Low",  "low",    new Color(0.2f, 0.8f, 0.3f)),
@@ -71,77 +74,123 @@ public partial class Toolbar : CanvasLayer
         ("Tax: High", "high",   new Color(0.85f, 0.3f, 0.2f)),
     };
 
+    private static readonly string[] TabLabels = { "Zones [Z]", "Utilities [U]", "Services [S]" };
+
+    // ── _Ready ─────────────────────────────────────────────────────────────────
+
     public override void _Ready()
     {
         Layer = 9;
 
-        // Container anchored to the bottom of the screen
+        // Outer panel anchored to the bottom
         var panel = new PanelContainer();
         panel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
         panel.GrowVertical = Control.GrowDirection.Begin;
         panel.AddThemeStyleboxOverride("panel", MakePanelStyle());
         AddChild(panel);
 
-        var hbox = new HBoxContainer();
-        hbox.AddThemeConstantOverride("separation", 4);
-        panel.AddChild(hbox);
+        // Outer vbox: [tab header row] + [content row]
+        var outerVBox = new VBoxContainer();
+        outerVBox.AddThemeConstantOverride("separation", 2);
+        panel.AddChild(outerVBox);
 
-        // Zone / tool buttons
-        foreach (var (label, zone, color, tooltip, _milestoneMin) in ZoneButtons)
+        // ── Tab header row ──────────────────────────────────────────────────
+
+        var tabRow = new HBoxContainer();
+        tabRow.AddThemeConstantOverride("separation", 2);
+        outerVBox.AddChild(tabRow);
+
+        for (var i = 0; i < 3; i++)
+        {
+            var capturedTab = i;
+            var tabBtn = new Button();
+            tabBtn.Text = TabLabels[i];
+            tabBtn.CustomMinimumSize = new Vector2(100, 28);
+            tabBtn.AddThemeFontSizeOverride("font_size", 12);
+            tabBtn.Pressed += () => SwitchTab(capturedTab);
+            tabRow.AddChild(tabBtn);
+            _tabHeaders[i] = tabBtn;
+        }
+
+        // ── Content row: [tabbed zone area] | [always-visible tools] ───────
+
+        var contentRow = new HBoxContainer();
+        contentRow.AddThemeConstantOverride("separation", 4);
+        outerVBox.AddChild(contentRow);
+
+        // Build one HBoxContainer per tab; only the active one is visible
+        for (var t = 0; t < 3; t++)
+        {
+            var hbox = new HBoxContainer();
+            hbox.AddThemeConstantOverride("separation", 4);
+            hbox.Visible = (t == _activeTab);
+            contentRow.AddChild(hbox);
+            _tabContainers[t] = hbox;
+        }
+
+        // Populate each tab with its zone buttons
+        foreach (var (label, zone, color, tooltip, milestoneMin, tab) in ZoneButtons)
         {
             var btn = MakeZoneButton(label, color, tooltip);
             var capturedZone = zone;
             btn.Pressed += () =>
             {
-                // Refuse to select a locked zone
                 if (btn.Disabled) return;
                 SelectZone(capturedZone, btn);
             };
-            hbox.AddChild(btn);
+            _tabContainers[tab].AddChild(btn);
             _buttons[zone] = btn;
         }
 
-        // Apply initial milestone locks (pop = 0 at startup)
+        // Apply initial milestone locks
         UpdateMilestoneLocks(0);
 
-        // Separator
+        // Erase button — always visible, in the tools strip
+        var eraseSep = new VSeparator();
+        contentRow.AddChild(eraseSep);
+
+        var eraseBtn = MakeZoneButton("Erase", new Color(0.6f, 0.15f, 0.15f), "Erase — no cost");
+        eraseBtn.Pressed += () => SelectZone("Erase", eraseBtn);
+        contentRow.AddChild(eraseBtn);
+        _buttons["Erase"] = eraseBtn;
+
+        // Separator before tax
         var sep = new VSeparator();
-        hbox.AddChild(sep);
+        contentRow.AddChild(sep);
 
         // Tax rate buttons
-        foreach (var (label, level, color) in TaxButtonDefs)
+        foreach (var (tlabel, level, color) in TaxButtonDefs)
         {
-            var taxBtn = MakeZoneButton(label, color);
+            var taxBtn = MakeZoneButton(tlabel, color);
             taxBtn.CustomMinimumSize = new Vector2(72, 44);
             var capturedLevel = level;
             taxBtn.Pressed += () => SelectTaxLevel(capturedLevel);
-            hbox.AddChild(taxBtn);
+            contentRow.AddChild(taxBtn);
             _taxButtons[level] = taxBtn;
         }
 
-        // Highlight the default tax level
+        // Highlight default tax level
         HighlightTaxButton(_taxLevel);
 
-        // Separator
         var sep2 = new VSeparator();
-        hbox.AddChild(sep2);
+        contentRow.AddChild(sep2);
 
-        // Pause / Resume button
+        // Pause button
         _pauseButton = new Button();
         _pauseButton.Text = "Pause";
         _pauseButton.CustomMinimumSize = new Vector2(80, 44);
         _pauseButton.AddThemeFontSizeOverride("font_size", 14);
         _pauseButton.Pressed += OnPauseToggled;
-        hbox.AddChild(_pauseButton);
+        contentRow.AddChild(_pauseButton);
 
         // Speed label
         var speedLabel = new Label();
         speedLabel.Text = "Speed:";
         speedLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
         speedLabel.AddThemeFontSizeOverride("font_size", 13);
-        hbox.AddChild(speedLabel);
+        contentRow.AddChild(speedLabel);
 
-        // Speed buttons: ½×, 1×, 2×, 4×
+        // Speed buttons
         var speedOptions = new (string Label, float Tps)[]
         {
             ("½×", 0.5f),
@@ -149,23 +198,22 @@ public partial class Toolbar : CanvasLayer
             ("2×", 2.0f),
             ("4×", 4.0f),
         };
-        foreach (var (label, tps) in speedOptions)
+        foreach (var (slabel, tps) in speedOptions)
         {
             var btn = new Button();
-            btn.Text = label;
+            btn.Text = slabel;
             btn.CustomMinimumSize = new Vector2(44, 44);
             btn.AddThemeFontSizeOverride("font_size", 13);
             btn.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f));
             var style = MakeSpeedButtonStyle(false);
             btn.AddThemeStyleboxOverride("normal", style);
-            btn.AddThemeStyleboxOverride("focus", style);
+            btn.AddThemeStyleboxOverride("focus",  style);
             var capturedTps = tps;
             btn.Pressed += () => SelectSpeed(capturedTps);
-            hbox.AddChild(btn);
+            contentRow.AddChild(btn);
             _speedButtons[tps] = btn;
         }
 
-        // Highlight the default speed (2×)
         HighlightSpeedButton(_selectedSpeed);
 
         // New Game button
@@ -174,7 +222,7 @@ public partial class Toolbar : CanvasLayer
         newGameBtn.CustomMinimumSize = new Vector2(90, 44);
         newGameBtn.AddThemeFontSizeOverride("font_size", 14);
         newGameBtn.Pressed += () => EmitSignal(SignalName.NewGameRequested);
-        hbox.AddChild(newGameBtn);
+        contentRow.AddChild(newGameBtn);
 
         // Menu button
         var menuBtn = new Button();
@@ -182,51 +230,68 @@ public partial class Toolbar : CanvasLayer
         menuBtn.CustomMinimumSize = new Vector2(70, 44);
         menuBtn.AddThemeFontSizeOverride("font_size", 14);
         menuBtn.Pressed += () => EmitSignal(SignalName.MainMenuRequested);
-        hbox.AddChild(menuBtn);
+        contentRow.AddChild(menuBtn);
 
-        // Highlight the default selection
+        // Apply initial highlights
+        HighlightTabHeaders();
         HighlightButton(_selectedZone);
     }
 
-    /// <summary>Update the Pause/Resume button label to reflect game state.</summary>
+    // ── Public API ──────────────────────────────────────────────────────────────
+
+    public string SelectedZone => _selectedZone;
+
     public void SetPaused(bool paused)
     {
         if (_pauseButton != null)
             _pauseButton.Text = paused ? "Resume" : "Pause";
     }
 
-    /// <summary>Programmatically set the game speed (e.g. from keyboard shortcuts in World.cs).</summary>
     public void SetSpeed(float tps) => SelectSpeed(tps);
 
-    /// <summary>Programmatically set the tax rate highlight to match a loaded save (does NOT emit TaxRateChanged).</summary>
     public void SetTaxRate(string level)
     {
         _taxLevel = level;
         HighlightTaxButton(level);
     }
 
-    /// <summary>
-    /// Enable or disable milestone-gated zone buttons based on current population.
-    /// Called by SharedStateReader each tick (viewer mode) and by World.cs (standalone mode).
-    /// </summary>
+    /// <summary>Programmatically select a zone by name (e.g. from keyboard shortcuts in World.cs).</summary>
+    public void SelectZone(string zone)
+    {
+        if (!_buttons.TryGetValue(zone, out var btn)) return;
+        SelectZone(zone, btn);
+    }
+
+    /// <summary>Programmatically switch to a specific tab index (0=Zones, 1=Utilities, 2=Services).</summary>
+    public void SwitchToTab(int tabIndex) => SwitchTab(tabIndex);
+
+    /// <summary>Switch to the tab that contains the given zone (used when a keyboard shortcut selects
+    /// a zone on a non-active tab, so the player can see the highlighted button).</summary>
+    public void SwitchToTabForZone(string zone)
+    {
+        foreach (var (_, z, _, _, _, tab) in ZoneButtons)
+        {
+            if (z == zone) { SwitchTab(tab); return; }
+        }
+        // Erase lives in always-visible strip — no tab switch needed
+    }
+
     public void UpdateMilestoneLocks(int population)
     {
         if (population == _lastKnownPop) return;
         _lastKnownPop = population;
 
-        foreach (var (label, zone, color, tooltip, milestoneMin) in ZoneButtons)
+        foreach (var (label, zone, color, tooltip, milestoneMin, tab) in ZoneButtons)
         {
             if (!_buttons.TryGetValue(zone, out var btn)) continue;
-            if (milestoneMin <= 0) continue; // always unlocked
+            if (milestoneMin <= 0) continue;
 
             var unlocked = population >= milestoneMin;
             btn.Disabled = !unlocked;
 
-            // Visual: dim the button and append lock hint to tooltip when locked
             var lockLabel = milestoneMin >= 5000 ? "Requires City (5,000 pop)" : "Requires Town (500 pop)";
             if (!unlocked)
             {
-                // Grey out via modulate
                 btn.Modulate = new Color(0.5f, 0.5f, 0.5f, 0.7f);
                 btn.TooltipText = tooltip + $"\n🔒 {lockLabel}";
             }
@@ -238,16 +303,62 @@ public partial class Toolbar : CanvasLayer
         }
     }
 
-    public string SelectedZone => _selectedZone;
+    // ── Tab switching ───────────────────────────────────────────────────────────
 
-    // ── Private helpers ────────────────────────────────────────────────────
-
-    /// <summary>Programmatically select a zone by name (e.g. from keyboard shortcuts in World.cs).</summary>
-    public void SelectZone(string zone)
+    private void SwitchTab(int tabIndex)
     {
-        if (!_buttons.TryGetValue(zone, out var btn)) return;
-        SelectZone(zone, btn);
+        _activeTab = tabIndex;
+        for (var i = 0; i < 3; i++)
+            _tabContainers[i].Visible = (i == _activeTab);
+        HighlightTabHeaders();
     }
+
+    private void HighlightTabHeaders()
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            var btn = _tabHeaders[i];
+            if (i == _activeTab)
+            {
+                var style = new StyleBoxFlat();
+                style.BgColor = new Color(0.25f, 0.35f, 0.55f);
+                style.BorderColor = new Color(0.6f, 0.8f, 1f);
+                style.BorderWidthBottom = style.BorderWidthTop = style.BorderWidthLeft = style.BorderWidthRight = 2;
+                style.CornerRadiusTopLeft = style.CornerRadiusTopRight = style.CornerRadiusBottomLeft = style.CornerRadiusBottomRight = 3;
+                style.ContentMarginLeft = style.ContentMarginRight = 6;
+                style.ContentMarginTop  = style.ContentMarginBottom = 3;
+                btn.AddThemeStyleboxOverride("normal",  style);
+                btn.AddThemeStyleboxOverride("hover",   style);
+                btn.AddThemeStyleboxOverride("pressed", style);
+                btn.AddThemeStyleboxOverride("focus",   style);
+                btn.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f));
+            }
+            else
+            {
+                var style = new StyleBoxFlat();
+                style.BgColor = new Color(0.1f, 0.1f, 0.15f);
+                style.BorderColor = new Color(0.35f, 0.35f, 0.45f);
+                style.BorderWidthBottom = style.BorderWidthTop = style.BorderWidthLeft = style.BorderWidthRight = 1;
+                style.CornerRadiusTopLeft = style.CornerRadiusTopRight = style.CornerRadiusBottomLeft = style.CornerRadiusBottomRight = 3;
+                style.ContentMarginLeft = style.ContentMarginRight = 6;
+                style.ContentMarginTop  = style.ContentMarginBottom = 3;
+                btn.AddThemeStyleboxOverride("normal",  style);
+                btn.AddThemeStyleboxOverride("focus",   style);
+                var hoverStyle = new StyleBoxFlat();
+                hoverStyle.BgColor = new Color(0.18f, 0.22f, 0.32f);
+                hoverStyle.BorderColor = new Color(0.5f, 0.6f, 0.8f);
+                hoverStyle.BorderWidthBottom = hoverStyle.BorderWidthTop = hoverStyle.BorderWidthLeft = hoverStyle.BorderWidthRight = 1;
+                hoverStyle.CornerRadiusTopLeft = hoverStyle.CornerRadiusTopRight = hoverStyle.CornerRadiusBottomLeft = hoverStyle.CornerRadiusBottomRight = 3;
+                hoverStyle.ContentMarginLeft = hoverStyle.ContentMarginRight = 6;
+                hoverStyle.ContentMarginTop  = hoverStyle.ContentMarginBottom = 3;
+                btn.AddThemeStyleboxOverride("hover",   hoverStyle);
+                btn.AddThemeStyleboxOverride("pressed", style);
+                btn.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
+            }
+        }
+    }
+
+    // ── Private helpers ─────────────────────────────────────────────────────────
 
     private void SelectZone(string zone, Button btn)
     {
@@ -262,12 +373,11 @@ public partial class Toolbar : CanvasLayer
         {
             if (z == zone)
             {
-                // Always derive from the base color so repeated clicks don't stack the ×1.4 multiplier
                 var style = MakeButtonStyle(GetBaseStyle(z), selected: true);
-                btn.AddThemeStyleboxOverride("normal",   style);
-                btn.AddThemeStyleboxOverride("hover",    style);
-                btn.AddThemeStyleboxOverride("pressed",  style);
-                btn.AddThemeStyleboxOverride("focus",    style);
+                btn.AddThemeStyleboxOverride("normal",  style);
+                btn.AddThemeStyleboxOverride("hover",   style);
+                btn.AddThemeStyleboxOverride("pressed", style);
+                btn.AddThemeStyleboxOverride("focus",   style);
             }
             else
             {
@@ -298,19 +408,19 @@ public partial class Toolbar : CanvasLayer
         {
             var selected = Mathf.IsEqualApprox(speed, tps);
             btn.AddThemeStyleboxOverride("normal", MakeSpeedButtonStyle(selected));
-            btn.AddThemeStyleboxOverride("focus", MakeSpeedButtonStyle(selected));
+            btn.AddThemeStyleboxOverride("focus",  MakeSpeedButtonStyle(selected));
         }
     }
 
     private static StyleBoxFlat MakeSpeedButtonStyle(bool selected)
     {
         var s = new StyleBoxFlat();
-        s.BgColor = selected ? new Color(0.3f, 0.3f, 0.5f) : new Color(0.15f, 0.15f, 0.2f);
-        s.BorderColor = selected ? new Color(0.8f, 0.8f, 1f) : new Color(0.3f, 0.3f, 0.4f);
+        s.BgColor      = selected ? new Color(0.3f, 0.3f, 0.5f) : new Color(0.15f, 0.15f, 0.2f);
+        s.BorderColor  = selected ? new Color(0.8f, 0.8f, 1f)   : new Color(0.3f,  0.3f, 0.4f);
         s.BorderWidthBottom = s.BorderWidthTop = s.BorderWidthLeft = s.BorderWidthRight = selected ? 2 : 1;
         s.CornerRadiusTopLeft = s.CornerRadiusTopRight = s.CornerRadiusBottomLeft = s.CornerRadiusBottomRight = 3;
         s.ContentMarginLeft = s.ContentMarginRight = 4;
-        s.ContentMarginTop = s.ContentMarginBottom = 4;
+        s.ContentMarginTop  = s.ContentMarginBottom = 4;
         return s;
     }
 
@@ -332,20 +442,12 @@ public partial class Toolbar : CanvasLayer
                 if (isActive)
                 {
                     var style = new StyleBoxFlat();
-                    style.BgColor = color * 0.9f;
+                    style.BgColor     = color * 0.9f;
                     style.BorderColor = new Color(1f, 1f, 1f);
-                    style.BorderWidthBottom = 3;
-                    style.BorderWidthTop    = 3;
-                    style.BorderWidthLeft   = 3;
-                    style.BorderWidthRight  = 3;
-                    style.CornerRadiusTopLeft     = 3;
-                    style.CornerRadiusTopRight    = 3;
-                    style.CornerRadiusBottomLeft  = 3;
-                    style.CornerRadiusBottomRight = 3;
-                    style.ContentMarginLeft   = 4;
-                    style.ContentMarginRight  = 4;
-                    style.ContentMarginTop    = 4;
-                    style.ContentMarginBottom = 4;
+                    style.BorderWidthBottom = style.BorderWidthTop = style.BorderWidthLeft = style.BorderWidthRight = 3;
+                    style.CornerRadiusTopLeft = style.CornerRadiusTopRight = style.CornerRadiusBottomLeft = style.CornerRadiusBottomRight = 3;
+                    style.ContentMarginLeft = style.ContentMarginRight = 4;
+                    style.ContentMarginTop  = style.ContentMarginBottom = 4;
                     btn.AddThemeStyleboxOverride("normal",  style);
                     btn.AddThemeStyleboxOverride("hover",   style);
                     btn.AddThemeStyleboxOverride("pressed", style);
@@ -354,20 +456,12 @@ public partial class Toolbar : CanvasLayer
                 else
                 {
                     var style = new StyleBoxFlat();
-                    style.BgColor = color * 0.5f;
+                    style.BgColor     = color * 0.5f;
                     style.BorderColor = color;
-                    style.BorderWidthBottom = 2;
-                    style.BorderWidthTop    = 2;
-                    style.BorderWidthLeft   = 2;
-                    style.BorderWidthRight  = 2;
-                    style.CornerRadiusTopLeft     = 3;
-                    style.CornerRadiusTopRight    = 3;
-                    style.CornerRadiusBottomLeft  = 3;
-                    style.CornerRadiusBottomRight = 3;
-                    style.ContentMarginLeft   = 4;
-                    style.ContentMarginRight  = 4;
-                    style.ContentMarginTop    = 4;
-                    style.ContentMarginBottom = 4;
+                    style.BorderWidthBottom = style.BorderWidthTop = style.BorderWidthLeft = style.BorderWidthRight = 2;
+                    style.CornerRadiusTopLeft = style.CornerRadiusTopRight = style.CornerRadiusBottomLeft = style.CornerRadiusBottomRight = 3;
+                    style.ContentMarginLeft = style.ContentMarginRight = 4;
+                    style.ContentMarginTop  = style.ContentMarginBottom = 4;
                     btn.AddThemeStyleboxOverride("normal",  style);
                     btn.AddThemeStyleboxOverride("hover",   MakeHoverStyle(style));
                     btn.AddThemeStyleboxOverride("pressed", style);
@@ -381,26 +475,18 @@ public partial class Toolbar : CanvasLayer
     private static Button MakeZoneButton(string label, Color bgColor, string tooltip = "")
     {
         var btn = new Button();
-        btn.Text = label;
+        btn.Text        = label;
         btn.TooltipText = tooltip;
         btn.CustomMinimumSize = new Vector2(64, 44);
         btn.AddThemeFontSizeOverride("font_size", 14);
 
         var baseStyle = new StyleBoxFlat();
-        baseStyle.BgColor = bgColor * 0.6f;  // slightly dark by default
+        baseStyle.BgColor     = bgColor * 0.6f;
         baseStyle.BorderColor = bgColor;
-        baseStyle.BorderWidthBottom = 2;
-        baseStyle.BorderWidthTop    = 2;
-        baseStyle.BorderWidthLeft   = 2;
-        baseStyle.BorderWidthRight  = 2;
-        baseStyle.CornerRadiusTopLeft     = 3;
-        baseStyle.CornerRadiusTopRight    = 3;
-        baseStyle.CornerRadiusBottomLeft  = 3;
-        baseStyle.CornerRadiusBottomRight = 3;
-        baseStyle.ContentMarginLeft   = 4;
-        baseStyle.ContentMarginRight  = 4;
-        baseStyle.ContentMarginTop    = 4;
-        baseStyle.ContentMarginBottom = 4;
+        baseStyle.BorderWidthBottom = baseStyle.BorderWidthTop = baseStyle.BorderWidthLeft = baseStyle.BorderWidthRight = 2;
+        baseStyle.CornerRadiusTopLeft = baseStyle.CornerRadiusTopRight = baseStyle.CornerRadiusBottomLeft = baseStyle.CornerRadiusBottomRight = 3;
+        baseStyle.ContentMarginLeft = baseStyle.ContentMarginRight = 4;
+        baseStyle.ContentMarginTop  = baseStyle.ContentMarginBottom = 4;
 
         btn.AddThemeStyleboxOverride("normal",  baseStyle);
         btn.AddThemeStyleboxOverride("hover",   MakeHoverStyle(baseStyle));
@@ -418,10 +504,7 @@ public partial class Toolbar : CanvasLayer
         {
             style.BgColor     = existing.BgColor;
             style.BorderColor = existing.BorderColor;
-            style.CornerRadiusTopLeft     = existing.CornerRadiusTopLeft;
-            style.CornerRadiusTopRight    = existing.CornerRadiusTopRight;
-            style.CornerRadiusBottomLeft  = existing.CornerRadiusBottomLeft;
-            style.CornerRadiusBottomRight = existing.CornerRadiusBottomRight;
+            style.CornerRadiusTopLeft = style.CornerRadiusTopRight = style.CornerRadiusBottomLeft = style.CornerRadiusBottomRight = existing.CornerRadiusTopLeft;
         }
         else
         {
@@ -431,25 +514,17 @@ public partial class Toolbar : CanvasLayer
 
         if (selected)
         {
-            style.BgColor = style.BgColor * 1.4f;  // brighter background
-            style.BorderColor = new Color(1f, 1f, 1f);  // white border
-            style.BorderWidthBottom = 3;
-            style.BorderWidthTop    = 3;
-            style.BorderWidthLeft   = 3;
-            style.BorderWidthRight  = 3;
+            style.BgColor     = style.BgColor * 1.4f;
+            style.BorderColor = new Color(1f, 1f, 1f);
+            style.BorderWidthBottom = style.BorderWidthTop = style.BorderWidthLeft = style.BorderWidthRight = 3;
         }
         else
         {
-            style.BorderWidthBottom = 2;
-            style.BorderWidthTop    = 2;
-            style.BorderWidthLeft   = 2;
-            style.BorderWidthRight  = 2;
+            style.BorderWidthBottom = style.BorderWidthTop = style.BorderWidthLeft = style.BorderWidthRight = 2;
         }
 
-        style.ContentMarginLeft   = 4;
-        style.ContentMarginRight  = 4;
-        style.ContentMarginTop    = 4;
-        style.ContentMarginBottom = 4;
+        style.ContentMarginLeft = style.ContentMarginRight = 4;
+        style.ContentMarginTop  = style.ContentMarginBottom = 4;
         return style;
     }
 
@@ -475,28 +550,32 @@ public partial class Toolbar : CanvasLayer
 
     private StyleBoxFlat GetBaseStyle(string zone)
     {
-        // Recreate the base style from zone colors
-        foreach (var (label, z, color, _, _milestoneMin) in ZoneButtons)
+        // Check zone buttons
+        foreach (var (label, z, color, _, _, _tab) in ZoneButtons)
         {
             if (z == zone)
             {
                 var s = new StyleBoxFlat();
                 s.BgColor     = color * 0.6f;
                 s.BorderColor = color;
-                s.BorderWidthBottom = 2;
-                s.BorderWidthTop    = 2;
-                s.BorderWidthLeft   = 2;
-                s.BorderWidthRight  = 2;
-                s.CornerRadiusTopLeft     = 3;
-                s.CornerRadiusTopRight    = 3;
-                s.CornerRadiusBottomLeft  = 3;
-                s.CornerRadiusBottomRight = 3;
-                s.ContentMarginLeft   = 4;
-                s.ContentMarginRight  = 4;
-                s.ContentMarginTop    = 4;
-                s.ContentMarginBottom = 4;
+                s.BorderWidthBottom = s.BorderWidthTop = s.BorderWidthLeft = s.BorderWidthRight = 2;
+                s.CornerRadiusTopLeft = s.CornerRadiusTopRight = s.CornerRadiusBottomLeft = s.CornerRadiusBottomRight = 3;
+                s.ContentMarginLeft = s.ContentMarginRight = 4;
+                s.ContentMarginTop  = s.ContentMarginBottom = 4;
                 return s;
             }
+        }
+        // Erase (not in ZoneButtons)
+        if (zone == "Erase")
+        {
+            var s = new StyleBoxFlat();
+            s.BgColor     = new Color(0.6f, 0.15f, 0.15f) * 0.6f;
+            s.BorderColor = new Color(0.6f, 0.15f, 0.15f);
+            s.BorderWidthBottom = s.BorderWidthTop = s.BorderWidthLeft = s.BorderWidthRight = 2;
+            s.CornerRadiusTopLeft = s.CornerRadiusTopRight = s.CornerRadiusBottomLeft = s.CornerRadiusBottomRight = 3;
+            s.ContentMarginLeft = s.ContentMarginRight = 4;
+            s.ContentMarginTop  = s.ContentMarginBottom = 4;
+            return s;
         }
         var fallback = new StyleBoxFlat();
         fallback.BgColor = new Color(0.3f, 0.3f, 0.3f);

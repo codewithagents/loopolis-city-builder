@@ -392,8 +392,18 @@ public partial class World : Node2D
                 if (speedChanged) return;
             }
 
+            // Tab switches: Z = Zones tab, U = Utilities tab, S = Services tab
+            // Guard against Ctrl combinations (Ctrl+S = Save)
+            if (!key.CtrlPressed)
+            {
+                if (key.Keycode == Key.Z) { _toolbar.SwitchToTab(0); return; }
+                if (key.Keycode == Key.U) { _toolbar.SwitchToTab(1); return; }
+                if (key.Keycode == Key.S) { _toolbar.SwitchToTab(2); return; }
+            }
+
             var zone = key.Keycode switch
             {
+                // Number row — original shortcuts
                 Key.Key1 => "Residential",
                 Key.Key2 => "Commercial",
                 Key.Key3 => "Industrial",
@@ -404,9 +414,17 @@ public partial class World : Node2D
                 Key.Key8 => "PoliceStation",
                 Key.Key9 => "School",
                 Key.Key0 => "Erase",
+                // Letter shortcuts — select zone AND auto-switch to its tab
+                Key.R => "Residential",
+                Key.C => "Commercial",
+                Key.I => "Industrial",
                 _ => null
             };
-            if (zone != null) _toolbar.SelectZone(zone);
+            if (zone != null)
+            {
+                _toolbar.SwitchToTabForZone(zone);
+                _toolbar.SelectZone(zone);
+            }
 
             if (key.Keycode == Key.Space)
                 OnPauseToggled();
