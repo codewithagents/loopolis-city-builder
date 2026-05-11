@@ -25,11 +25,11 @@ public class PopulationSystem
     public void Tick(CityGrid grid)
     {
         var residentialTiles = grid.TilesOfType(ZoneType.Residential).ToList();
-        var readyCount = residentialTiles.Count(t => t.IsReadyToDevelop);
-        var capacity   = readyCount * ResidentsPerZone;
+        var readyTiles = residentialTiles.Where(t => t.IsReadyToDevelop).ToList();
+        var capacity   = readyTiles.Count * ResidentsPerZone;
 
-        // Grow toward capacity from ready zones
-        var growth = (int)(readyCount * GrowthRate * ResidentsPerZone);
+        // Grow toward capacity from ready zones, weighted by each zone's demand factor
+        var growth = (int)(readyTiles.Sum(t => GrowthRate * ResidentsPerZone * t.DemandFactor));
 
         // Decline only when existing population exceeds new capacity (services lost)
         var excess  = Math.Max(0, Population - capacity);

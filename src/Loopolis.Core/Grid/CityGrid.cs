@@ -17,6 +17,7 @@ public record Tile(int X, int Y)
     public bool HasPower { get; init; } = false;
     public bool HasWater { get; init; } = false;
     public bool HasRoadAccess { get; init; } = false;
+    public double DemandFactor { get; init; } = 1.0;
 
     /// <summary>
     /// A zone is ready to develop when it has both power and road access.
@@ -84,6 +85,19 @@ public class CityGrid
         for (var x = 0; x < Width; x++)
         for (var y = 0; y < Height; y++)
             _tiles[x, y] = _tiles[x, y] with { HasRoadAccess = false };
+    }
+
+    public void SetDemand(int x, int y, double factor)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { DemandFactor = factor };
+    }
+
+    public void ClearDemand()
+    {
+        for (var x = 0; x < Width; x++)
+        for (var y = 0; y < Height; y++)
+            _tiles[x, y] = _tiles[x, y] with { DemandFactor = 1.0 };
     }
 
     public bool IsInBounds(int x, int y) =>

@@ -24,23 +24,20 @@ Next milestone: Milestone 2 — First Playable (Godot visual + player input).
 | BudgetSystem (cost-per-tile) | ✅ Done | 18 |
 | PopulationSystem | ✅ Done | 8 |
 | SimulationRunner (CLI) | ✅ Done | — |
-| DemandSystem (R/C/I) | ⬜ Next | — |
-| SimulationEngine (orchestrator) | ⬜ Next | — |
+| DemandSystem (R/C/I) | ✅ Done | 11 |
+| SimulationEngine (orchestrator) | ✅ Done | 8 |
 | Godot TileMap renderer | ⬜ Blocked (Godot not installed) | — |
 | Player input (Godot) | ⬜ Blocked | — |
 
-**Total: 57 tests · 0 failures · ~0.3s runtime**
+**Total: 76 tests · 0 failures · ~0.3s runtime**
 
 ---
 
 ## Short-Term Task Queue (Next 2–3 Sessions)
 
 ### Session Next
-- [ ] `DemandSystem` — R/C/I zones need each other to grow beyond base capacity
-  - Commercial needs nearby residential (workers)
-  - Industrial needs nearby commercial (markets)
-  - Residential grows faster when commercial is near (jobs)
-- [ ] `SimulationEngine` — orchestrator class replacing manual system wiring in Runner
+- [x] `DemandSystem` — R/C/I zones need each other to grow beyond base capacity (done)
+- [x] `SimulationEngine` — orchestrator class replacing manual system wiring in Runner (done)
 - [ ] Run loopolis-designer agent against GAME_DESIGN.md for design review
 
 ### Session +2
@@ -76,6 +73,8 @@ Next milestone: Milestone 2 — First Playable (Godot visual + player input).
 | 2026-05-10 | default | Bankruptcy at tick 280 (flat $50/tick cost) | Built cost-per-tile model |
 | 2026-05-10 | town | Power not reaching zones (line too short) | Extended power line to road network |
 | 2026-05-11 | town | Pop = 0 despite 13 ready zones (inactive zone drag) | Fixed PopulationSystem decline logic |
+| 2026-05-11 | town | Commercial strip NOT adjacent to residential (road separates them) — no demand boost in town scenario | Expected: town layout separates R and C with roads; boost confirmed working in default (1 of 3 R zones adjacent to C) |
+| 2026-05-11 | default | DemandSystem confirmed: tick-0 pop=8 = (2×2.5)+(1×3.75)=8.75→8; boosted zone grows 50% faster | Working correctly |
 
 ---
 
@@ -101,4 +100,4 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 ---
 
-*Last updated: 2026-05-11 — Session 2*
+*Last updated: 2026-05-11 — Session 3*

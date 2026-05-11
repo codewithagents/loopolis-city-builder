@@ -15,6 +15,8 @@ var budget = new BudgetSystem(initialBalance: 10_000);
 var population = new PopulationSystem();
 var powerNetwork = new PowerNetwork();
 var roadNetwork  = new RoadNetwork();
+var demandSystem = new DemandSystem();
+var engine = new SimulationEngine(grid, budget, population, powerNetwork, roadNetwork, demandSystem);
 
 // --- Scenario Setup ---
 switch (scenario)
@@ -76,12 +78,7 @@ var tickHistory = new List<TickSnapshot>();
 
 for (var tick = 0; tick < ticks; tick++)
 {
-    powerNetwork.Propagate(grid);
-    roadNetwork.Propagate(grid);
-    population.Tick(grid);
-    budget.SetPopulation(population.Population);
-    budget.CollectTaxes();
-    budget.DeductMaintenance(grid);
+    engine.Tick();
 
     if (tick % 100 == 0 || tick == ticks - 1)
     {
