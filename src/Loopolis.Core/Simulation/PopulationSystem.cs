@@ -8,38 +8,53 @@ public class PopulationSystem
     private const double GrowthRate    = 0.05;
     private const double DeclineRate   = 0.10; // faster than growth — losing services hurts
 
+    /// <summary>Total population: sum of all residential tile populations.</summary>
     public int Population { get; private set; }
 
     /// <summary>
-    /// Recalculates population each tick.
+    /// Grows or declines population per residential tile each tick.
     ///
-    /// Growth:  only from zones that are ready (powered + road access).
-    /// Decline: only when current population EXCEEDS capacity (services were lost).
-    ///          Zones that were never developed don't cause decline — they just sit empty.
+    /// Growth:  only for tiles that are ready (powered + road access), toward capacity 50.
+    ///          Demand boost (DemandFactor) and happiness both act as growth multipliers.
+    /// Decline: only for tiles that are no longer ready but have population > 0,
+    ///          population decays at DeclineRate per tick toward 0.
     ///
-    /// This means:
-    ///   - Inactive zones: no effect on population
-    ///   - Losing power or roads: population decays toward the new lower capacity
-    ///   - Building more ready zones: population grows toward the higher capacity
+    /// Total Population = sum of all tile populations.
     /// </summary>
     public void Tick(CityGrid grid)
     {
-        var residentialTiles = grid.TilesOfType(ZoneType.Residential).ToList();
-        var readyTiles = residentialTiles.Where(t => t.IsReadyToDevelop).ToList();
-        var capacity   = readyTiles.Count * ResidentsPerZone;
+        var totalPopulation = 0;
 
-        // Grow toward capacity from ready zones, weighted by each zone's demand factor and happiness
-        var growth = 0;
-        foreach (var tile in readyTiles)
+        foreach (var tile in grid.TilesOfType(ZoneType.Residential))
         {
-            growth += (int)(GrowthRate * ResidentsPerZone * tile.DemandFactor * tile.Happiness);
+            var current = grid.GetPopulation(tile.X, tile.Y);
+
+            int newPop;
+            if (tile.IsReadyToDevelop)
+            {
+                // Grow toward capacity, modified by demand factor and happiness
+                var growthMultiplier = tile.DemandFactor * tile.Happiness;
+                var growth = (int)(GrowthRate * ResidentsPerZone * growthMultiplier);
+                newPop = Math.Min(ResidentsPerZone, current + growth);
+            }
+            else if (current > 0)
+            {
+                // Decline: services lost, population decays toward 0
+                var decline = Math.Max(1, (int)(current * DeclineRate));
+                newPop = Math.Max(0, current - decline);
+            }
+            else
+            {
+                newPop = 0;
+            }
+
+            if (newPop != current)
+                grid.SetPopulation(tile.X, tile.Y, newPop);
+
+            totalPopulation += newPop;
         }
 
-        // Decline only when existing population exceeds new capacity (services lost)
-        var excess  = Math.Max(0, Population - capacity);
-        var decline = (int)(excess * DeclineRate);
-
-        Population = Math.Max(0, Math.Min(capacity, Population + growth - decline));
+        Population = totalPopulation;
     }
 
     public void SetPopulation(int population) =>

@@ -105,6 +105,7 @@ public record SharedState(
     int Population,
     double Balance,
     double TaxPerTick,
+    double CommercialIncomePerTick,
     double MaintenancePerTick,
     double NetPerTick,
     double Happiness,
@@ -118,5 +119,9 @@ public record SharedTile(
     int Y,
     string Zone,
     bool HasPower,
-    bool HasRoadAccess
+    bool HasRoadAccess,
+    int Population,         // per-zone population (0-50 for residential)
+    float PollutionLevel,   // 0.0-1.0 from PollutionSystem
+    float Happiness,        // 0.0-1.0 from HappinessSystem (per-tile)
+    bool HasDemandBoost     // commercial adjacency boost active for this tile
 );

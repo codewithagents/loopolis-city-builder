@@ -274,25 +274,30 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
 {
     var nonEmptyTiles = grid.AllTiles()
         .Where(t => t.Zone != ZoneType.Empty)
-        .Select(t => new TileState(t.X, t.Y, t.Zone.ToString(), t.HasPower, t.HasRoadAccess,
-            Math.Round(t.PollutionLevel, 3), Math.Round(t.Happiness, 3)))
+        .Select(t => new TileState(
+            t.X, t.Y, t.Zone.ToString(), t.HasPower, t.HasRoadAccess,
+            t.Zone == ZoneType.Residential ? grid.GetPopulation(t.X, t.Y) : 0,
+            Math.Round(t.PollutionLevel, 3),
+            Math.Round(t.Happiness, 3),
+            t.HasDemandBoost))
         .ToList();
 
     var milestone = engine.MilestoneSystem.LatestMilestone;
     var state = new ServerState(
-        Tick:               engine.TickCount,
-        Paused:             paused,
-        Population:         engine.Population.Population,
-        Balance:            Math.Round(engine.Budget.Balance, 2),
-        TaxPerTick:         Math.Round(engine.Budget.CalculateTaxIncome(), 2),
-        MaintenancePerTick: Math.Round(engine.Budget.LastMaintenanceCost, 2),
-        NetPerTick:         Math.Round(engine.Budget.NetIncomePerTick, 2),
-        Happiness:          Math.Round(engine.HappinessSystem.AverageHappiness(grid), 3),
-        MilestoneReached:   milestone?.Name,
-        Pollution:          Math.Round(engine.PollutionSystem.AveragePollution(grid), 3),
-        GameState:          engine.MilestoneSystem.CurrentState.ToString(),
-        Milestones:         engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
-        Tiles:              nonEmptyTiles
+        Tick:                      engine.TickCount,
+        Paused:                    paused,
+        Population:                engine.Population.Population,
+        Balance:                   Math.Round(engine.Budget.Balance, 2),
+        TaxPerTick:                Math.Round(engine.Budget.CalculateTaxIncome(), 2),
+        CommercialIncomePerTick:   Math.Round(engine.Budget.CommercialIncomePerTick, 2),
+        MaintenancePerTick:        Math.Round(engine.Budget.LastMaintenanceCost, 2),
+        NetPerTick:                Math.Round(engine.Budget.NetIncomePerTick, 2),
+        Happiness:                 Math.Round(engine.HappinessSystem.AverageHappiness(grid), 3),
+        MilestoneReached:          milestone?.Name,
+        Pollution:                 Math.Round(engine.PollutionSystem.AveragePollution(grid), 3),
+        GameState:                 engine.MilestoneSystem.CurrentState.ToString(),
+        Milestones:                engine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
+        Tiles:                     nonEmptyTiles
     );
 
     var options = new JsonSerializerOptions
@@ -510,8 +515,10 @@ record TileState(
     [property: JsonPropertyName("zone")] string Zone,
     [property: JsonPropertyName("hasPower")] bool HasPower,
     [property: JsonPropertyName("hasRoadAccess")] bool HasRoadAccess,
+    [property: JsonPropertyName("population")] int Population,
     [property: JsonPropertyName("pollutionLevel")] double PollutionLevel,
-    [property: JsonPropertyName("happiness")] double Happiness);
+    [property: JsonPropertyName("happiness")] double Happiness,
+    [property: JsonPropertyName("hasDemandBoost")] bool HasDemandBoost);
 
 record ServerState(
     int Tick,
@@ -519,6 +526,7 @@ record ServerState(
     int Population,
     double Balance,
     double TaxPerTick,
+    double CommercialIncomePerTick,
     double MaintenancePerTick,
     double NetPerTick,
     double Happiness,

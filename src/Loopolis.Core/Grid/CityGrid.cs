@@ -23,6 +23,10 @@ public record Tile(int X, int Y)
     public double DemandFactor { get; init; } = 1.0;
     public double PollutionLevel { get; init; } = 0.0;
     public double Happiness { get; init; } = 1.0;
+    public int Population { get; init; } = 0;
+
+    /// <summary>True when a commercial zone is adjacent and grants a demand boost to this residential tile.</summary>
+    public bool HasDemandBoost => Zone == ZoneType.Residential && DemandFactor > 1.0;
 
     /// <summary>
     /// A zone is ready to develop when it has both power and road access.
@@ -136,6 +140,18 @@ public class CityGrid
         for (var x = 0; x < Width; x++)
         for (var y = 0; y < Height; y++)
             _tiles[x, y] = _tiles[x, y] with { Happiness = 1.0 };
+    }
+
+    public void SetPopulation(int x, int y, int pop)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { Population = Math.Max(0, pop) };
+    }
+
+    public int GetPopulation(int x, int y)
+    {
+        AssertInBounds(x, y);
+        return _tiles[x, y].Population;
     }
 
     public bool IsInBounds(int x, int y) =>

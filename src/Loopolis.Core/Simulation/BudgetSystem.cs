@@ -23,10 +23,13 @@ public class BudgetSystem
             { ZoneType.School,        5.0 },
         };
 
+    private const double CommercialIncomePerReadyTile = 3.0;
+
     public double Balance { get; private set; }
     public double TaxRate { get; private set; } = 0.12;
     public int Population { get; private set; }
     public double LastMaintenanceCost { get; private set; }
+    public double CommercialIncomePerTick { get; private set; }
 
     public BudgetSystem(double initialBalance = 10_000)
     {
@@ -47,8 +50,25 @@ public class BudgetSystem
             .Where(t => t.Zone != ZoneType.Empty)
             .Sum(t => MaintenanceCostPerTile.GetValueOrDefault(t.Zone, 0.0));
 
+    /// <summary>
+    /// Counts ready commercial tiles (powered + road access) and returns income at $3/tile/tick.
+    /// </summary>
+    public double CalculateCommercialIncome(CityGrid grid) =>
+        grid.TilesOfType(ZoneType.Commercial)
+            .Count(t => t.HasPower && t.HasRoadAccess)
+        * CommercialIncomePerReadyTile;
+
     public void CollectTaxes() =>
         Balance += CalculateTaxIncome();
+
+    /// <summary>
+    /// Adds commercial income to Balance and stores the per-tick amount for reporting.
+    /// </summary>
+    public void CollectCommercialIncome(CityGrid grid)
+    {
+        CommercialIncomePerTick = CalculateCommercialIncome(grid);
+        Balance += CommercialIncomePerTick;
+    }
 
     /// <summary>
     /// Deducts maintenance costs based on what's currently built on the grid.
@@ -65,10 +85,10 @@ public class BudgetSystem
 
     public bool IsInDeficit => Balance < 0;
 
-    public double NetIncomePerTick => CalculateTaxIncome() - LastMaintenanceCost;
+    public double NetIncomePerTick => CalculateTaxIncome() + CommercialIncomePerTick - LastMaintenanceCost;
 
     public BudgetSnapshot Snapshot() =>
-        new(Balance, TaxRate, Population, CalculateTaxIncome(), LastMaintenanceCost, NetIncomePerTick);
+        new(Balance, TaxRate, Population, CalculateTaxIncome(), CommercialIncomePerTick, LastMaintenanceCost, NetIncomePerTick);
 }
 
 public record BudgetSnapshot(
@@ -76,6 +96,7 @@ public record BudgetSnapshot(
     double TaxRate,
     int Population,
     double TaxIncome,
+    double CommercialIncome,
     double MaintenanceCost,
     double NetIncome
 );

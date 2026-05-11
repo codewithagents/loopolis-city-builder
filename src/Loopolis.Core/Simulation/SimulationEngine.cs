@@ -58,6 +58,7 @@ public class SimulationEngine
         Population.Tick(Grid);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();
+        Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
         MilestoneSystem.Check(Population.Population, Budget.Balance, Budget.NetIncomePerTick, TickCount);
         TickCount++;
