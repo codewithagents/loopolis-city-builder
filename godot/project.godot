@@ -11,10 +11,10 @@ config_version=5
 [application]
 
 config/name="Loopolis"
-run/main_scene="uid://b3yamwhmhh5rf"
+run/main_scene="uid://mainmenu_scene"
 config/features=PackedStringArray("4.4", "C#", "Forward Plus")
 config/icon="res://icon.svg"
-config/run/main_scene="res://scenes/World.tscn"
+config/run/main_scene="res://scenes/MainMenu.tscn"
 
 [display]
 

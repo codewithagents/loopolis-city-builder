@@ -47,10 +47,11 @@ public partial class World : Node2D
         _gameOverPanel = GetNode<GameOverPanel>("GameOverPanel");
 
         // Wire toolbar signals
-        _toolbar.ZoneSelected     += OnZoneSelected;
-        _toolbar.PauseToggled     += OnPauseToggled;
-        _toolbar.NewGameRequested += OnNewGameRequested;
-        _toolbar.TaxRateChanged   += OnTaxRateChanged;
+        _toolbar.ZoneSelected       += OnZoneSelected;
+        _toolbar.PauseToggled       += OnPauseToggled;
+        _toolbar.NewGameRequested   += OnNewGameRequested;
+        _toolbar.TaxRateChanged     += OnTaxRateChanged;
+        _toolbar.MainMenuRequested  += () => GetTree().ChangeSceneToFile("res://scenes/MainMenu.tscn");
 
         // Wire game-over panel
         _gameOverPanel.NewGameRequested += OnNewGameRequested;

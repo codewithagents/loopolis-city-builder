@@ -22,6 +22,10 @@ public partial class Toolbar : CanvasLayer
     [Signal]
     public delegate void NewGameRequestedEventHandler();
 
+    // Fired when the player clicks Menu.
+    [Signal]
+    public delegate void MainMenuRequestedEventHandler();
+
     // Fired when the player changes the tax rate.
     [Signal]
     public delegate void TaxRateChangedEventHandler(string level);
@@ -116,6 +120,14 @@ public partial class Toolbar : CanvasLayer
         newGameBtn.AddThemeFontSizeOverride("font_size", 14);
         newGameBtn.Pressed += () => EmitSignal(SignalName.NewGameRequested);
         hbox.AddChild(newGameBtn);
+
+        // Menu button
+        var menuBtn = new Button();
+        menuBtn.Text = "Menu";
+        menuBtn.CustomMinimumSize = new Vector2(70, 44);
+        menuBtn.AddThemeFontSizeOverride("font_size", 14);
+        menuBtn.Pressed += () => EmitSignal(SignalName.MainMenuRequested);
+        hbox.AddChild(menuBtn);
 
         // Highlight the default selection
         HighlightButton(_selectedZone);

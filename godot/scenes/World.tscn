@@ -5,9 +5,9 @@
 [ext_resource type="Script" uid="uid://dk1qqbepncei8" path="res://scripts/Camera.cs" id="3_camera"]
 [ext_resource type="Script" uid="uid://dvy34x7nvpphv" path="res://scripts/UI/HudOverlay.cs" id="4_hud"]
 [ext_resource type="Script" uid="uid://c2rvxjvl3xkbs" path="res://scripts/UI/Toolbar.cs" id="5_toolbar"]
-[ext_resource type="Script" uid="uid://b1tooltip0001" path="res://scripts/UI/TileTooltip.cs" id="6_tooltip"]
-[ext_resource type="Script" uid="uid://b1gameover001" path="res://scripts/UI/GameOverPanel.cs" id="7_gameover"]
-[ext_resource type="Script" uid="uid://b1hintover001" path="res://scripts/UI/HintOverlay.cs" id="8_hint"]
+[ext_resource type="Script" uid="uid://cbhfjil15it47" path="res://scripts/UI/TileTooltip.cs" id="6_tooltip"]
+[ext_resource type="Script" uid="uid://bihd3muse4lml" path="res://scripts/UI/GameOverPanel.cs" id="7_gameover"]
+[ext_resource type="Script" uid="uid://dtyfrqsgnq2bi" path="res://scripts/UI/HintOverlay.cs" id="8_hint"]
 
 [node name="World" type="Node2D"]
 script = ExtResource("1_world")
