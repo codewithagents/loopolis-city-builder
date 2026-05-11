@@ -41,8 +41,10 @@
 | Player input (Godot) | ✅ Done | — |
 | Stats HUD overlay (Godot) | ✅ Done | — |
 | Toolbar + zone selector (Godot) | ✅ Done | — |
+| RoadTrafficSystem | ✅ Done | 22 |
+| Avenue (ZoneType) | ✅ Done | (in RoadTrafficSystemTests) |
 
-**Total: 108 tests · 0 failures · ~0.06s runtime**
+**Total: 217 tests · 0 failures · ~0.20s runtime**
 
 ---
 
@@ -124,6 +126,7 @@
 | 2026-05-11 | town | Reached Town milestone at tick 38 (500 pop). Industrial far enough (dx>3) from residential → zero pollution. Happiness = 0.6 baseline throughout. Bankrupt at -$54/tick due to large grid cost. | Balance tuning needed for large scenarios |
 | 2026-05-11 | default (server) | pauseOnEvent skip: ran 179 ticks into a 2000-tick skip, stopped on FireBreak. state.json shows pauseReason="FireBreak", ticksRun=179, paused=true. buildings/buildingSummary/happinessBreakdown/employment/nextMilestone all present. | Fix: ServerState record was referencing non-existent BuildingInfo type and missing enriched fields — updated to match WriteState call signature. |
 | 2026-05-11 | all | All large scenarios go bankrupt. Root cause: residential zones at distance from roads can't develop (only 11-18 of 45-75 R tiles are ready). Maintenance costs (industrial, roads, powerlines) dwarf tax income. | Backlog: balance tuning or larger commercial footprint |
+| 2026-05-11 | default | Traffic system: 2 road tiles, avg load = 4.0 (8 zone tiles / 2 roads), neither overloaded (threshold 8). System is dormant on light grids as designed — only activates at 9+ zone tiles per road. Avenue threshold of 16 gives meaningful upgrade path. | Working correctly |
 
 ---
 
@@ -179,4 +182,4 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 ---
 
-*Last updated: 2026-05-11 — coverageSummary in state.json + query_overlay IPC command*
+*Last updated: 2026-05-11 — RoadTrafficSystem + Avenue ZoneType + query_overlay traffic*
