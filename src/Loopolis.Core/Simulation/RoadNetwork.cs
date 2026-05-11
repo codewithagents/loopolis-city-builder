@@ -39,7 +39,7 @@ public class RoadNetwork
 
             foreach (var neighbour in grid.AdjacentTiles(tile.X, tile.Y))
             {
-                if (neighbour.Zone == ZoneType.Road)
+                if (neighbour.Zone == ZoneType.Road || neighbour.Zone == ZoneType.Avenue)
                 {
                     grid.SetRoadAccess(tile.X, tile.Y, true);
                     AccessibleZoneCount++;

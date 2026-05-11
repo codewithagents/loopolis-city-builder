@@ -12,6 +12,7 @@ public enum ZoneType
     FireStation,    // coverage radius 4, happiness +0.15
     PoliceStation,  // coverage radius 4, happiness +0.15
     School,         // coverage radius 5, happiness +0.20
+    Avenue,         // wider road: cost $20, maintenance $2/tick, overload threshold 16 (vs Road: $10/$1/8)
 }
 
 public record Tile(int X, int Y)
@@ -26,6 +27,8 @@ public record Tile(int X, int Y)
     public int Population { get; init; } = 0;
     public TerrainType Terrain { get; init; } = TerrainType.Flat;
     public string? BuildingId { get; init; } = null;
+    /// <summary>Count of R/C/I zone tiles within Chebyshev distance 2. Set each tick by RoadTrafficSystem.</summary>
+    public int TrafficLoad { get; init; } = 0;
 
     /// <summary>True when a commercial zone is adjacent and grants a demand boost to this residential tile.</summary>
     public bool HasDemandBoost => Zone == ZoneType.Residential && DemandFactor > 1.0;
@@ -219,6 +222,20 @@ public class CityGrid
             for (var y = 0; y < Height; y++)
                 if (_tiles[x, y].BuildingId != null)
                     _tiles[x, y] = _tiles[x, y] with { BuildingId = null };
+    }
+
+    public void SetTrafficLoad(int x, int y, int load)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { TrafficLoad = Math.Max(0, load) };
+    }
+
+    public void ClearTrafficLoad()
+    {
+        for (var x = 0; x < Width; x++)
+        for (var y = 0; y < Height; y++)
+            if (_tiles[x, y].TrafficLoad != 0)
+                _tiles[x, y] = _tiles[x, y] with { TrafficLoad = 0 };
     }
 
     private void AssertInBounds(int x, int y)

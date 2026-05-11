@@ -7,16 +7,17 @@ namespace Loopolis.Core.Simulation;
 /// Orchestrates all simulation systems in the correct tick order.
 ///
 /// Tick order:
-///   1. PowerNetwork.Propagate    — mark tiles that have electricity
-///   2. RoadNetwork.Propagate     — mark zones with road access
-///   3. PollutionSystem.Propagate — industrial zones emit pollution
-///   4. DemandSystem.Propagate    — demand depends on which zones are ready (powered + road)
-///   5. HappinessSystem.Propagate — happiness uses pollution + demand + services
-///   6. Population.Tick           — grow/decline based on ready zones + demand + happiness
-///   7. Budget.SetPopulation      — sync population to budget
-///   8. Budget.CollectTaxes       — income from current population
-///   9. Budget.DeductMaintenance  — costs from current grid
-///  10. MilestoneSystem.Check     — check for milestone progression and bankruptcy
+///   1. PowerNetwork.Propagate      — mark tiles that have electricity
+///   2. RoadNetwork.Propagate       — mark zones with road access
+///   3. RoadTrafficSystem.Propagate — compute traffic load + overload flags per road/avenue tile
+///   4. PollutionSystem.Propagate   — industrial zones emit pollution
+///   5. DemandSystem.Propagate      — demand depends on which zones are ready (powered + road)
+///   6. HappinessSystem.Propagate   — happiness uses pollution + demand + services + traffic penalty
+///   7. Population.Tick             — grow/decline based on ready zones + demand + happiness + traffic
+///   8. Budget.SetPopulation        — sync population to budget
+///   9. Budget.CollectTaxes         — income from current population
+///  10. Budget.DeductMaintenance    — costs from current grid
+///  11. MilestoneSystem.Check       — check for milestone progression and bankruptcy
 ///
 /// This class has no Godot dependencies and is safe to use from tests, Runner, and Godot.
 /// </summary>
@@ -27,6 +28,7 @@ public class SimulationEngine
     public PopulationSystem Population { get; }
     public PowerNetwork PowerNetwork { get; }
     public RoadNetwork RoadNetwork { get; }
+    public RoadTrafficSystem RoadTrafficSystem { get; }
     public DemandSystem DemandSystem { get; }
     public PollutionSystem PollutionSystem { get; }
     public HappinessSystem HappinessSystem { get; }
@@ -47,13 +49,14 @@ public class SimulationEngine
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,
         PollutionSystem? pollutionSystem = null, HappinessSystem? happinessSystem = null,
         MilestoneSystem? milestoneSystem = null, EventSystem? eventSystem = null,
-        EmploymentSystem? employmentSystem = null)
+        EmploymentSystem? employmentSystem = null, RoadTrafficSystem? roadTrafficSystem = null)
     {
         Grid = grid;
         Budget = budget;
         Population = population;
         PowerNetwork = powerNetwork;
         RoadNetwork = roadNetwork;
+        RoadTrafficSystem = roadTrafficSystem ?? new RoadTrafficSystem();
         DemandSystem = demandSystem;
         PollutionSystem = pollutionSystem ?? new PollutionSystem();
         HappinessSystem = happinessSystem ?? new HappinessSystem();
@@ -67,11 +70,12 @@ public class SimulationEngine
         LatestEventBanner = null;
         PowerNetwork.Propagate(Grid);
         RoadNetwork.Propagate(Grid);
-        PollutionSystem.Propagate(Grid);  // pollution before happiness
-        DemandSystem.Propagate(Grid);     // demand before happiness
+        RoadTrafficSystem.Propagate(Grid); // traffic load after road access is known
+        PollutionSystem.Propagate(Grid);   // pollution before happiness
+        DemandSystem.Propagate(Grid);      // demand before happiness
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
-        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty);  // happiness uses pollution + demand + tax modifier + event penalty
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem);  // happiness uses pollution + demand + tax modifier + event penalty + traffic
 
         // Track low-happiness ticks for abandonment loss condition
         var avgHappiness = HappinessSystem.AverageHappiness(Grid);
@@ -93,7 +97,7 @@ public class SimulationEngine
         BuildingGrowthSystem.Initialize(Grid);
         BuildingGrowthSystem.TryGrow(Grid, MilestoneSystem.CurrentState);
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
-        Population.Tick(Grid, employmentMultiplier);
+        Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();
         Budget.CollectCommercialIncome(Grid);

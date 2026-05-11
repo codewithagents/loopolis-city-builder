@@ -17,6 +17,7 @@ public class PowerNetwork
         ZoneType.PowerPlant,
         ZoneType.PowerLine,
         ZoneType.Road,
+        ZoneType.Avenue,
         ZoneType.Residential,
         ZoneType.Commercial,
         ZoneType.Industrial,

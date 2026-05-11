@@ -332,6 +332,24 @@ static void WriteOverlay(
                 value = Math.Round(tile.Happiness, 4);
                 break;
 
+            case "traffic":
+            {
+                // Only road/avenue tiles have meaningful traffic load.
+                // Value = TrafficLoad / overloadThreshold clamped to 0.0–1.0.
+                // 1.0 means at capacity; tiles > threshold are clamped to 1.0 (overloaded).
+                if (tile.Zone == ZoneType.Road || tile.Zone == ZoneType.Avenue)
+                {
+                    var threshold = tile.Zone == ZoneType.Avenue ? 16.0 : 8.0;
+                    value = Math.Clamp(tile.TrafficLoad / threshold, 0.0, 1.0);
+                    value = Math.Round(value, 4);
+                }
+                else
+                {
+                    value = 0.0;
+                }
+                break;
+            }
+
             default:
                 value = 0.0;
                 break;
@@ -709,7 +727,9 @@ static void WriteState(
         FireCoveragePercent:      zonedCount > 0 ? Math.Round((double)fireCovered   / zonedCount, 4) : 0.0,
         SchoolCoveragePercent:    zonedCount > 0 ? Math.Round((double)schoolCovered / zonedCount, 4) : 0.0,
         AvgPollution:             zonedCount > 0 ? Math.Round(totalPollution  / zonedCount, 4) : 0.0,
-        AvgHappiness:             zonedCount > 0 ? Math.Round(totalHappiness  / zonedCount, 4) : 0.0
+        AvgHappiness:             zonedCount > 0 ? Math.Round(totalHappiness  / zonedCount, 4) : 0.0,
+        OverloadedRoadCount:      engine.RoadTrafficSystem.OverloadedRoadCount,
+        AvgTrafficLoad:           Math.Round(engine.RoadTrafficSystem.AvgTrafficLoad, 4)
     );
 
     // --- Employment ---
@@ -1024,7 +1044,9 @@ record CoverageSummary(
     [property: JsonPropertyName("fireCoveragePercent")]      double FireCoveragePercent,
     [property: JsonPropertyName("schoolCoveragePercent")]    double SchoolCoveragePercent,
     [property: JsonPropertyName("avgPollution")]             double AvgPollution,
-    [property: JsonPropertyName("avgHappiness")]             double AvgHappiness);
+    [property: JsonPropertyName("avgHappiness")]             double AvgHappiness,
+    [property: JsonPropertyName("overloadedRoadCount")]      int    OverloadedRoadCount = 0,
+    [property: JsonPropertyName("avgTrafficLoad")]           double AvgTrafficLoad = 0.0);
 
 record OverlayTile(
     [property: JsonPropertyName("x")]     int    X,

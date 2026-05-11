@@ -33,7 +33,8 @@ public class HappinessSystem
     // Option B: track neglect per tile in a dictionary — no CityGrid API change needed
     private readonly Dictionary<(int, int), double> _neglect = new();
 
-    public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0)
+    public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
+        RoadTrafficSystem? trafficSystem = null)
     {
         grid.ClearHappiness();
 
@@ -84,6 +85,10 @@ public class HappinessSystem
 
             // Event penalty: active city events reduce happiness
             happiness += eventPenalty;
+
+            // Traffic congestion penalty: −0.10 if adjacent to an overloaded road/avenue
+            if (trafficSystem != null)
+                happiness += trafficSystem.GetHappinessModifier(grid, tile.X, tile.Y);
 
             // Clamp
             happiness = Math.Clamp(happiness, 0.1, 1.0);

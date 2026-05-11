@@ -36,7 +36,7 @@ public class PopulationSystem
     ///
     /// Total Population = sum of residential tile populations only.
     /// </summary>
-    public void Tick(CityGrid grid, double employmentMultiplier = 1.0)
+    public void Tick(CityGrid grid, double employmentMultiplier = 1.0, RoadTrafficSystem? trafficSystem = null)
     {
         var totalPopulation = 0;
 
@@ -54,7 +54,8 @@ public class PopulationSystem
                 // Grow toward capacity, modified by demand factor, happiness, and employment.
                 // Guarantee at least 1 unit of growth only when employment is adequate (≥40%).
                 // With severe unemployment (<40%) growth CAN stall — a real signal to build industrial.
-                var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier;
+                var trafficMultiplier = trafficSystem?.GetGrowthMultiplier(grid, tile.X, tile.Y) ?? 1.0;
+                var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier * trafficMultiplier;
                 var rawGrowth = GrowthRate * ResidentsPerZone * growthMultiplier;
                 var minGrowth = employmentMultiplier >= 0.4 ? 1 : 0;
                 var growth = current < ResidentsPerZone ? Math.Max(minGrowth, (int)rawGrowth) : 0;
