@@ -15,6 +15,7 @@ public partial class World : Node2D
 
     private TilemapRenderer _renderer = null!;
     private HudOverlay _hud = null!;
+    private HintOverlay _hintOverlay = null!;
     private Toolbar _toolbar = null!;
     private TileTooltip _tooltip = null!;
     private GameOverPanel _gameOverPanel = null!;
@@ -37,10 +38,11 @@ public partial class World : Node2D
 
     public override void _Ready()
     {
-        _renderer     = GetNode<TilemapRenderer>("TilemapRenderer");
-        _hud          = GetNode<HudOverlay>("HudOverlay");
-        _toolbar      = GetNode<Toolbar>("Toolbar");
-        _tooltip      = GetNode<TileTooltip>("TileTooltip");
+        _renderer      = GetNode<TilemapRenderer>("TilemapRenderer");
+        _hud           = GetNode<HudOverlay>("HudOverlay");
+        _hintOverlay   = GetNode<HintOverlay>("HintOverlay");
+        _toolbar       = GetNode<Toolbar>("Toolbar");
+        _tooltip       = GetNode<TileTooltip>("TileTooltip");
         _gameOverPanel = GetNode<GameOverPanel>("GameOverPanel");
 
         // Wire toolbar signals
@@ -140,6 +142,7 @@ public partial class World : Node2D
                 _standalonePaused = true;
                 _toolbar.SetPaused(true);
                 _gameOverPanel.ShowBankrupt(_standaloneTick, _budget!.Balance, _population!.Population);
+                _hintOverlay.SetGameOver();
             }
         }
     }
@@ -388,5 +391,6 @@ public partial class World : Node2D
             NextMilestoneTarget:       nextMilestoneTarget
         );
         _hud.UpdateStats(state);
+        _hintOverlay.UpdateHints(state);
     }
 }

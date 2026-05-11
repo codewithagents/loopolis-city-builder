@@ -17,6 +17,7 @@ public partial class SharedStateReader : Node
     private int _lastTick = -1;
     private TilemapRenderer _renderer = null!;
     private HudOverlay _hud = null!;
+    private HintOverlay _hintOverlay = null!;
     private Toolbar _toolbar = null!;
     private GameOverPanel _gameOverPanel = null!;
     private bool _bankruptShown = false;
@@ -30,6 +31,7 @@ public partial class SharedStateReader : Node
     {
         _renderer      = GetNode<TilemapRenderer>("/root/World/TilemapRenderer");
         _hud           = GetNode<HudOverlay>("/root/World/HudOverlay");
+        _hintOverlay   = GetNode<HintOverlay>("/root/World/HintOverlay");
         _toolbar       = GetNode<Toolbar>("/root/World/Toolbar");
         _gameOverPanel = GetNode<GameOverPanel>("/root/World/GameOverPanel");
 
@@ -60,12 +62,14 @@ public partial class SharedStateReader : Node
             LastGrid = grid;
             _renderer.Refresh(grid);
             _hud.UpdateStats(state);
+            _hintOverlay.UpdateHints(state);
             _toolbar.SetPaused(state.Paused);
 
             // Bankrupt detection — show panel once and pause the server
             if (!_bankruptShown && state.GameState == "Bankrupt")
             {
                 _bankruptShown = true;
+                _hintOverlay.SetGameOver();
                 _gameOverPanel.ShowBankrupt(state);
                 // Ask the runner to pause so the city freezes at the moment of bankruptcy
                 try
