@@ -44,16 +44,16 @@ public class EventSystemTests
     [Test]
     public void NoEventFires_DuringInitialCooldown()
     {
-        // Initial cooldown is 100 ticks; run exactly 99 and expect no event
+        // Initial cooldown is 60 ticks; run exactly 59 and expect no event
         var events = new EventSystem(new AlwaysTriggerRng());
         var grid = MakeBasicGrid();
 
         CityEvent? fired = null;
-        for (var i = 0; i < 99; i++)
+        for (var i = 0; i < 59; i++)
             fired = events.Tick(grid, population: 500) ?? fired;
 
         Assert.That(fired, Is.Null,
-            "No event should fire during the initial 100-tick cooldown period");
+            "No event should fire during the initial 60-tick cooldown period");
     }
 
     [Test]

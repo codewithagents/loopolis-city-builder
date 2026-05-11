@@ -87,6 +87,8 @@ public class CityGrid
         AssertInBounds(x, y);
         if (GetTerrain(x, y) == TerrainType.Water)
             return; // cannot build on water
+        if (zone != ZoneType.Empty && _tiles[x, y].Zone != ZoneType.Empty)
+            return; // cannot overwrite occupied tile — use Erase (Empty) first
         _tiles[x, y] = _tiles[x, y] with { Zone = zone };
     }
 

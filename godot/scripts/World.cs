@@ -135,7 +135,7 @@ public partial class World : Node2D
         GenerateTerrain(_grid);
         SeedStarterCity(_grid);
 
-        _budget     = new BudgetSystem(initialBalance: 10_000);
+        _budget     = new BudgetSystem(); // default $4,000 starting balance
         _population = new PopulationSystem();
         var power   = new PowerNetwork();
         var roads   = new RoadNetwork();

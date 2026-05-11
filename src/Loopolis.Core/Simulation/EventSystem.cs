@@ -12,8 +12,8 @@ public class EventSystem
     private CityEvent? _activeEvent;
     private int _ticksRemaining;
     private int _cooldownTicks;      // ticks until next event can fire
-    private const int MinCooldown = 150;
-    private const int MaxCooldown = 300;
+    private const int MinCooldown = 100;
+    private const int MaxCooldown = 200;
 
     public CityEvent? ActiveEvent => _activeEvent;
     public bool HasActiveEvent => _activeEvent != null;
@@ -30,7 +30,7 @@ public class EventSystem
     public EventSystem(Random? rng = null)
     {
         _rng = rng ?? Random.Shared;
-        _cooldownTicks = 100; // give player time to set up before first event
+        _cooldownTicks = 60; // give player time to set up before first event
     }
 
     /// <summary>Run each simulation tick. Returns a new event if one just fired (for banner display).</summary>
@@ -54,8 +54,8 @@ public class EventSystem
         // Only trigger events once city has some population
         if (population < 100) return null;
 
-        // Random trigger: ~1% chance per tick once cooldown expires
-        if (_rng.NextDouble() > 0.01) return null;
+        // Random trigger: ~2% chance per tick once cooldown expires
+        if (_rng.NextDouble() > 0.02) return null;
 
         // Pick event type based on coverage status and population
         bool hasFireStation   = grid.AllTiles().Any(t => t.Zone == ZoneType.FireStation);

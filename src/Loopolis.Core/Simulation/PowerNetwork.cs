@@ -20,6 +20,9 @@ public class PowerNetwork
         ZoneType.Residential,
         ZoneType.Commercial,
         ZoneType.Industrial,
+        ZoneType.FireStation,
+        ZoneType.PoliceStation,
+        ZoneType.School,
     };
 
     public int PoweredTileCount { get; private set; }

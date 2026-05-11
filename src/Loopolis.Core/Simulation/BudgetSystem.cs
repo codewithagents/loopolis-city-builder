@@ -71,7 +71,7 @@ public class BudgetSystem
     public double LastMaintenanceCost { get; private set; }
     public double CommercialIncomePerTick { get; private set; }
 
-    public BudgetSystem(double initialBalance = 10_000)
+    public BudgetSystem(double initialBalance = 4_000)
     {
         Balance = initialBalance;
     }

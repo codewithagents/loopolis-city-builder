@@ -140,6 +140,63 @@ public class PowerNetworkTests
     }
 
     [Test]
+    public void FireStation_AdjacentToPowerLine_ReceivesPower()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(1, 5, ZoneType.PowerPlant);
+        grid.SetZone(2, 5, ZoneType.PowerLine);
+        grid.SetZone(3, 5, ZoneType.FireStation);
+
+        _power.Propagate(grid);
+
+        Assert.That(grid.GetTile(3, 5).HasPower, Is.True,
+            "FireStation must receive power when connected to the grid");
+    }
+
+    [Test]
+    public void PoliceStation_AdjacentToPowerLine_ReceivesPower()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(1, 5, ZoneType.PowerPlant);
+        grid.SetZone(2, 5, ZoneType.PowerLine);
+        grid.SetZone(3, 5, ZoneType.PoliceStation);
+
+        _power.Propagate(grid);
+
+        Assert.That(grid.GetTile(3, 5).HasPower, Is.True,
+            "PoliceStation must receive power when connected to the grid");
+    }
+
+    [Test]
+    public void School_AdjacentToPowerLine_ReceivesPower()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(1, 5, ZoneType.PowerPlant);
+        grid.SetZone(2, 5, ZoneType.PowerLine);
+        grid.SetZone(3, 5, ZoneType.School);
+
+        _power.Propagate(grid);
+
+        Assert.That(grid.GetTile(3, 5).HasPower, Is.True,
+            "School must receive power when connected to the grid");
+    }
+
+    [Test]
+    public void PowerPropagates_ThroughServiceBuildings()
+    {
+        // FireStation should act as a conductor, passing power to the zone behind it
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(1, 5, ZoneType.PowerPlant);
+        grid.SetZone(2, 5, ZoneType.FireStation);
+        grid.SetZone(3, 5, ZoneType.Residential);
+
+        _power.Propagate(grid);
+
+        Assert.That(grid.GetTile(3, 5).HasPower, Is.True,
+            "Power must propagate through service buildings to adjacent zones");
+    }
+
+    [Test]
     public void LargeConnectedCity_AllZonesGetPower()
     {
         // A realistic city block: plant in corner, roads forming a grid, zones filling blocks

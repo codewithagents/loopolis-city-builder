@@ -272,14 +272,14 @@ static void ProcessCommand(
             case "new_game":
             {
                 var newGrid   = new CityGrid(32, 32);
-                var newBudget = new BudgetSystem(initialBalance: 10_000);
+                var newBudget = new BudgetSystem(); // uses default $4,000
                 var newPop    = new PopulationSystem();
                 var newPower  = new PowerNetwork();
                 var newRoads  = new RoadNetwork();
                 var newDemand = new DemandSystem();
                 grid   = newGrid;
                 engine = new SimulationEngine(newGrid, newBudget, newPop, newPower, newRoads, newDemand);
-                Console.WriteLine("[new_game] Reset to empty 32x32 grid, $10000 starting balance.");
+                Console.WriteLine("[new_game] Reset to empty 32x32 grid, $4000 starting balance.");
                 break;
             }
 
@@ -401,7 +401,7 @@ static string FindSolutionRoot()
 static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
 {
     var grid       = new CityGrid(32, 32);
-    var budget     = new BudgetSystem(initialBalance: 10_000);
+    var budget     = new BudgetSystem(); // default $4,000 starting balance
     var population = new PopulationSystem();
     var power      = new PowerNetwork();
     var roads      = new RoadNetwork();

@@ -134,6 +134,32 @@ public class CityGridTests
     }
 
     [Test]
+    public void SetZone_CannotOverwriteOccupiedTileWithNonEmpty()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.PowerPlant);
+
+        // Attempt to place Residential on top of PowerPlant — should be silently blocked
+        grid.SetZone(5, 5, ZoneType.Residential);
+
+        Assert.That(grid.GetTile(5, 5).Zone, Is.EqualTo(ZoneType.PowerPlant),
+            "Occupied tiles cannot be overwritten with a non-empty zone");
+    }
+
+    [Test]
+    public void SetZone_EmptyEraseAllowedOnOccupiedTile()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.PowerPlant);
+
+        // Erase via ZoneType.Empty must always work
+        grid.SetZone(5, 5, ZoneType.Empty);
+
+        Assert.That(grid.GetTile(5, 5).Zone, Is.EqualTo(ZoneType.Empty),
+            "Erasing (ZoneType.Empty) must always be permitted on occupied tiles");
+    }
+
+    [Test]
     public void GetPlacementCost_ForestAdds75()
     {
         var cost = BudgetSystem.GetPlacementCost("Road", TerrainType.Forest);
