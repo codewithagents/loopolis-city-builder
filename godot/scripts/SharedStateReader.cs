@@ -1,19 +1,25 @@
 using Godot;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using Loopolis.Core.Grid;
 
 namespace LoopolisGodot;
 
 /// <summary>
-/// Polls godot/shared/state.json written by SimulationRunner --server.
+/// Polls godot/shared/state-{sessionId}.json written by SimulationRunner --server.
 /// When state changes, rebuilds CityGrid, refreshes the renderer, and updates the HUD.
 /// Godot runs as a pure viewer — no simulation logic here.
+///
+/// Two modes:
+///   Known session  — caller invokes SetSessionId() before _Ready; reads state-{id}.json directly.
+///   Discovery mode — no session set; scans shared/ for a recently-written state-*.json file.
 /// </summary>
 public partial class SharedStateReader : Node
 {
-    private string _statePath = "";
+    private string _sharedDir = "";
+    private string _stateFile = "";
     private int _lastTick = -1;
     private TilemapRenderer _renderer = null!;
     private HudOverlay _hud = null!;
@@ -32,8 +38,19 @@ public partial class SharedStateReader : Node
     /// <summary>Last grid received from the server. World.cs uses this for optimistic tile placement.</summary>
     public CityGrid? LastGrid { get; private set; }
 
-    /// <summary>Session ID from the first state.json read. Used to stamp outgoing commands.</summary>
+    /// <summary>Session ID resolved via SetSessionId or discovery. Used to stamp outgoing commands.</summary>
     public string? SessionId => _sessionId;
+
+    /// <summary>
+    /// Pre-configure a known session ID (e.g. when Godot launched the server and captured its output).
+    /// Must be called before _Ready() or during the first process frame.
+    /// </summary>
+    public void SetSessionId(string id)
+    {
+        _sessionId = id;
+        if (_sharedDir.Length > 0)
+            _stateFile = Path.Combine(_sharedDir, $"state-{id}.json");
+    }
 
     public override void _Ready()
     {
@@ -43,11 +60,21 @@ public partial class SharedStateReader : Node
         _toolbar       = GetNode<Toolbar>("/root/World/Toolbar");
         _gameOverPanel = GetNode<GameOverPanel>("/root/World/GameOverPanel");
 
-        // Resolve path relative to Godot project directory
+        // Resolve the shared directory path from the Godot project directory
         var projectDir = ProjectSettings.GlobalizePath("res://");
-        _statePath = Path.Combine(projectDir, "shared", "state.json");
+        _sharedDir = Path.Combine(projectDir, "shared");
 
-        GD.Print($"[viewer] Watching: {_statePath}");
+        if (_sessionId != null)
+        {
+            // Known session mode — SetSessionId was called before _Ready
+            _stateFile = Path.Combine(_sharedDir, $"state-{_sessionId}.json");
+            GD.Print($"[viewer] Known session {_sessionId}. Watching: {_stateFile}");
+        }
+        else
+        {
+            // Discovery mode — will scan in _Process until a live file appears
+            GD.Print($"[viewer] Discovery mode. Scanning: {_sharedDir}/state-*.json");
+        }
     }
 
     public override void _Process(double delta)
@@ -57,26 +84,27 @@ public partial class SharedStateReader : Node
         _pollTimer = 0;
 
         if (_sessionExpired) return;
-        if (!File.Exists(_statePath)) return;
+
+        // Discovery mode: scan for a live state file if we don't have a session yet
+        if (_sessionId == null)
+        {
+            var found = FindLiveStateFile(_sharedDir);
+            if (found == null) return;
+
+            var name = Path.GetFileNameWithoutExtension(found);
+            _sessionId = name.Replace("state-", "");
+            _stateFile = found;
+            GD.Print($"[viewer] Discovered session {_sessionId}. Watching: {_stateFile}");
+        }
+
+        if (!File.Exists(_stateFile)) return;
 
         try
         {
-            var json = File.ReadAllText(_statePath);
+            var json = File.ReadAllText(_stateFile);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var state = JsonSerializer.Deserialize<SharedState>(json, options);
             if (state == null || state.Tick == _lastTick) return;
-
-            // Session tracking: latch on first read, detect replacement on subsequent reads
-            if (_sessionId == null)
-            {
-                _sessionId = state.SessionId;
-            }
-            else if (state.SessionId != null && state.SessionId != _sessionId)
-            {
-                GD.Print("[viewer] stale state.json — session mismatch. Stopping viewer polling.");
-                _sessionExpired = true;
-                return;
-            }
 
             _lastTick = state.Tick;
             var grid = RebuildGrid(state);
@@ -92,12 +120,10 @@ public partial class SharedStateReader : Node
                 _bankruptShown = true;
                 _hintOverlay.SetGameOver();
                 _gameOverPanel.ShowBankrupt(state);
-                // Ask the runner to pause so the city freezes at the moment of bankruptcy
                 try
                 {
-                    var projectDir = ProjectSettings.GlobalizePath("res://");
-                    var commandPath = System.IO.Path.Combine(projectDir, "shared", "command.json");
-                    System.IO.File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
+                    var commandPath = Path.Combine(_sharedDir, $"command-{_sessionId}.json");
+                    File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
                 }
                 catch { /* runner may not be listening */ }
             }
@@ -110,9 +136,8 @@ public partial class SharedStateReader : Node
                 _gameOverPanel.ShowAbandoned(state.Tick, state.Population, state.Happiness);
                 try
                 {
-                    var projectDir = ProjectSettings.GlobalizePath("res://");
-                    var commandPath = System.IO.Path.Combine(projectDir, "shared", "command.json");
-                    System.IO.File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
+                    var commandPath = Path.Combine(_sharedDir, $"command-{_sessionId}.json");
+                    File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
                 }
                 catch { /* runner may not be listening */ }
             }
@@ -121,6 +146,20 @@ public partial class SharedStateReader : Node
         {
             // File being written atomically — retry next poll
         }
+    }
+
+    /// <summary>
+    /// Scans <paramref name="sharedDir"/> for state-*.json files written within the last 2 seconds.
+    /// Returns the most recently written candidate, or null if none found.
+    /// </summary>
+    private static string? FindLiveStateFile(string sharedDir)
+    {
+        if (!Directory.Exists(sharedDir)) return null;
+        var candidates = Directory.GetFiles(sharedDir, "state-*.json")
+            .Where(f => (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds < 2.0)
+            .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+            .ToArray();
+        return candidates.FirstOrDefault();
     }
 
     private static CityGrid RebuildGrid(SharedState state)

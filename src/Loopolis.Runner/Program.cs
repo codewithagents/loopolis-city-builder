@@ -93,13 +93,15 @@ else
 
 static void RunServer(string scenario, double initialSpeed)
 {
-    var sharedDir = Path.Combine(FindSolutionRoot(), "godot", "shared");
+    var sharedDir  = Path.Combine(FindSolutionRoot(), "godot", "shared");
     Directory.CreateDirectory(sharedDir);
-    var statePath = Path.Combine(sharedDir, "state.json");
-    var tmpPath   = Path.Combine(sharedDir, "state.tmp.json");
-    var cmdPath   = Path.Combine(sharedDir, "command.json");
 
-    var sessionId = Guid.NewGuid().ToString("N")[..8]; // e.g. "a3f7c219"
+    var sessionId   = Guid.NewGuid().ToString("N")[..8]; // e.g. "a3f7c219"
+    var stateFile   = Path.Combine(sharedDir, $"state-{sessionId}.json");
+    var tmpPath     = Path.Combine(sharedDir, $"state-{sessionId}.tmp.json");
+    var commandFile = Path.Combine(sharedDir, $"command-{sessionId}.json");
+
+    Console.WriteLine($"[loopolis] session={sessionId}");
 
     var (grid, engine) = SetupScenario(scenario);
 
@@ -108,54 +110,63 @@ static void RunServer(string scenario, double initialSpeed)
     var skipRemaining = 0;
     var pauseAfterSkip = false;
 
-    WriteState(tmpPath, statePath, engine, grid, paused, sessionId);
+    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
     Console.WriteLine($"[server] Started. Scenario: {scenario}, Speed: {speed} t/s, Session: {sessionId}");
-    Console.WriteLine($"[server] State: {statePath}");
-    Console.WriteLine($"[server] Commands: {cmdPath}");
+    Console.WriteLine($"[server] State: {stateFile}");
+    Console.WriteLine($"[server] Commands: {commandFile}");
 
-    while (true)
+    try
     {
-        // 1. Read command
-        ProcessCommand(cmdPath, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, ref grid, ref engine, sessionId);
-        // grid/engine may have been replaced by new_game — use current references below
-
-        // 2. Tick (or skip, or wait)
-        if (skipRemaining > 0)
+        while (true)
         {
-            // Fast-forward: no writes, no sleep
-            engine.Tick();
-            skipRemaining--;
-            if (skipRemaining == 0)
+            // 1. Read command
+            ProcessCommand(commandFile, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, ref grid, ref engine, sessionId);
+            // grid/engine may have been replaced by new_game — use current references below
+
+            // 2. Tick (or skip, or wait)
+            if (skipRemaining > 0)
             {
-                Console.WriteLine(
-                    $"[skip] complete. Tick: {engine.TickCount}, Pop: {engine.Population.Population}, Balance: ${engine.Budget.Balance:N2}");
-                if (pauseAfterSkip)
+                // Fast-forward: no writes, no sleep
+                engine.Tick();
+                skipRemaining--;
+                if (skipRemaining == 0)
                 {
-                    paused = true;
-                    pauseAfterSkip = false;
+                    Console.WriteLine(
+                        $"[skip] complete. Tick: {engine.TickCount}, Pop: {engine.Population.Population}, Balance: ${engine.Budget.Balance:N2}");
+                    if (pauseAfterSkip)
+                    {
+                        paused = true;
+                        pauseAfterSkip = false;
+                    }
+                    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
                 }
-                WriteState(tmpPath, statePath, engine, grid, paused, sessionId);
+            }
+            else if (!paused)
+            {
+                engine.Tick();
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
+                var milestone = engine.MilestoneSystem.LatestMilestone;
+                var milestoneTag = milestone != null ? $" [{milestone.Name} {milestone.Emoji}]" : "";
+                Console.WriteLine(
+                    $"[tick {engine.TickCount,4}] pop={engine.Population.Population} " +
+                    $"happiness={engine.HappinessSystem.AverageHappiness(grid):F2} " +
+                    $"pollution={engine.PollutionSystem.AveragePollution(grid):F2} " +
+                    $"balance=${engine.Budget.Balance:N0} net=${engine.Budget.NetIncomePerTick:+0.#;-0.#}{milestoneTag}");
+                var sleepMs = (int)(1000.0 / speed);
+                Thread.Sleep(sleepMs);
+            }
+            else
+            {
+                // Paused — poll for commands at 20 Hz
+                Thread.Sleep(50);
             }
         }
-        else if (!paused)
-        {
-            engine.Tick();
-            WriteState(tmpPath, statePath, engine, grid, paused, sessionId);
-            var milestone = engine.MilestoneSystem.LatestMilestone;
-            var milestoneTag = milestone != null ? $" [{milestone.Name} {milestone.Emoji}]" : "";
-            Console.WriteLine(
-                $"[tick {engine.TickCount,4}] pop={engine.Population.Population} " +
-                $"happiness={engine.HappinessSystem.AverageHappiness(grid):F2} " +
-                $"pollution={engine.PollutionSystem.AveragePollution(grid):F2} " +
-                $"balance=${engine.Budget.Balance:N0} net=${engine.Budget.NetIncomePerTick:+0.#;-0.#}{milestoneTag}");
-            var sleepMs = (int)(1000.0 / speed);
-            Thread.Sleep(sleepMs);
-        }
-        else
-        {
-            // Paused — poll for commands at 20 Hz
-            Thread.Sleep(50);
-        }
+    }
+    finally
+    {
+        // Clean up session state file on exit so Godot discovery does not pick up stale data
+        if (File.Exists(stateFile)) File.Delete(stateFile);
+        Console.WriteLine($"[server] Cleaned up {stateFile}");
     }
 }
 

@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Simulation;
@@ -21,7 +22,7 @@ public partial class World : Node2D
     private TileTooltip _tooltip = null!;
     private GameOverPanel _gameOverPanel = null!;
     private bool _viewerMode = false;
-    private string _commandPath = "";
+    private string _sharedDir = "";
     private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
 
     // Standalone mode state for HUD updates
@@ -81,26 +82,30 @@ public partial class World : Node2D
 
         // Resolve project directory for IPC files
         var projectDir = ProjectSettings.GlobalizePath("res://");
-        var statePath  = Path.Combine(projectDir, "shared", "state.json");
-        _commandPath   = Path.Combine(projectDir, "shared", "command.json");
+        _sharedDir = Path.Combine(projectDir, "shared");
 
-        if (File.Exists(statePath))
+        // Clean up stale state files (older than 5 seconds) left by previous sessions
+        if (Directory.Exists(_sharedDir))
         {
-            // Stale file detection: if state.json is older than 3 seconds, it's from a previous session
-            var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(statePath);
-            if (age.TotalSeconds > 3)
+            foreach (var f in Directory.GetFiles(_sharedDir, "state-*.json"))
             {
-                GD.Print($"[world] Deleting stale state.json (age: {age.TotalSeconds:F1}s) — entering standalone mode.");
-                File.Delete(statePath);
+                if ((DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds > 5)
+                {
+                    GD.Print($"[world] Deleting stale {Path.GetFileName(f)}");
+                    try { File.Delete(f); } catch { /* non-critical */ }
+                }
             }
-            else
-            {
-                GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
-                _reader = new SharedStateReader();
-                AddChild(_reader);
-                _viewerMode = true;
-                return;
-            }
+        }
+
+        // Check for a live state file (written within the last 2 seconds) to enter viewer mode
+        var liveStateFile = FindLiveStateFile(_sharedDir);
+        if (liveStateFile != null)
+        {
+            GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
+            _reader = new SharedStateReader();
+            AddChild(_reader);
+            _viewerMode = true;
+            return;
         }
 
         // Standalone mode — run own simulation
@@ -409,15 +414,26 @@ public partial class World : Node2D
     {
         try
         {
-            // Append sessionId to command JSON if we know it (viewer mode with known session)
             var sessionId = _reader?.SessionId;
-            if (sessionId != null && json.EndsWith("}"))
-            {
-                json = json[..^1] + $",\"sessionId\":\"{sessionId}\"}}";
-            }
-            File.WriteAllText(_commandPath, json);
+            if (sessionId == null) return; // session not yet resolved — drop command
+
+            var commandFile = Path.Combine(_sharedDir, $"command-{sessionId}.json");
+            File.WriteAllText(commandFile, json);
         }
         catch { /* ignore — Runner may not be listening */ }
+    }
+
+    /// <summary>
+    /// Returns the most recently written state-*.json file in <paramref name="sharedDir"/>
+    /// that was written within the last 2 seconds, or null if none exists.
+    /// </summary>
+    private static string? FindLiveStateFile(string sharedDir)
+    {
+        if (!Directory.Exists(sharedDir)) return null;
+        return Directory.GetFiles(sharedDir, "state-*.json")
+            .Where(f => (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds < 2.0)
+            .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+            .FirstOrDefault();
     }
 
     // ── Standalone HUD sync ────────────────────────────────────────────────
