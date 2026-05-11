@@ -247,6 +247,12 @@ static void ProcessCommand(
                     }
                     if (Enum.TryParse<ZoneType>(zone, out var zoneType))
                     {
+                        // Reject before charging if tile is occupied and this is not an erase
+                        if (zoneType != ZoneType.Empty && grid.IsInBounds(x, y) && grid.GetTile(x, y).Zone != ZoneType.Empty)
+                        {
+                            Console.WriteLine($"[place_zone] ({x},{y}) occupied by {grid.GetTile(x,y).Zone} — use erase first");
+                            break;
+                        }
                         engine.Budget.Charge(placementCost);
                         grid.SetZone(x, y, zoneType);
                         Console.WriteLine($"[place_zone] ({x},{y}) => {zoneType} (cost: ${placementCost:N0})");
