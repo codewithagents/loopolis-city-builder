@@ -11,6 +11,11 @@
 **Milestone 2 — First Playable** 🔄 In Progress
   - Phase 1 (static render + camera) ✅ Done
   - Phase 2 (player input + UI) ⬜ Next
+**Milestone 3 — Simulation Depth** ✅ Complete (108 tests · 0 failures)
+  - PollutionSystem ✅ Done
+  - HappinessSystem ✅ Done
+  - MilestoneSystem ✅ Done
+  - Services (FireStation, PoliceStation, School) ✅ Done
 
 ---
 
@@ -22,33 +27,38 @@
 | PowerNetwork (BFS) | ✅ Done | 10 |
 | RoadNetwork | ✅ Done | 13 |
 | BudgetSystem (cost-per-tile) | ✅ Done | 18 |
-| PopulationSystem | ✅ Done | 8 |
+| PopulationSystem | ✅ Done | 9 |
 | SimulationRunner (CLI) | ✅ Done | — |
 | DemandSystem (R/C/I) | ✅ Done | 11 |
 | SimulationEngine (orchestrator) | ✅ Done | 8 |
 | SimulationRunner (server mode) | ✅ Done | — |
 | Godot TileMap renderer | ✅ Done (Phase 1 — Node2D _Draw) | — |
 | Godot viewer mode (SharedStateReader) | ✅ Done | — |
+| PollutionSystem | ✅ Done | 8 |
+| HappinessSystem | ✅ Done | 13 |
+| MilestoneSystem | ✅ Done | 11 |
+| Services (FireStation/PoliceStation/School) | ✅ Done | (in HappinessSystem tests) |
 | Player input (Godot) | ⬜ Next | — |
 
-**Total: 76 tests · 0 failures · ~0.3s runtime**
+**Total: 108 tests · 0 failures · ~0.06s runtime**
 
 ---
 
 ## Short-Term Task Queue (Next 2–3 Sessions)
 
 ### Phase 2 — Player Input & UI (next session)
-- [ ] Toolbar: zone selector (R / C / I / Road / PowerLine / Erase)
+- [ ] Toolbar: zone selector (R / C / I / Road / PowerLine / Fire / Police / School / Erase)
 - [ ] Click-to-place: viewer mode writes to command.json, standalone mode modifies internal grid
-- [ ] UI labels: population count, balance, net/tick, tick counter
+- [ ] UI labels: population count, balance, net/tick, tick counter, happiness, game state
 - [ ] Budget panel: overlay showing income vs costs
+- [ ] Milestone notification: show milestone banners when Town/City/Metropolis/Loopolis reached
+- [ ] Pollution heat map: color overlay showing pollution levels (red = high)
 
 ### Backend depth (backlog)
-- [ ] Happiness system — zone satisfaction multiplier on growth rate
 - [ ] Water network — second utility, forces two-grid planning
-- [ ] Services — fire/police/education affect zone capacity
 - [ ] Zone density levels — low/medium/high density zoning
-- [ ] Win conditions — milestone detection and feedback
+- [ ] Service demand: zones without coverage gradually lose happiness over time
+- [ ] Balance tuning: scenarios still go bankrupt — tax rate or initial balance needs tuning for longer viability
 
 ### Visualization improvements (backlog)
 - [ ] Powered vs unpowered — stronger visual (dim + icon vs bright)
@@ -90,6 +100,10 @@
 | 2026-05-11 | town | Commercial strip NOT adjacent to residential (road separates them) — no demand boost in town scenario | Expected: town layout separates R and C with roads; boost confirmed working in default (1 of 3 R zones adjacent to C) |
 | 2026-05-11 | default | DemandSystem confirmed: tick-0 pop=8 = (2×2.5)+(1×3.75)=8.75→8; boosted zone grows 50% faster | Working correctly |
 | 2026-05-11 | server/viewer | 17R + 3C city: 850 pop max, +$46/tick surplus. Commercial adjacency boost confirmed live in Godot viewer. | — |
+| 2026-05-11 | mixed | 3 polluted R zones (adjacent to industrial) → happiness 0.2 vs 0.6 safe baseline. Confirmed average 0.491 matches formula: (8×0.6 + 3×0.2)/11. Pollution gradient working. | — |
+| 2026-05-11 | services | School at (15,12) covers some north R tiles (y=9 = distance 3, within 5). Happiness 0.667 average — mix of covered (0.75) and uncovered (0.6). Fire station at (15,18) too far from south R at y=21 (distance 3 from station to road). | Layout confirmed: service placement matters |
+| 2026-05-11 | town | Reached Town milestone at tick 38 (500 pop). Industrial far enough (dx>3) from residential → zero pollution. Happiness = 0.6 baseline throughout. Bankrupt at -$54/tick due to large grid cost. | Balance tuning needed for large scenarios |
+| 2026-05-11 | all | All large scenarios go bankrupt. Root cause: residential zones at distance from roads can't develop (only 11-18 of 45-75 R tiles are ready). Maintenance costs (industrial, roads, powerlines) dwarf tax income. | Backlog: balance tuning or larger commercial footprint |
 
 ---
 
@@ -99,9 +113,11 @@
 export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
 export PATH="$DOTNET_ROOT:$PATH"
 
-dotnet test                                                      # all tests
+dotnet test                                                      # all tests (108)
 dotnet run --project src/Loopolis.Runner -- 500 default          # JSON report
-dotnet run --project src/Loopolis.Runner -- 500 town             # larger city
+dotnet run --project src/Loopolis.Runner -- 500 town             # larger city (reaches Town milestone)
+dotnet run --project src/Loopolis.Runner -- 500 mixed            # pollution gradient scenario
+dotnet run --project src/Loopolis.Runner -- 500 services         # school + fire station coverage
 dotnet run --project src/Loopolis.Runner -- 500 town --ascii     # visual map
 dotnet run --project src/Loopolis.Runner -- 500 no_power         # verify power required
 dotnet run --project src/Loopolis.Runner -- 500 no_roads         # verify roads required
@@ -143,4 +159,4 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 ---
 
-*Last updated: 2026-05-11 — Session 5 (server mode + viewer mode, game balance confirmed)*
+*Last updated: 2026-05-11 — Session 6 (PollutionSystem + HappinessSystem + MilestoneSystem + Services, 108 tests)*
