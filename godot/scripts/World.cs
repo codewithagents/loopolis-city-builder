@@ -430,10 +430,13 @@ public partial class World : Node2D
         // Update coverage radius for service buildings
         (_coverageRadius, _coverageColor) = zoneName switch
         {
-            "FireStation"   => (4, new Color(1f, 0.4f, 0.1f, 0.3f)),
-            "PoliceStation" => (4, new Color(0.2f, 0.4f, 1f, 0.3f)),
-            "School"        => (5, new Color(0.7f, 0.3f, 0.9f, 0.3f)),
-            _               => (0, Colors.Transparent)
+            "FireStation"   => (4,  new Color(1f,    0.4f,  0.1f, 0.3f)),
+            "FireHQ"        => (10, new Color(0.718f,0.110f,0.110f, 0.3f)),
+            "PoliceStation" => (4,  new Color(0.2f,  0.4f,  1f,   0.3f)),
+            "PoliceHQ"      => (10, new Color(0.102f,0.137f,0.494f, 0.3f)),
+            "School"        => (5,  new Color(0.7f,  0.3f,  0.9f, 0.3f)),
+            "Hospital"      => (8,  new Color(0.647f,0.839f,0.647f, 0.3f)),
+            _               => (0,  Colors.Transparent)
         };
 
         // Reset hover tracking so coverage updates on next _Process
@@ -787,6 +790,14 @@ public partial class World : Node2D
             _ => null
         };
 
+        // Power capacity summary for HUD
+        var pcs = _engine.PowerCapacitySystem;
+        var powerState = new PowerStateDto(
+            SupplyMW:      pcs.TotalSupplyMW,
+            DemandMW:      pcs.TotalDemandMW,
+            CapacityRatio: pcs.CapacityRatio,
+            IsBrownout:    pcs.IsBrownout);
+
         // ────────────────────────────────────────────────────────────────────
 
         var state = new SharedState(
@@ -816,11 +827,14 @@ public partial class World : Node2D
             HappinessBreakdown:        happinessBreakdown,
             Employment:                employmentDto,
             CoverageSummary:           coverageSummary,
-            PauseReason:               pauseReason
+            PauseReason:               pauseReason,
+            Power:                     powerState
         );
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);
         _cityHealth.UpdateWarnings(state);
+        _renderer.SetBrownout(pcs.IsBrownout);
+        _toolbar.UpdateMilestoneLocks(_population.Population);
         UpdateEventLog(state, milestone);
     }
 

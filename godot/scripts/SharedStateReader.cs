@@ -112,10 +112,12 @@ public partial class SharedStateReader : Node
             var grid = RebuildGrid(state);
             LastGrid = grid;
             _renderer.Refresh(grid);
+            _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _hud.UpdateStats(state);
             _hintOverlay.UpdateHints(state);
             _cityHealth.UpdateWarnings(state);
             _toolbar.SetPaused(state.Paused);
+            _toolbar.UpdateMilestoneLocks(state.Population);
 
             // Bankrupt detection — show panel once and pause the server
             if (!_bankruptShown && state.GameState == "Bankrupt")
@@ -234,7 +236,16 @@ public record SharedState(
     HappinessBreakdownDto? HappinessBreakdown = null,
     EmploymentDto? Employment = null,
     CoverageSummaryDto? CoverageSummary = null,
-    string? PauseReason = null
+    string? PauseReason = null,
+    PowerStateDto? Power = null             // power supply/demand from PowerCapacitySystem
+);
+
+/// <summary>Power supply vs. demand snapshot from PowerCapacitySystem.</summary>
+public record PowerStateDto(
+    int SupplyMW,
+    int DemandMW,
+    double CapacityRatio,
+    bool IsBrownout
 );
 
 /// <summary>Happiness sub-components from HappinessSystem.GetBreakdown().</summary>

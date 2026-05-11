@@ -23,6 +23,7 @@ public partial class CityHealthPanel : CanvasLayer
         Abandonment,
         BudgetCrisis,
         Unemployment,
+        Brownout,
         Unpowered,
         HappinessCritical,
         FireCoverage,
@@ -122,6 +123,14 @@ public partial class CityHealthPanel : CanvasLayer
                 $"⚠ Jobs shortage ({pct}% gap) — build more Industrial zones");
         }
 
+        // Brownout: power supply below demand
+        if (state.Power != null && state.Power.IsBrownout)
+        {
+            result.Add(WarningId.Brownout);
+            UpdateLabel(WarningId.Brownout,
+                $"⚡ Power brownout — add more plants ({state.Power.SupplyMW}/{state.Power.DemandMW} MW)");
+        }
+
         // Unpowered zones
         if (state.CoverageSummary != null && state.CoverageSummary.UnpoweredZonedTilesCount > 0)
         {
@@ -213,6 +222,7 @@ public partial class CityHealthPanel : CanvasLayer
         AddWarningLabel(WarningId.Abandonment,     "🚨 Abandonment imminent — happiness collapsed!", WarnRed);
         AddWarningLabel(WarningId.BudgetCrisis,    "💸 Budget crisis",                  WarnOrange);
         AddWarningLabel(WarningId.Unemployment,    "⚠ Jobs shortage",                  WarnOrange);
+        AddWarningLabel(WarningId.Brownout,        "⚡ Power brownout — add more plants", WarnOrange);
         AddWarningLabel(WarningId.Unpowered,       "⚡ Zones unpowered",               WarnYellow);
         AddWarningLabel(WarningId.HappinessCritical, "😟 Happiness critical",           WarnOrange);
         AddWarningLabel(WarningId.FireCoverage,    "🔥 Fire coverage low",             WarnYellow);

@@ -26,8 +26,26 @@ public partial class TilemapRenderer : Node2D
     private static readonly Color ColorFireStation  = new Color(1.0f,  0.4f,  0.1f);
     private static readonly Color ColorPoliceStation= new Color(0.2f,  0.4f,  1.0f);
     private static readonly Color ColorSchool       = new Color(0.7f,  0.3f,  0.9f);
+    // M8 zone colors
+    private static readonly Color ColorPoliceHQ     = new Color(0.102f, 0.137f, 0.494f); // #1a237e deep blue
+    private static readonly Color ColorFireHQ       = new Color(0.718f, 0.110f, 0.110f); // #b71c1c deep red
+    private static readonly Color ColorHospital     = new Color(0.647f, 0.839f, 0.647f); // #a5d6a7 soft green-white
+    private static readonly Color ColorCoalPlant    = new Color(0.259f, 0.259f, 0.259f); // #424242 dark grey
+    private static readonly Color ColorNuclearPlant = new Color(0.976f, 0.659f, 0.145f); // #f9a825 yellow-green
     // Unpowered zones get a dark overlay — show the mechanic visually
     private static readonly Color UnpoweredTint     = new Color(0f, 0f, 0f, 0.45f);
+    // Brownout overlay — amber tint on BFS-powered tiles when capacity < demand
+    private static readonly Color BrownoutTint      = new Color(1f, 0.55f, 0f, 0.22f);
+
+    private bool _isBrownout = false;
+
+    /// <summary>Set brownout state so the renderer can apply the amber tint on next redraw.</summary>
+    public void SetBrownout(bool brownout)
+    {
+        if (_isBrownout == brownout) return;
+        _isBrownout = brownout;
+        QueueRedraw();
+    }
 
     public void Refresh(CityGrid grid)
     {
@@ -154,8 +172,12 @@ public partial class TilemapRenderer : Node2D
 
                     continue;
                 }
-                case ZoneType.PowerPlant:
-                    color = ColorPowerPlant;
+                case ZoneType.PowerPlant:   // legacy alias — renders same as CoalPlant
+                case ZoneType.CoalPlant:
+                    color = ColorCoalPlant;
+                    break;
+                case ZoneType.NuclearPlant:
+                    color = ColorNuclearPlant;
                     break;
                 case ZoneType.PowerLine:
                     color = ColorPowerLine;
@@ -163,11 +185,20 @@ public partial class TilemapRenderer : Node2D
                 case ZoneType.FireStation:
                     color = ColorFireStation;
                     break;
+                case ZoneType.FireHQ:
+                    color = ColorFireHQ;
+                    break;
                 case ZoneType.PoliceStation:
                     color = ColorPoliceStation;
                     break;
+                case ZoneType.PoliceHQ:
+                    color = ColorPoliceHQ;
+                    break;
                 case ZoneType.School:
                     color = ColorSchool;
+                    break;
+                case ZoneType.Hospital:
+                    color = ColorHospital;
                     break;
                 default:
                     color = tile.Terrain switch
@@ -186,6 +217,22 @@ public partial class TilemapRenderer : Node2D
 
             // Water tiles have no overlays — skip pollution, power tint, and demand dot
             if (tile.Terrain == Loopolis.Core.Grid.TerrainType.Water) continue;
+        }
+
+        // Brownout overlay: amber tint on all BFS-powered tiles when capacity < demand.
+        // This is a different/weaker signal than the existing unpowered dark tint.
+        if (_isBrownout && _grid != null)
+        {
+            foreach (var tile in _grid.AllTiles())
+            {
+                if (!tile.HasPower) continue;
+                // Only overlay zoned tiles — roads/plants/terrain don't get the tint
+                if (tile.Zone is ZoneType.Empty or ZoneType.Road or ZoneType.PowerLine
+                    or ZoneType.PowerPlant or ZoneType.CoalPlant or ZoneType.NuclearPlant)
+                    continue;
+                var rect = new Rect2(tile.X * TileSize, tile.Y * TileSize, TileSize, TileSize);
+                DrawRect(rect, BrownoutTint);
+            }
         }
 
         // Coverage radius overlay: draw semi-transparent color over highlighted tiles

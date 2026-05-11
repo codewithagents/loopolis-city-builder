@@ -41,20 +41,26 @@ public partial class Toolbar : CanvasLayer
     private Button? _pauseButton;
     private readonly Dictionary<string, Button> _taxButtons = new();
     private readonly Dictionary<float, Button> _speedButtons = new();
+    private int _lastKnownPop = 0; // for milestone-lock refresh
 
-    // Zone definitions: (label, zone name, background color, tooltip)
-    private static readonly (string Label, string Zone, Color Color, string Tooltip)[] ZoneButtons =
+    // Zone definitions: (label, zone name, background color, tooltip, milestone unlock pop threshold)
+    // milestoneMin = 0 means always available; 500 = Town; 5000 = City
+    private static readonly (string Label, string Zone, Color Color, string Tooltip, int MilestoneMin)[] ZoneButtons =
     {
-        ("R",       "Residential",   new Color(0.2f,  0.7f,  0.2f), "Residential — Place: $50 · Maint: $0.50/tick"),
-        ("C",       "Commercial",    new Color(0.2f,  0.4f,  0.9f), "Commercial — Place: $100 · Maint: $0.50/tick"),
-        ("I",       "Industrial",    new Color(0.9f,  0.8f,  0.1f), "Industrial — Place: $75 · Maint: $0.25/tick"),
-        ("Road",    "Road",          new Color(0.5f,  0.5f,  0.5f), "Road — Place: $25 · Maint: $1.00/tick"),
-        ("Line",    "PowerLine",     new Color(0.1f,  0.9f,  0.9f), "Power Line — Place: $40 · Maint: $0.50/tick"),
-        ("Plant",   "PowerPlant",    new Color(0.9f,  0.3f,  0.1f), "Power Plant — Place: $500 · Maint: $8.00/tick"),
-        ("Fire",    "FireStation",   new Color(1.0f,  0.4f,  0.1f), "Fire Station — Place: $300 · Maint: $3.00/tick"),
-        ("Police",  "PoliceStation", new Color(0.2f,  0.4f,  1.0f), "Police Station — Place: $300 · Maint: $3.00/tick"),
-        ("School",  "School",        new Color(0.7f,  0.3f,  0.9f), "School — Place: $400 · Maint: $5.00/tick"),
-        ("Erase",   "Erase",         new Color(0.6f,  0.15f, 0.15f), "Erase — no cost"),
+        ("R",         "Residential",   new Color(0.2f,  0.7f,  0.2f), "Residential — Place: $50 · Maint: $0.50/tick",          0),
+        ("C",         "Commercial",    new Color(0.2f,  0.4f,  0.9f), "Commercial — Place: $100 · Maint: $0.50/tick",          0),
+        ("I",         "Industrial",    new Color(0.9f,  0.8f,  0.1f), "Industrial — Place: $75 · Maint: $0.25/tick",           0),
+        ("Road",      "Road",          new Color(0.5f,  0.5f,  0.5f), "Road — Place: $25 · Maint: $1.00/tick",                 0),
+        ("Line",      "PowerLine",     new Color(0.1f,  0.9f,  0.9f), "Power Line — Place: $40 · Maint: $0.50/tick",           0),
+        ("Coal",      "CoalPlant",     new Color(0.259f,0.259f,0.259f),"Coal Plant — Place: $500 · Maint: $8.00/tick\n500 MW output — emits pollution", 0),
+        ("Nuclear",   "NuclearPlant",  new Color(0.976f,0.659f,0.145f),"Nuclear Plant — Place: $8,000 · Maint: $50.00/tick\n3,000 MW · clean — Requires Town (500 pop)", 500),
+        ("Fire",      "FireStation",   new Color(1.0f,  0.4f,  0.1f), "Fire Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles", 0),
+        ("Fire HQ",   "FireHQ",        new Color(0.718f,0.110f,0.110f),"Fire HQ — Place: $2,000 · Maint: $25.00/tick\nCoverage radius: 10 tiles — Requires City (5,000 pop)", 5000),
+        ("Police",    "PoliceStation", new Color(0.2f,  0.4f,  1.0f), "Police Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles", 0),
+        ("Police HQ", "PoliceHQ",      new Color(0.102f,0.137f,0.494f),"Police HQ — Place: $2,000 · Maint: $25.00/tick\nCoverage radius: 10 tiles — Requires City (5,000 pop)", 5000),
+        ("School",    "School",        new Color(0.7f,  0.3f,  0.9f), "School — Place: $400 · Maint: $5.00/tick\nCoverage radius: 5 tiles",       0),
+        ("Hospital",  "Hospital",      new Color(0.647f,0.839f,0.647f),"Hospital — Place: $3,000 · Maint: $35.00/tick\nCoverage radius: 8 tiles — Requires City (5,000 pop)", 5000),
+        ("Erase",     "Erase",         new Color(0.6f,  0.15f, 0.15f), "Erase — no cost",                                      0),
     };
 
     // Tax rate button definitions: (label, level, background color)
@@ -81,13 +87,22 @@ public partial class Toolbar : CanvasLayer
         panel.AddChild(hbox);
 
         // Zone / tool buttons
-        foreach (var (label, zone, color, tooltip) in ZoneButtons)
+        foreach (var (label, zone, color, tooltip, _milestoneMin) in ZoneButtons)
         {
             var btn = MakeZoneButton(label, color, tooltip);
-            btn.Pressed += () => SelectZone(zone, btn);
+            var capturedZone = zone;
+            btn.Pressed += () =>
+            {
+                // Refuse to select a locked zone
+                if (btn.Disabled) return;
+                SelectZone(capturedZone, btn);
+            };
             hbox.AddChild(btn);
             _buttons[zone] = btn;
         }
+
+        // Apply initial milestone locks (pop = 0 at startup)
+        UpdateMilestoneLocks(0);
 
         // Separator
         var sep = new VSeparator();
@@ -188,6 +203,39 @@ public partial class Toolbar : CanvasLayer
     {
         _taxLevel = level;
         HighlightTaxButton(level);
+    }
+
+    /// <summary>
+    /// Enable or disable milestone-gated zone buttons based on current population.
+    /// Called by SharedStateReader each tick (viewer mode) and by World.cs (standalone mode).
+    /// </summary>
+    public void UpdateMilestoneLocks(int population)
+    {
+        if (population == _lastKnownPop) return;
+        _lastKnownPop = population;
+
+        foreach (var (label, zone, color, tooltip, milestoneMin) in ZoneButtons)
+        {
+            if (!_buttons.TryGetValue(zone, out var btn)) continue;
+            if (milestoneMin <= 0) continue; // always unlocked
+
+            var unlocked = population >= milestoneMin;
+            btn.Disabled = !unlocked;
+
+            // Visual: dim the button and append lock hint to tooltip when locked
+            var lockLabel = milestoneMin >= 5000 ? "Requires City (5,000 pop)" : "Requires Town (500 pop)";
+            if (!unlocked)
+            {
+                // Grey out via modulate
+                btn.Modulate = new Color(0.5f, 0.5f, 0.5f, 0.7f);
+                btn.TooltipText = tooltip + $"\n🔒 {lockLabel}";
+            }
+            else
+            {
+                btn.Modulate = new Color(1f, 1f, 1f, 1f);
+                btn.TooltipText = tooltip;
+            }
+        }
     }
 
     public string SelectedZone => _selectedZone;
@@ -428,7 +476,7 @@ public partial class Toolbar : CanvasLayer
     private StyleBoxFlat GetBaseStyle(string zone)
     {
         // Recreate the base style from zone colors
-        foreach (var (label, z, color, _) in ZoneButtons)
+        foreach (var (label, z, color, _, _milestoneMin) in ZoneButtons)
         {
             if (z == zone)
             {

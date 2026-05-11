@@ -17,6 +17,7 @@ public partial class HudOverlay : CanvasLayer
     private Label _taxCostLabel   = null!;
     private Label _happyLabel     = null!;
     private Label _jobsLabel      = null!;
+    private Label _powerLabel     = null!;
     private Label _eventLabel     = null!;
     private Label _selectedLabel  = null!;
     private Label _pausedLabel    = null!;
@@ -63,6 +64,11 @@ public partial class HudOverlay : CanvasLayer
 
         _jobsLabel = MakeLabel("Jobs: ✓ 0 available");
 
+        _powerLabel = new Label();
+        _powerLabel.Text = "";
+        _powerLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        _powerLabel.AddThemeFontSizeOverride("font_size", 16);
+
         _eventLabel = new Label();
         _eventLabel.Text = "";
         _eventLabel.Visible = false;
@@ -81,6 +87,7 @@ public partial class HudOverlay : CanvasLayer
         vbox.AddChild(_taxCostLabel);
         vbox.AddChild(_happyLabel);
         vbox.AddChild(_jobsLabel);
+        vbox.AddChild(_powerLabel);
         vbox.AddChild(_eventLabel);
         vbox.AddChild(_selectedLabel);
         vbox.AddChild(_pausedLabel);
@@ -180,6 +187,33 @@ public partial class HudOverlay : CanvasLayer
         {
             _jobsLabel.Text = $"Jobs: ✓ {state.AvailableJobs} available";
             _jobsLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
+        }
+
+        // Power row
+        if (state.Power != null)
+        {
+            var pwr = state.Power;
+            var pct = pwr.DemandMW > 0 ? (int)(pwr.CapacityRatio * 100) : 100;
+            if (pwr.IsBrownout)
+            {
+                _powerLabel.Text = $"⚡ {pwr.SupplyMW:N0} / {pwr.DemandMW:N0} MW  ({pct}%) ⚠ BROWNOUT";
+                _powerLabel.AddThemeColorOverride("font_color", new Color(1f, 0.6f, 0.1f)); // amber
+            }
+            else if (pwr.CapacityRatio >= 1.5)
+            {
+                _powerLabel.Text = $"⚡ {pwr.SupplyMW:N0} / {pwr.DemandMW:N0} MW  ({pct}%)";
+                _powerLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.4f)); // green surplus
+            }
+            else
+            {
+                _powerLabel.Text = $"⚡ {pwr.SupplyMW:N0} / {pwr.DemandMW:N0} MW  ({pct}%)";
+                _powerLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+            }
+            _powerLabel.Visible = true;
+        }
+        else
+        {
+            _powerLabel.Visible = false;
         }
 
         if (!string.IsNullOrEmpty(state.ActiveEventName))

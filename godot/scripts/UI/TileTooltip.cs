@@ -139,20 +139,53 @@ public partial class TileTooltip : CanvasLayer
                 AddLine("Power Line", 15, new Color(0.2f, 1f, 1f));
                 break;
 
-            case ZoneType.PowerPlant:
-                AddLine("Power Plant — source", 15, new Color(1f, 0.5f, 0.2f));
+            case ZoneType.PowerPlant:   // legacy alias — same stats as CoalPlant
+            case ZoneType.CoalPlant:
+                AddLine("Coal Plant", 15, new Color(0.7f, 0.7f, 0.7f));
+                AddLine("Output: 500 MW — emits pollution", 13, new Color(0.6f, 0.6f, 0.6f));
+                AddLine("Maint: $8.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
+                break;
+
+            case ZoneType.NuclearPlant:
+                AddLine("Nuclear Plant", 15, new Color(0.976f, 0.659f, 0.145f));
+                AddLine("Output: 3,000 MW — clean energy", 13, new Color(0.9f, 0.85f, 0.5f));
+                AddLine("Maint: $50.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
                 break;
 
             case ZoneType.FireStation:
-                AddLine("Fire Station — coverage radius 4", 15, new Color(1f, 0.5f, 0.2f));
+                AddLine("Fire Station", 15, new Color(1f, 0.5f, 0.2f));
+                AddLine("Coverage radius: 4 tiles", 13, new Color(0.8f, 0.6f, 0.4f));
+                AddLine("Maint: $3.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
+                break;
+
+            case ZoneType.FireHQ:
+                AddLine("Fire HQ", 15, new Color(0.9f, 0.3f, 0.3f));
+                AddLine("Coverage radius: 10 tiles", 13, new Color(0.9f, 0.5f, 0.4f));
+                AddLine("Maint: $25.00/tick  |  Unlock: City (5,000 pop)", 12, new Color(0.65f, 0.65f, 0.65f));
                 break;
 
             case ZoneType.PoliceStation:
-                AddLine("Police Station — coverage radius 4", 15, new Color(0.4f, 0.6f, 1f));
+                AddLine("Police Station", 15, new Color(0.4f, 0.6f, 1f));
+                AddLine("Coverage radius: 4 tiles", 13, new Color(0.5f, 0.6f, 0.9f));
+                AddLine("Maint: $3.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
+                break;
+
+            case ZoneType.PoliceHQ:
+                AddLine("Police HQ", 15, new Color(0.4f, 0.5f, 0.9f));
+                AddLine("Coverage radius: 10 tiles", 13, new Color(0.5f, 0.6f, 0.9f));
+                AddLine("Maint: $25.00/tick  |  Unlock: City (5,000 pop)", 12, new Color(0.65f, 0.65f, 0.65f));
                 break;
 
             case ZoneType.School:
-                AddLine("School — coverage radius 5", 15, new Color(0.8f, 0.4f, 1f));
+                AddLine("School", 15, new Color(0.8f, 0.4f, 1f));
+                AddLine("Coverage radius: 5 tiles", 13, new Color(0.75f, 0.5f, 0.9f));
+                AddLine("Maint: $5.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
+                break;
+
+            case ZoneType.Hospital:
+                AddLine("Hospital", 15, new Color(0.55f, 0.9f, 0.6f));
+                AddLine("Coverage radius: 8 tiles — reduces event damage", 13, new Color(0.5f, 0.85f, 0.55f));
+                AddLine("Maint: $35.00/tick  |  Unlock: City (5,000 pop)", 12, new Color(0.65f, 0.65f, 0.65f));
                 break;
 
             default:
