@@ -8,7 +8,7 @@
 [ext_resource type="Script" uid="uid://cbhfjil15it47" path="res://scripts/UI/TileTooltip.cs" id="6_tooltip"]
 [ext_resource type="Script" uid="uid://bihd3muse4lml" path="res://scripts/UI/GameOverPanel.cs" id="7_gameover"]
 [ext_resource type="Script" uid="uid://dtyfrqsgnq2bi" path="res://scripts/UI/HintOverlay.cs" id="8_hint"]
-[ext_resource type="Script" path="res://scripts/UI/EventLog.cs" id="9_eventlog"]
+[ext_resource type="Script" uid="uid://cu8qnfuurrx0m" path="res://scripts/UI/EventLog.cs" id="9_eventlog"]
 
 [node name="World" type="Node2D"]
 script = ExtResource("1_world")

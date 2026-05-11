@@ -207,8 +207,8 @@ public partial class Toolbar : CanvasLayer
         {
             if (z == zone)
             {
-                // Bright white border to indicate selection
-                var style = MakeButtonStyle(btn.GetThemeStylebox("normal") as StyleBoxFlat, selected: true);
+                // Always derive from the base color so repeated clicks don't stack the ×1.4 multiplier
+                var style = MakeButtonStyle(GetBaseStyle(z), selected: true);
                 btn.AddThemeStyleboxOverride("normal",   style);
                 btn.AddThemeStyleboxOverride("hover",    style);
                 btn.AddThemeStyleboxOverride("pressed",  style);

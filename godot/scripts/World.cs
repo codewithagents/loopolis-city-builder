@@ -477,28 +477,28 @@ public partial class World : Node2D
         var tileX = tilePos.X;
         var tileY = tilePos.Y;
 
-        if (tileX < 0 || tileX >= 64 || tileY < 0 || tileY >= 64) return;
-
         var selectedZone = _toolbar.SelectedZone;
 
         if (_viewerMode)
         {
+            // Bounds-check against the viewer grid (server uses 32×32; standalone uses 64×64)
+            var viewerGrid = _reader?.LastGrid;
+            if (viewerGrid == null) return;
+            if (tileX < 0 || tileX >= viewerGrid.Width || tileY < 0 || tileY >= viewerGrid.Height) return;
+
             // Tile protection: skip if the tile is occupied and we are not erasing
-            if (selectedZone != "Erase" && _reader?.LastGrid is { } checkGrid)
+            if (selectedZone != "Erase")
             {
-                if (checkGrid.GetTile(tileX, tileY).Zone != ZoneType.Empty)
+                if (viewerGrid.GetTile(tileX, tileY).Zone != ZoneType.Empty)
                     return;
             }
 
             // Optimistic rendering: update visuals immediately, server confirms on next tick
-            if (_reader?.LastGrid is { } optimisticGrid)
-            {
-                if (selectedZone == "Erase")
-                    optimisticGrid.SetZone(tileX, tileY, ZoneType.Empty);
-                else if (System.Enum.TryParse<ZoneType>(selectedZone, out var optimisticZone))
-                    optimisticGrid.SetZone(tileX, tileY, optimisticZone);
-                _renderer.Refresh(optimisticGrid);
-            }
+            if (selectedZone == "Erase")
+                viewerGrid.SetZone(tileX, tileY, ZoneType.Empty);
+            else if (System.Enum.TryParse<ZoneType>(selectedZone, out var optimisticZone))
+                viewerGrid.SetZone(tileX, tileY, optimisticZone);
+            _renderer.Refresh(viewerGrid);
 
             string cmd;
             if (selectedZone == "Erase")
@@ -509,6 +509,9 @@ public partial class World : Node2D
         }
         else
         {
+            // Bounds-check against the standalone grid
+            if (tileX < 0 || tileX >= _grid.Width || tileY < 0 || tileY >= _grid.Height) return;
+
             // Tile protection: skip if the tile is occupied and we are not erasing
             if (selectedZone != "Erase")
             {
