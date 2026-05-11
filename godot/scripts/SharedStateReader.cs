@@ -8,7 +8,7 @@ namespace LoopolisGodot;
 
 /// <summary>
 /// Polls godot/shared/state.json written by SimulationRunner --server.
-/// When state changes, rebuilds CityGrid and refreshes the renderer.
+/// When state changes, rebuilds CityGrid, refreshes the renderer, and updates the HUD.
 /// Godot runs as a pure viewer — no simulation logic here.
 /// </summary>
 public partial class SharedStateReader : Node
@@ -16,12 +16,16 @@ public partial class SharedStateReader : Node
     private string _statePath = "";
     private int _lastTick = -1;
     private TilemapRenderer _renderer = null!;
+    private HudOverlay _hud = null!;
+    private Toolbar _toolbar = null!;
     private double _pollTimer = 0;
     private const double PollInterval = 0.05; // 20Hz polling
 
     public override void _Ready()
     {
         _renderer = GetNode<TilemapRenderer>("/root/World/TilemapRenderer");
+        _hud      = GetNode<HudOverlay>("/root/World/HudOverlay");
+        _toolbar  = GetNode<Toolbar>("/root/World/Toolbar");
 
         // Resolve path relative to Godot project directory
         var projectDir = ProjectSettings.GlobalizePath("res://");
@@ -48,6 +52,8 @@ public partial class SharedStateReader : Node
             _lastTick = state.Tick;
             var grid = RebuildGrid(state);
             _renderer.Refresh(grid);
+            _hud.UpdateStats(state);
+            _toolbar.SetPaused(state.Paused);
         }
         catch (Exception)
         {

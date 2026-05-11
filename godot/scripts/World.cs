@@ -1,4 +1,6 @@
 using Godot;
+using System.IO;
+using System.Text.Json;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Simulation;
 
@@ -12,17 +14,37 @@ public partial class World : Node2D
     private const double TickInterval = 0.5; // seconds per sim tick
 
     private TilemapRenderer _renderer = null!;
+    private HudOverlay _hud = null!;
+    private Toolbar _toolbar = null!;
     private bool _viewerMode = false;
+    private string _commandPath = "";
+
+    // Standalone mode state for HUD updates
+    private int _standaloneTick = 0;
+    private bool _standalonePaused = false;
+    private BudgetSystem? _budget;
+    private PopulationSystem? _population;
 
     public override void _Ready()
     {
         _renderer = GetNode<TilemapRenderer>("TilemapRenderer");
+        _hud      = GetNode<HudOverlay>("HudOverlay");
+        _toolbar  = GetNode<Toolbar>("Toolbar");
 
-        // Check for shared state file → viewer mode
+        // Wire toolbar signals
+        _toolbar.ZoneSelected    += OnZoneSelected;
+        _toolbar.PauseToggled    += OnPauseToggled;
+        _toolbar.NewGameRequested += OnNewGameRequested;
+
+        // Update HUD with initial selection
+        _hud.SetSelectedZone(_toolbar.SelectedZone);
+
+        // Resolve project directory for IPC files
         var projectDir = ProjectSettings.GlobalizePath("res://");
-        var statePath = System.IO.Path.Combine(projectDir, "shared", "state.json");
+        var statePath  = Path.Combine(projectDir, "shared", "state.json");
+        _commandPath   = Path.Combine(projectDir, "shared", "command.json");
 
-        if (System.IO.File.Exists(statePath))
+        if (File.Exists(statePath))
         {
             GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
             var reader = new SharedStateReader();
@@ -39,38 +61,147 @@ public partial class World : Node2D
     private void SetupStandaloneSimulation()
     {
         _grid = new CityGrid(32, 32);
+        // Blank grid — let the player build from scratch
 
-        // Default scenario: wired starter city
-        _grid.SetZone(10, 10, ZoneType.PowerPlant);
-        _grid.SetZone(10, 11, ZoneType.Road);
-        _grid.SetZone(10, 12, ZoneType.Road);
-        _grid.SetZone(9,  12, ZoneType.Residential);
-        _grid.SetZone(11, 12, ZoneType.Residential);
-        _grid.SetZone(9,  13, ZoneType.Residential);
-        _grid.SetZone(10, 13, ZoneType.Road);
-        _grid.SetZone(11, 13, ZoneType.Commercial);
+        _budget     = new BudgetSystem(initialBalance: 5_000);
+        _population = new PopulationSystem();
+        var power   = new PowerNetwork();
+        var roads   = new RoadNetwork();
+        var demand  = new DemandSystem();
 
-        var budget     = new BudgetSystem(initialBalance: 10_000);
-        var population = new PopulationSystem();
-        var power      = new PowerNetwork();
-        var roads      = new RoadNetwork();
-        var demand     = new DemandSystem();
-
-        _engine = new SimulationEngine(_grid, budget, population, power, roads, demand);
+        _engine = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
 
         _renderer.Refresh(_grid);
+        PushStandaloneHudUpdate();
     }
 
     public override void _Process(double delta)
     {
         if (_viewerMode) return; // SharedStateReader handles updates
 
+        if (_standalonePaused) return;
+
         _tickTimer += delta;
         if (_tickTimer >= TickInterval)
         {
             _tickTimer = 0;
             _engine.Tick();
+            _standaloneTick++;
+            _renderer.Refresh(_grid);
+            PushStandaloneHudUpdate();
+        }
+    }
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (@event is InputEventMouseButton mb)
+        {
+            if (mb.ButtonIndex == MouseButton.Left && mb.Pressed)
+            {
+                HandlePlaceTile();
+            }
+        }
+    }
+
+    // ── Toolbar signal handlers ────────────────────────────────────────────
+
+    private void OnZoneSelected(string zoneName)
+    {
+        _hud.SetSelectedZone(zoneName);
+    }
+
+    private void OnPauseToggled()
+    {
+        if (_viewerMode)
+        {
+            WriteCommand("{\"cmd\":\"pause\"}");
+            // Toolbar button text is updated when state.json reflects new paused state
+        }
+        else
+        {
+            _standalonePaused = !_standalonePaused;
+            _toolbar.SetPaused(_standalonePaused);
+            PushStandaloneHudUpdate();
+        }
+    }
+
+    private void OnNewGameRequested()
+    {
+        if (_viewerMode)
+        {
+            WriteCommand("{\"cmd\":\"new_game\"}");
+        }
+        else
+        {
+            SetupStandaloneSimulation();
+            _standaloneTick    = 0;
+            _standalonePaused  = false;
+            _toolbar.SetPaused(false);
+        }
+    }
+
+    // ── Click-to-place ─────────────────────────────────────────────────────
+
+    private void HandlePlaceTile()
+    {
+        // Get mouse position in TilemapRenderer local coordinates
+        var localPos = _renderer.GetLocalMousePosition();
+        var tileX = (int)(localPos.X / 16);
+        var tileY = (int)(localPos.Y / 16);
+
+        if (tileX < 0 || tileX >= 32 || tileY < 0 || tileY >= 32) return;
+
+        var selectedZone = _toolbar.SelectedZone;
+
+        if (_viewerMode)
+        {
+            string cmd;
+            if (selectedZone == "Erase")
+                cmd = $"{{\"cmd\":\"erase\",\"x\":{tileX},\"y\":{tileY}}}";
+            else
+                cmd = $"{{\"cmd\":\"place_zone\",\"x\":{tileX},\"y\":{tileY},\"zone\":\"{selectedZone}\"}}";
+            WriteCommand(cmd);
+        }
+        else
+        {
+            if (selectedZone == "Erase")
+            {
+                _grid.SetZone(tileX, tileY, ZoneType.Empty);
+            }
+            else
+            {
+                if (System.Enum.TryParse<ZoneType>(selectedZone, out var zoneType))
+                    _grid.SetZone(tileX, tileY, zoneType);
+            }
             _renderer.Refresh(_grid);
         }
+    }
+
+    private void WriteCommand(string json)
+    {
+        try { File.WriteAllText(_commandPath, json); }
+        catch { /* ignore — Runner may not be listening */ }
+    }
+
+    // ── Standalone HUD sync ────────────────────────────────────────────────
+
+    private void PushStandaloneHudUpdate()
+    {
+        if (_budget == null || _population == null) return;
+
+        var snapshot = _budget.Snapshot();
+        var state = new SharedState(
+            Tick:                _standaloneTick,
+            Paused:              _standalonePaused,
+            Population:          _population.Population,
+            Balance:             snapshot.Balance,
+            TaxPerTick:          snapshot.TaxIncome,
+            MaintenancePerTick:  snapshot.MaintenanceCost,
+            NetPerTick:          snapshot.NetIncome,
+            Happiness:           0.0,   // HappinessSystem not wired standalone
+            MilestoneReached:    null,
+            Tiles:               System.Array.Empty<SharedTile>()
+        );
+        _hud.UpdateStats(state);
     }
 }

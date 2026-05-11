@@ -19,7 +19,7 @@ public partial class Camera : Camera2D
     {
         if (@event is InputEventMouseButton mb)
         {
-            if (mb.ButtonIndex == MouseButton.Middle)
+            if (mb.ButtonIndex == MouseButton.Middle || mb.ButtonIndex == MouseButton.Right)
             {
                 _dragging = mb.Pressed;
                 _dragStart = mb.Position;
