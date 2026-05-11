@@ -1,0 +1,12 @@
+<Project Sdk="Godot.NET.Sdk/4.4.1">
+  <PropertyGroup>
+    <!-- net10.0 to match Loopolis.Core (Godot 4.4.1 SDK supports net10.0) -->
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>LoopolisGodot</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../src/Loopolis.Core/Loopolis.Core.csproj" />
+  </ItemGroup>
+</Project>

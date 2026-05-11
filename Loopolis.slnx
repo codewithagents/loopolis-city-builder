@@ -6,4 +6,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Loopolis.Core.Tests/Loopolis.Core.Tests.csproj" />
   </Folder>
+  <Folder Name="/godot/">
+    <Project Path="godot/Loopolis.Godot.csproj" />
+  </Folder>
 </Solution>

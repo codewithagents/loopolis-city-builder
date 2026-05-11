@@ -1,0 +1,14 @@
+[gd_scene load_steps=4 format=3 uid="uid://b3yamwhmhh5rf"]
+
+[ext_resource type="Script" uid="uid://klphfmi3ljlk" path="res://scripts/World.cs" id="1_world"]
+[ext_resource type="Script" uid="uid://bwhmvgak6j8gl" path="res://scripts/TilemapRenderer.cs" id="2_renderer"]
+[ext_resource type="Script" uid="uid://dk1qqbepncei8" path="res://scripts/Camera.cs" id="3_camera"]
+
+[node name="World" type="Node2D"]
+script = ExtResource("1_world")
+
+[node name="TilemapRenderer" type="Node2D" parent="."]
+script = ExtResource("2_renderer")
+
+[node name="Camera" type="Camera2D" parent="."]
+script = ExtResource("3_camera")

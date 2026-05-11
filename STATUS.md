@@ -26,8 +26,8 @@ Next milestone: Milestone 2 — First Playable (Godot visual + player input).
 | SimulationRunner (CLI) | ✅ Done | — |
 | DemandSystem (R/C/I) | ✅ Done | 11 |
 | SimulationEngine (orchestrator) | ✅ Done | 8 |
-| Godot TileMap renderer | ⬜ Blocked (Godot not installed) | — |
-| Player input (Godot) | ⬜ Blocked | — |
+| Godot TileMap renderer | ✅ Done (Phase 1 — Node2D _Draw) | — |
+| Player input (Godot) | ⬜ Next | — |
 
 **Total: 76 tests · 0 failures · ~0.3s runtime**
 
@@ -40,11 +40,11 @@ Next milestone: Milestone 2 — First Playable (Godot visual + player input).
 - [x] `SimulationEngine` — orchestrator class replacing manual system wiring in Runner (done)
 - [ ] Run loopolis-designer agent against GAME_DESIGN.md for design review
 
-### Session +2
-- [ ] Install Godot 4 .NET edition (godotengine.org)
-- [ ] Scaffold `godot/` project folder
-- [ ] First TileMap renderer: reads CityGrid, renders color-coded tiles
-- [ ] Camera: pan with mouse drag, zoom with scroll wheel
+### Session +2 ✅ Complete
+- [x] Install Godot 4 .NET edition (godotengine.org) — installed at `/Applications/Godot_mono.app`
+- [x] Scaffold `godot/` project folder
+- [x] First TileMap renderer: reads CityGrid, renders color-coded tiles (Node2D + _Draw, no atlas needed)
+- [x] Camera: pan with mouse drag, zoom with scroll wheel
 
 ### Session +3
 - [ ] Player input: click to place zones, draw roads
@@ -92,6 +92,32 @@ dotnet run --project src/Loopolis.Runner -- 500 no_power         # verify power 
 dotnet run --project src/Loopolis.Runner -- 500 no_roads         # verify roads required
 ```
 
+## Godot Launch
+
+```bash
+# Launch Godot editor (opens GUI, then press Play ▶ to run)
+godot --path /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/
+
+# Or open via Finder and import the project.godot:
+open /Applications/Godot_mono.app
+# → Import project → browse to: /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/project.godot
+```
+
+**Controls:**
+- Middle-mouse drag: pan camera
+- Scroll wheel: zoom in/out
+- Tiles auto-refresh every 0.5s as simulation ticks
+
+**Tile colours:**
+- Dark grey = empty
+- Green = Residential
+- Blue = Commercial
+- Yellow = Industrial
+- Grey = Road
+- Red = Power Plant
+- Cyan = Power Line
+- Dark overlay = zone present but not powered
+
 ---
 
 ## Known Open Design Questions
@@ -100,4 +126,4 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 ---
 
-*Last updated: 2026-05-11 — Session 3*
+*Last updated: 2026-05-11 — Session 4 (Godot Phase 1 scaffold)*
