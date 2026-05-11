@@ -29,8 +29,6 @@ public class RoadNetwork
         grid.ClearRoadAccess();
         AccessibleZoneCount = 0;
 
-        // Pass 1 — find all zone tiles that directly touch a road
-        var roadAdjacent = new HashSet<(int x, int y)>();
         foreach (var tile in grid.AllTiles())
         {
             if (!ZonesThatNeedRoads.Contains(tile.Zone))
@@ -40,59 +38,11 @@ public class RoadNetwork
             {
                 if (neighbour.Zone == ZoneType.Road)
                 {
-                    roadAdjacent.Add((tile.X, tile.Y));
+                    grid.SetRoadAccess(tile.X, tile.Y, true);
+                    AccessibleZoneCount++;
                     break;
                 }
             }
-        }
-
-        // Pass 2 — flood-fill same-zone clusters; mark entire cluster accessible if any tile touches a road
-        var visited = new HashSet<(int x, int y)>();
-        var accessibleTiles = new HashSet<(int x, int y)>();
-
-        foreach (var tile in grid.AllTiles())
-        {
-            if (!ZonesThatNeedRoads.Contains(tile.Zone))
-                continue;
-
-            var pos = (tile.X, tile.Y);
-            if (visited.Contains(pos))
-                continue;
-
-            // BFS flood-fill to collect the entire contiguous same-zone cluster
-            var clusterZone = tile.Zone;
-            var cluster = new List<(int x, int y)>();
-            var queue = new Queue<(int x, int y)>();
-            queue.Enqueue(pos);
-            visited.Add(pos);
-
-            while (queue.Count > 0)
-            {
-                var (cx, cy) = queue.Dequeue();
-                cluster.Add((cx, cy));
-                foreach (var n in grid.AdjacentTiles(cx, cy))
-                {
-                    var np = (n.X, n.Y);
-                    if (!visited.Contains(np) && n.Zone == clusterZone)
-                    {
-                        visited.Add(np);
-                        queue.Enqueue(np);
-                    }
-                }
-            }
-
-            // If any tile in the cluster directly touches a road, the whole cluster gets access
-            bool clusterHasAccess = cluster.Any(p => roadAdjacent.Contains(p));
-            if (clusterHasAccess)
-                foreach (var p in cluster)
-                    accessibleTiles.Add(p);
-        }
-
-        // Apply road access to all tiles in accessible clusters
-        foreach (var (x, y) in accessibleTiles)
-        {
-            grid.SetRoadAccess(x, y, true);
-            AccessibleZoneCount++;
         }
     }
 }

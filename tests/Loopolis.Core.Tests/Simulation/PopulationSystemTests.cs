@@ -154,4 +154,53 @@ public class PopulationSystemTests
 
         Assert.That(_pop.Population, Is.EqualTo(100));
     }
+
+    [Test]
+    public void InteriorTile_CanGrow_WhenAdjacentNeighbourHasSufficientPopulation()
+    {
+        var grid = new CityGrid(10, 10);
+
+        // Tile (5,5): road-adjacent, powered — will grow to pop >= 25
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetZone(4, 5, ZoneType.Road);
+        MakeReady(grid, 5, 5);
+
+        // Tile (6,5): interior — no direct road, but powered, adjacent to (5,5)
+        grid.SetZone(6, 5, ZoneType.Residential);
+        grid.SetPower(6, 5, true); // powered but no road access
+
+        // Grow (5,5) past the wave threshold of 25
+        for (var i = 0; i < 200; i++) _pop.Tick(grid);
+        Assert.That(grid.GetPopulation(5, 5), Is.GreaterThanOrEqualTo(25),
+            "Road-adjacent tile must reach pop 25 before unlocking its neighbour");
+
+        // Interior tile (6,5) should now be developing
+        var interiorPop = grid.GetPopulation(6, 5);
+        Assert.That(interiorPop, Is.GreaterThan(0),
+            "Interior tile should develop once its road-adjacent neighbour has population >= 25");
+    }
+
+    [Test]
+    public void InteriorTile_CannotGrow_WhenNeighbourPopulationTooLow()
+    {
+        var grid = new CityGrid(10, 10);
+
+        // Tile (5,5): road-adjacent, powered — grows but we'll check before it hits 25
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetZone(4, 5, ZoneType.Road);
+        MakeReady(grid, 5, 5);
+
+        // Tile (6,5): interior — no direct road, but powered
+        grid.SetZone(6, 5, ZoneType.Residential);
+        grid.SetPower(6, 5, true);
+
+        // Manually set (5,5) population to 10 — below the wave threshold of 25
+        grid.SetPopulation(5, 5, 10);
+
+        // Run just one tick — (6,5) should not develop since neighbour pop is only 10
+        _pop.Tick(grid);
+
+        Assert.That(grid.GetPopulation(6, 5), Is.EqualTo(0),
+            "Interior tile should not develop when neighbour population is below 25");
+    }
 }

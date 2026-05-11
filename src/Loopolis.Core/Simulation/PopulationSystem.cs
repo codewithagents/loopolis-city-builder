@@ -29,8 +29,25 @@ public class PopulationSystem
         {
             var current = grid.GetPopulation(tile.X, tile.Y);
 
+            // Wave-based development: direct road adjacency always works.
+            // Interior tiles unlock when a same-zone neighbour has sufficient population
+            // (dense buildings whose footprint "reaches" into the block interior).
+            bool canDevelop = tile.HasRoadAccess;
+
+            if (!canDevelop && tile.HasPower)
+            {
+                foreach (var neighbour in grid.AdjacentTiles(tile.X, tile.Y))
+                {
+                    if (neighbour.Zone == tile.Zone && neighbour.Population >= 25)
+                    {
+                        canDevelop = true;
+                        break;
+                    }
+                }
+            }
+
             int newPop;
-            if (tile.IsReadyToDevelop)
+            if (canDevelop && tile.HasPower)
             {
                 // Grow toward capacity, modified by demand factor and happiness
                 var growthMultiplier = tile.DemandFactor * tile.Happiness;
