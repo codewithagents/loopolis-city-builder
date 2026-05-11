@@ -112,4 +112,43 @@ public class MilestoneSystemTests
     {
         Assert.That(_milestones.LatestMilestone, Is.Null);
     }
+
+    [Test]
+    public void RecoverFromAbandonment_ResetsToActive_WhenNoMilestonesReached()
+    {
+        _milestones.Abandon();
+        Assert.That(_milestones.CurrentState, Is.EqualTo(GameState.Abandoned));
+
+        _milestones.RecoverFromAbandonment();
+
+        Assert.That(_milestones.CurrentState, Is.EqualTo(GameState.Active),
+            "City with no milestones should recover to Active state");
+    }
+
+    [Test]
+    public void RecoverFromAbandonment_ResetsToHighestMilestone_WhenMilestonesWereReached()
+    {
+        _milestones.Check(population: 500, balance: 5_000, netPerTick: 10, tick: 10);
+        Assert.That(_milestones.CurrentState, Is.EqualTo(GameState.Town));
+
+        _milestones.Abandon();
+        Assert.That(_milestones.CurrentState, Is.EqualTo(GameState.Abandoned));
+
+        _milestones.RecoverFromAbandonment();
+
+        Assert.That(_milestones.CurrentState, Is.EqualTo(GameState.Town),
+            "City should recover to its highest milestone (Town) after abandonment");
+    }
+
+    [Test]
+    public void RecoverFromAbandonment_IsNoOp_WhenNotAbandoned()
+    {
+        _milestones.Check(population: 500, balance: 5_000, netPerTick: 10, tick: 10);
+        Assert.That(_milestones.CurrentState, Is.EqualTo(GameState.Town));
+
+        _milestones.RecoverFromAbandonment(); // should be a no-op since not Abandoned
+
+        Assert.That(_milestones.CurrentState, Is.EqualTo(GameState.Town),
+            "RecoverFromAbandonment should be a no-op when state is not Abandoned");
+    }
 }

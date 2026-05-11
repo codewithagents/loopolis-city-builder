@@ -55,5 +55,19 @@ public class MilestoneSystem
     /// <summary>Forces the city into the Abandoned state (called by SimulationEngine when happiness is persistently low).</summary>
     public void Abandon() => CurrentState = GameState.Abandoned;
 
+    /// <summary>
+    /// Recovers the city from the Abandoned state back to Active (or the highest milestone reached).
+    /// Called by SimulationEngine when happiness recovers sufficiently after an abandonment.
+    /// </summary>
+    public void RecoverFromAbandonment()
+    {
+        if (CurrentState != GameState.Abandoned) return;
+
+        // Restore to the highest milestone reached, or Active if none
+        CurrentState = Reached.Count > 0
+            ? Milestones.Last(m => Reached.Any(r => r.Name == m.Name)).State
+            : GameState.Active;
+    }
+
     public bool IsOver => CurrentState == GameState.Bankrupt || CurrentState == GameState.Abandoned || CurrentState == GameState.Loopolis;
 }

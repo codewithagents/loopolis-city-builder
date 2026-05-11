@@ -120,8 +120,13 @@ static void RunServer(string scenario, double initialSpeed)
         while (true)
         {
             // 1. Read command
+            var pausedBefore = paused;
             ProcessCommand(commandFile, ref paused, ref speed, ref skipRemaining, ref pauseAfterSkip, ref grid, ref engine, sessionId);
             // grid/engine may have been replaced by new_game — use current references below
+
+            // If the game was just paused, immediately flush state so state.json reflects Paused: true
+            if (!pausedBefore && paused)
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId);
 
             // 2. Tick (or skip, or wait)
             if (skipRemaining > 0)

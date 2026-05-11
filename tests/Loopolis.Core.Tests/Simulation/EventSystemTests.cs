@@ -272,6 +272,59 @@ public class EventSystemTests
     }
 
     [Test]
+    public void EventSystem_FiresEventWithinReasonableTicks_WhenPopulationSufficient()
+    {
+        // Regression test: EventSystem.Tick must be reachable and fire events when population >= 100.
+        // Uses AlwaysTriggerRng (NextDouble = 0.0) to guarantee the 1% trigger check always fires.
+        // Expects at least one event within 500 ticks with population well above the 100 threshold.
+        var events = new EventSystem(new AlwaysTriggerRng());
+        var grid = MakeBasicGrid();
+
+        int eventCount = 0;
+        for (var i = 0; i < 500; i++)
+        {
+            var fired = events.Tick(grid, population: 200);
+            if (fired != null) eventCount++;
+        }
+
+        Assert.That(eventCount, Is.GreaterThan(0),
+            "At least one event should fire within 500 ticks when population >= 100 and RNG always triggers");
+    }
+
+    [Test]
+    public void SimulationEngine_PassesCorrectPopulationToEventSystem()
+    {
+        // Regression test: SimulationEngine.Tick must call EventSystem.Tick with the actual population,
+        // not a stale zero. Verifies that once population grows above 100, events can fire.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.PowerPlant);
+        grid.SetZone(5, 6, ZoneType.Road);
+        grid.SetZone(4, 6, ZoneType.Residential);
+        grid.SetZone(6, 6, ZoneType.Residential);
+
+        var eventSystem = new EventSystem(new AlwaysTriggerRng());
+        var engine = new SimulationEngine(
+            grid,
+            new BudgetSystem(10_000),
+            new PopulationSystem(),
+            new PowerNetwork(),
+            new RoadNetwork(),
+            new DemandSystem(),
+            eventSystem: eventSystem);
+
+        // Run enough ticks for population to grow above 100 and cooldown to expire
+        int eventsFired = 0;
+        for (var i = 0; i < 300; i++)
+        {
+            engine.Tick();
+            if (engine.LatestEventBanner != null) eventsFired++;
+        }
+
+        Assert.That(eventsFired, Is.GreaterThan(0),
+            "SimulationEngine must pass Population.Population to EventSystem so events fire once pop > 100");
+    }
+
+    [Test]
     public void SmallCity_DoesNotGetPowerOutageOrDemandSlump()
     {
         // AlwaysTriggerRng returns 0.0 for all calls.

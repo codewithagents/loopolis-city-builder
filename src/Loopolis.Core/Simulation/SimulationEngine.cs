@@ -78,6 +78,13 @@ public class SimulationEngine
         if (_lowHappinessTicks >= LowHappinessLimit)
             MilestoneSystem.Abandon();
 
+        // Recovery: if abandoned but happiness has recovered well above the threshold, clear it
+        if (MilestoneSystem.CurrentState == GameState.Abandoned && avgHappiness >= AbandonThreshold + 0.15)
+        {
+            _lowHappinessTicks = 0;
+            MilestoneSystem.RecoverFromAbandonment();
+        }
+
         Population.Tick(Grid);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();
