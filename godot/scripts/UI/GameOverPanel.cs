@@ -90,6 +90,22 @@ public partial class GameOverPanel : CanvasLayer
         _overlay.Visible = true;
     }
 
+    /// <summary>Show the abandoned panel when happiness stayed below 0.3 for 30 consecutive ticks.</summary>
+    public void ShowAbandoned(int tick, int population, double happiness)
+    {
+        _titleLabel.Text = "CITY ABANDONED";
+        _titleLabel.AddThemeColorOverride("font_color", new Color(0.35f, 0.2f, 0.7f));
+
+        _statsLabel.Text =
+            $"Final tick: {tick:N0}   |   " +
+            $"Population: {population:N0}   |   " +
+            $"Happiness: {(int)(happiness * 100)}%";
+
+        _hintLabel.Text = "Citizens fled — build Fire/Police/School to maintain happiness";
+
+        _overlay.Visible = true;
+    }
+
     public new void Hide()
     {
         _overlay.Visible = false;

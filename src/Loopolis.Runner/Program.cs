@@ -337,7 +337,8 @@ static void WriteState(string tmpPath, string statePath, SimulationEngine engine
         NextMilestoneTarget:       nextMilestoneTarget,
         ActiveEventName:           activeEvent?.Name,
         ActiveEventDescription:    activeEvent?.Description,
-        LatestEventBanner:         engine.LatestEventBanner
+        LatestEventBanner:         engine.LatestEventBanner,
+        TaxModifier:               engine.Budget.TaxModifier
     );
 
     var options = new JsonSerializerOptions
@@ -580,7 +581,8 @@ record ServerState(
     int NextMilestoneTarget = 0,
     string? ActiveEventName = null,
     string? ActiveEventDescription = null,
-    string? LatestEventBanner = null);
+    string? LatestEventBanner = null,
+    double TaxModifier = 0.0);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

@@ -151,17 +151,27 @@ public partial class HudOverlay : CanvasLayer
         _netLabel.AddThemeColorOverride("font_color",
             state.NetPerTick >= 0 ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.3f, 0.3f));
 
+        var taxModStr = state.TaxModifier > 0.001  ? " [↓Tax +happy]" :
+                        state.TaxModifier < -0.001 ? " [↑Tax -happy]" : "";
         if (state.CommercialIncomePerTick > 0)
-            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1} | Shops: ${state.CommercialIncomePerTick:F1} | Costs: ${state.MaintenancePerTick:F1}/tick";
+            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1} | Shops: ${state.CommercialIncomePerTick:F1} | Costs: ${state.MaintenancePerTick:F1}/tick{taxModStr}";
         else
-            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1}/tick | Costs: ${state.MaintenancePerTick:F1}/tick";
+            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1}/tick | Costs: ${state.MaintenancePerTick:F1}/tick{taxModStr}";
+
+        _taxCostLabel.AddThemeColorOverride("font_color",
+            state.TaxModifier > 0.001  ? new Color(0.3f, 1f, 0.3f) :
+            state.TaxModifier < -0.001 ? new Color(1f, 0.3f, 0.3f) :
+                                         new Color(0.9f, 0.9f, 0.9f));
 
         var happyPct = (int)(state.Happiness * 100);
         _happyLabel.Text = $"Happiness: {happyPct}%";
 
         if (!string.IsNullOrEmpty(state.ActiveEventName))
         {
-            _eventLabel.Text = $"! {state.ActiveEventName} — happiness -{(state.ActiveEventName.Contains("Fire") ? "15" : "10")}%";
+            var penaltyPct = state.ActiveEventName.Contains("Fire")  ? "15" :
+                             state.ActiveEventName.Contains("Crime") ? "10" :
+                             state.ActiveEventName.Contains("Power") ? "12" : "5";
+            _eventLabel.Text = $"! {state.ActiveEventName} — happiness -{penaltyPct}%";
             _eventLabel.Visible = true;
         }
         else

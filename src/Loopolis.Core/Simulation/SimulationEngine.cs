@@ -36,6 +36,10 @@ public class SimulationEngine
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
     public string? LatestEventBanner { get; private set; }
 
+    private int _lowHappinessTicks = 0;
+    private const int LowHappinessLimit = 30;
+    private const double AbandonThreshold = 0.30;
+
     public SimulationEngine(CityGrid grid, BudgetSystem budget, PopulationSystem population,
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,
         PollutionSystem? pollutionSystem = null, HappinessSystem? happinessSystem = null,
@@ -63,6 +67,17 @@ public class SimulationEngine
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
         HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty);  // happiness uses pollution + demand + tax modifier + event penalty
+
+        // Track low-happiness ticks for abandonment loss condition
+        var avgHappiness = HappinessSystem.AverageHappiness(Grid);
+        if (avgHappiness < AbandonThreshold)
+            _lowHappinessTicks++;
+        else
+            _lowHappinessTicks = 0;
+
+        if (_lowHappinessTicks >= LowHappinessLimit)
+            MilestoneSystem.Abandon();
+
         Population.Tick(Grid);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes();

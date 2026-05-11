@@ -195,6 +195,106 @@ public class EventSystemTests
         Assert.That(events.HappinessPenalty, Is.EqualTo(0.0),
             "HappinessPenalty should return to 0 after event expires");
     }
+
+    [Test]
+    public void PowerOutage_EventType_AndPenalty_NoPowerPlantBackup()
+    {
+        // Sequence: 0.0 triggers the event, 0.65 picks PowerOutage (0.60 <= roll < 0.80)
+        // Population >= 200, all services covered → weighted picker active
+        // Grid has no power plants → duration = 30
+        var events = new EventSystem(new SequenceRng(0.0, 0.65));
+        var grid = MakeBasicGrid();
+        grid.SetZone(1, 1, ZoneType.FireStation);
+        grid.SetZone(1, 2, ZoneType.PoliceStation);
+
+        CityEvent? fired = null;
+        for (var i = 0; i < 200; i++)
+        {
+            fired = events.Tick(grid, population: 500);
+            if (fired != null) break;
+        }
+
+        Assert.That(fired?.Type, Is.EqualTo(CityEventType.PowerOutage),
+            "With trigger=0.0 and pick=0.65 and all services, PowerOutage should be triggered");
+        Assert.That(events.HappinessPenalty, Is.EqualTo(-0.12).Within(0.001),
+            "PowerOutage should impose -0.12 happiness penalty");
+        Assert.That(fired!.DurationTicks, Is.EqualTo(30),
+            "PowerOutage with no backup power plants should last 30 ticks");
+    }
+
+    [Test]
+    public void PowerOutage_ShortDuration_WithBackupPowerPlants()
+    {
+        // Sequence: 0.0 triggers, 0.65 picks PowerOutage. Grid has 2 power plants → duration = 10
+        var events = new EventSystem(new SequenceRng(0.0, 0.65));
+        var grid = MakeBasicGrid();
+        grid.SetZone(1, 1, ZoneType.FireStation);
+        grid.SetZone(1, 2, ZoneType.PoliceStation);
+        grid.SetZone(2, 1, ZoneType.PowerPlant);
+        grid.SetZone(2, 2, ZoneType.PowerPlant);
+
+        CityEvent? fired = null;
+        for (var i = 0; i < 200; i++)
+        {
+            fired = events.Tick(grid, population: 500);
+            if (fired != null) break;
+        }
+
+        Assert.That(fired?.Type, Is.EqualTo(CityEventType.PowerOutage),
+            "PowerOutage should fire");
+        Assert.That(fired!.DurationTicks, Is.EqualTo(10),
+            "PowerOutage with 2+ power plants should resolve quickly (10 ticks)");
+    }
+
+    [Test]
+    public void DemandSlump_EventType_AndPenalty()
+    {
+        // Sequence: 0.0 triggers, 0.85 picks DemandSlump (roll >= 0.80)
+        // Population >= 200, all services covered
+        var events = new EventSystem(new SequenceRng(0.0, 0.85));
+        var grid = MakeBasicGrid();
+        grid.SetZone(1, 1, ZoneType.FireStation);
+        grid.SetZone(1, 2, ZoneType.PoliceStation);
+
+        CityEvent? fired = null;
+        for (var i = 0; i < 200; i++)
+        {
+            fired = events.Tick(grid, population: 500);
+            if (fired != null) break;
+        }
+
+        Assert.That(fired?.Type, Is.EqualTo(CityEventType.DemandSlump),
+            "With trigger=0.0 and pick=0.85 and all services, DemandSlump should be triggered");
+        Assert.That(events.HappinessPenalty, Is.EqualTo(-0.05).Within(0.001),
+            "DemandSlump should impose -0.05 happiness penalty");
+        Assert.That(fired!.DurationTicks, Is.EqualTo(40),
+            "DemandSlump should always last 40 ticks (no mitigation)");
+    }
+
+    [Test]
+    public void SmallCity_DoesNotGetPowerOutageOrDemandSlump()
+    {
+        // AlwaysTriggerRng returns 0.0 for all calls.
+        // Population < 200 → only FireBreak/CrimeWave branch runs.
+        // With 0.0 and both services covered, 0.0 < 0.5 → FireBreak
+        var events = new EventSystem(new AlwaysTriggerRng());
+        var grid = MakeBasicGrid();
+        grid.SetZone(1, 1, ZoneType.FireStation);
+        grid.SetZone(1, 2, ZoneType.PoliceStation);
+
+        CityEvent? fired = null;
+        for (var i = 0; i < 200; i++)
+        {
+            fired = events.Tick(grid, population: 150); // below 200 threshold
+            if (fired != null) break;
+        }
+
+        Assert.That(fired, Is.Not.Null, "An event should have fired");
+        Assert.That(fired!.Type, Is.Not.EqualTo(CityEventType.PowerOutage),
+            "Small cities (pop < 200) should not get PowerOutage events");
+        Assert.That(fired.Type, Is.Not.EqualTo(CityEventType.DemandSlump),
+            "Small cities (pop < 200) should not get DemandSlump events");
+    }
 }
 
 /// <summary>
@@ -204,5 +304,26 @@ public class EventSystemTests
 internal class AlwaysTriggerRng : Random
 {
     public override double NextDouble() => 0.0;
+    public override int Next(int minValue, int maxValue) => minValue;
+}
+
+/// <summary>
+/// Test double: cycles through a provided sequence of doubles, repeating the last value when exhausted.
+/// Useful when a method makes multiple NextDouble() calls (trigger check + event type picker).
+/// </summary>
+internal class SequenceRng : Random
+{
+    private readonly double[] _sequence;
+    private int _index = 0;
+
+    public SequenceRng(params double[] sequence) => _sequence = sequence;
+
+    public override double NextDouble()
+    {
+        var value = _sequence[_index];
+        if (_index < _sequence.Length - 1) _index++;
+        return value;
+    }
+
     public override int Next(int minValue, int maxValue) => minValue;
 }

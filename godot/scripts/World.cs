@@ -146,6 +146,17 @@ public partial class World : Node2D
                 _gameOverPanel.ShowBankrupt(_standaloneTick, _budget!.Balance, _population!.Population);
                 _hintOverlay.SetGameOver();
             }
+
+            // Abandoned check
+            if (_engine.MilestoneSystem.CurrentState == Loopolis.Core.Simulation.GameState.Abandoned)
+            {
+                _gameOver = true;
+                _standalonePaused = true;
+                _toolbar.SetPaused(true);
+                var happiness = _engine.HappinessSystem.AverageHappiness(_grid);
+                _gameOverPanel.ShowAbandoned(_standaloneTick, _population!.Population, happiness);
+                _hintOverlay.SetGameOver();
+            }
         }
     }
 
@@ -418,7 +429,8 @@ public partial class World : Node2D
             NextMilestoneTarget:       nextMilestoneTarget,
             ActiveEventName:           activeEvent?.Name,
             ActiveEventDescription:    activeEvent?.Description,
-            LatestEventBanner:         _engine.LatestEventBanner
+            LatestEventBanner:         _engine.LatestEventBanner,
+            TaxModifier:               _budget.TaxModifier
         );
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);

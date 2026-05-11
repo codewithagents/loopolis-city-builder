@@ -1,6 +1,6 @@
 namespace Loopolis.Core.Simulation;
 
-public enum GameState { Active, Town, City, Metropolis, Loopolis, Bankrupt }
+public enum GameState { Active, Town, City, Metropolis, Loopolis, Bankrupt, Abandoned }
 
 public record MilestoneReached(string Name, string Emoji, int PopulationRequired, int ReachedAtTick);
 
@@ -52,5 +52,8 @@ public class MilestoneSystem
         }
     }
 
-    public bool IsOver => CurrentState == GameState.Bankrupt || CurrentState == GameState.Loopolis;
+    /// <summary>Forces the city into the Abandoned state (called by SimulationEngine when happiness is persistently low).</summary>
+    public void Abandon() => CurrentState = GameState.Abandoned;
+
+    public bool IsOver => CurrentState == GameState.Bankrupt || CurrentState == GameState.Abandoned || CurrentState == GameState.Loopolis;
 }

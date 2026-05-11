@@ -2,7 +2,7 @@ using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Simulation;
 
-public enum CityEventType { None, FireBreak, CrimeWave }
+public enum CityEventType { None, FireBreak, CrimeWave, PowerOutage, DemandSlump }
 
 public record CityEvent(CityEventType Type, string Name, string Description, int DurationTicks);
 
@@ -20,8 +20,10 @@ public class EventSystem
 
     public double HappinessPenalty => _activeEvent?.Type switch
     {
-        CityEventType.FireBreak  => -0.15,
-        CityEventType.CrimeWave => -0.10,
+        CityEventType.FireBreak   => -0.15,
+        CityEventType.CrimeWave  => -0.10,
+        CityEventType.PowerOutage => -0.12,
+        CityEventType.DemandSlump => -0.05,
         _ => 0.0
     };
 
@@ -55,34 +57,74 @@ public class EventSystem
         // Random trigger: ~1% chance per tick once cooldown expires
         if (_rng.NextDouble() > 0.01) return null;
 
-        // Pick event type based on coverage status
+        // Pick event type based on coverage status and population
         bool hasFireStation   = grid.AllTiles().Any(t => t.Zone == ZoneType.FireStation);
         bool hasPoliceStation = grid.AllTiles().Any(t => t.Zone == ZoneType.PoliceStation);
 
-        // Prefer to trigger events for uncovered situations (teaches player)
         CityEventType type;
-        if (!hasFireStation && !hasPoliceStation)
-            type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
-        else if (!hasFireStation)
-            type = CityEventType.FireBreak;
-        else if (!hasPoliceStation)
-            type = CityEventType.CrimeWave;
+        if (population < 200)
+        {
+            // Small cities only get fire/crime events (teaches player early services)
+            if (!hasFireStation && !hasPoliceStation)
+                type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
+            else if (!hasFireStation)
+                type = CityEventType.FireBreak;
+            else if (!hasPoliceStation)
+                type = CityEventType.CrimeWave;
+            else
+                type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
+        }
         else
-            // Both covered → random, shorter duration (stations help)
-            type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
+        {
+            // Larger cities: prefer uncovered service events, but also PowerOutage / DemandSlump
+            if (!hasFireStation && !hasPoliceStation)
+                type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
+            else if (!hasFireStation)
+                type = CityEventType.FireBreak;
+            else if (!hasPoliceStation)
+                type = CityEventType.CrimeWave;
+            else
+            {
+                // All services covered — weighted pick across all 4 types
+                var roll = _rng.NextDouble();
+                type = roll < 0.30 ? CityEventType.FireBreak
+                     : roll < 0.60 ? CityEventType.CrimeWave
+                     : roll < 0.80 ? CityEventType.PowerOutage
+                     : CityEventType.DemandSlump;
+            }
+        }
 
-        bool isCovered = (type == CityEventType.FireBreak && hasFireStation) ||
+        bool isCovered = (type == CityEventType.FireBreak  && hasFireStation) ||
                          (type == CityEventType.CrimeWave && hasPoliceStation);
 
-        var duration = isCovered ? 20 : 60; // covered cities resolve faster
+        int duration;
+        if (type == CityEventType.PowerOutage)
+        {
+            var powerPlantCount = grid.AllTiles().Count(t => t.Zone == ZoneType.PowerPlant);
+            duration = powerPlantCount >= 2 ? 10 : 30;
+        }
+        else if (type == CityEventType.DemandSlump)
+        {
+            duration = 40; // economic cycle — no mitigation
+        }
+        else
+        {
+            duration = isCovered ? 20 : 60; // covered cities resolve faster
+        }
 
         _activeEvent = type switch
         {
             CityEventType.FireBreak => new CityEvent(type, "Fire Break!",
                 isCovered ? "Fire stations contain the blaze" : "No fire stations! Happiness dropping fast",
                 duration),
-            _ => new CityEvent(type, "Crime Wave!",
+            CityEventType.CrimeWave => new CityEvent(type, "Crime Wave!",
                 isCovered ? "Police keep the streets safe" : "No police stations! Citizens fleeing",
+                duration),
+            CityEventType.PowerOutage => new CityEvent(type, "⚡ Power Outage!",
+                duration == 10 ? "Backup power plants restore grid quickly" : "No backup power — outage lasts longer",
+                duration),
+            _ => new CityEvent(type, "📉 Demand Slump!",
+                "Economic cycle — shops less profitable, happiness dips",
                 duration),
         };
         _ticksRemaining = duration;

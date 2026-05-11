@@ -21,6 +21,7 @@ public partial class SharedStateReader : Node
     private Toolbar _toolbar = null!;
     private GameOverPanel _gameOverPanel = null!;
     private bool _bankruptShown = false;
+    private bool _abandonedShown = false;
     private double _pollTimer = 0;
     private const double PollInterval = 0.05; // 20Hz polling
 
@@ -80,6 +81,21 @@ public partial class SharedStateReader : Node
                 }
                 catch { /* runner may not be listening */ }
             }
+
+            // Abandoned detection — show panel once and pause the server
+            if (!_abandonedShown && state.GameState == "Abandoned")
+            {
+                _abandonedShown = true;
+                _hintOverlay.SetGameOver();
+                _gameOverPanel.ShowAbandoned(state.Tick, state.Population, state.Happiness);
+                try
+                {
+                    var projectDir = ProjectSettings.GlobalizePath("res://");
+                    var commandPath = System.IO.Path.Combine(projectDir, "shared", "command.json");
+                    System.IO.File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
+                }
+                catch { /* runner may not be listening */ }
+            }
         }
         catch (Exception)
         {
@@ -124,7 +140,8 @@ public record SharedState(
     int NextMilestoneTarget = 0,
     string? ActiveEventName = null,
     string? ActiveEventDescription = null,
-    string? LatestEventBanner = null
+    string? LatestEventBanner = null,
+    double TaxModifier = 0.0
 );
 
 public record SharedTile(
