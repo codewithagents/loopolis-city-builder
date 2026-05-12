@@ -50,8 +50,9 @@
 | CommutePenalty (HappinessSystem) | ✅ Done | 14 |
 | HeightMapGenerator (diamond-square) | ✅ Done | 17 |
 | CityGrid HeightLevel/Forest/Plateau/Cliff | ✅ Done | 13 (added) |
+| RoadGraph (G1) | ✅ Done | 34 |
 
-**Total: 342 tests · 0 failures · ~0.30s runtime**
+**Total: 376 tests · 0 failures · ~0.31s runtime**
 
 ---
 
@@ -195,4 +196,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-11 | town | Commute penalty + Chebyshev-3 mixed-use: town scenario avg happiness 0.537 at tick 0 (down from 0.6 baseline) — industrial at y=16-24 is ~10+ tiles from residential y=10-14, triggering −0.10 commute tier. happinessBreakdown.commutePenalty = −0.0462 in live state.json. default scenario: commutePenalty = 0.0 (no industrial). | Working correctly |
 | 2026-05-12 | generated_map seed=99 | Height system: 63 water tiles (6.1%), 50 elevated, 42 plateaus on 32×32 grid. TerrainSummary in state.json (averageHeight=1.01). All existing scenarios (default/town/mixed/no_power/no_roads) unchanged — SetFlatTerrain() ensures immunity to procedural terrain. Cliff road constraint rejects height diff >1. | Working correctly |
 
-*Last updated: 2026-05-12 — Height Level System: diamond-square terrain, plateau/cliff classification, v3 saves*
+| 2026-05-12 | default | G1 road graph: RoadGraph data structure added as pure foundation layer. 500-tick default run unchanged — pop 200, balance +$9,885, +$12.40/tick. Zero simulation impact (data structure only). roadGraphNodes field confirmed in state.json. | — |
+
+*Last updated: 2026-05-12 — G1 RoadGraph: weighted Dijkstra graph, SimulationEngine integration, 34 new tests*
