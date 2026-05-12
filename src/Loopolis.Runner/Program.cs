@@ -1040,7 +1040,10 @@ static void WriteState(
         LastCommand:               lastCommand,
         Terrain:                   terrainSummary,
         RoadGraphNodes:            engine.RoadGraph.NodeCount,
-        WorkerFlow:                workerFlowState
+        WorkerFlow:                workerFlowState,
+        EventTileX:                engine.EventSystem.FireTileX,
+        EventTileY:                engine.EventSystem.FireTileY,
+        LastDegradedBuildings:     engine.LastDegradedBuildings?.ToArray()
     );
 
     var options = new JsonSerializerOptions
@@ -1571,7 +1574,10 @@ record ServerState(
     string? LastCommand = null,
     TerrainSummary? Terrain = null,
     int RoadGraphNodes = 0,
-    WorkerFlowState? WorkerFlow = null);
+    WorkerFlowState? WorkerFlow = null,
+    int EventTileX = -1,   // X coord of tile currently on fire (-1 = none)
+    int EventTileY = -1,   // Y coord of tile currently on fire (-1 = none)
+    string[]? LastDegradedBuildings = null); // typeIds demolished by BuildingDegradationSystem this tick
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

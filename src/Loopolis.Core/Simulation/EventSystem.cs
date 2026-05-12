@@ -1,3 +1,4 @@
+using System.Linq;
 using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Simulation;
@@ -14,6 +15,15 @@ public class EventSystem
     private int _cooldownTicks;      // ticks until next event can fire
     private const int MinCooldown = 100;
     private const int MaxCooldown = 200;
+
+    // Fire damage tracking — the tile currently on fire during a FireBreak event.
+    // (-1,-1) means no fire tile this event.
+    public int FireTileX { get; private set; } = -1;
+    public int FireTileY { get; private set; } = -1;
+
+    // Set to true on the tick the fire ends without fire-station coverage.
+    // SimulationEngine reads this flag each tick and demolishes the tile if set.
+    public bool FireDamageOccurred { get; private set; }
 
     public CityEvent? ActiveEvent => _activeEvent;
     public bool HasActiveEvent => _activeEvent != null;
@@ -36,6 +46,9 @@ public class EventSystem
     /// <summary>Run each simulation tick. Returns a new event if one just fired (for banner display).</summary>
     public CityEvent? Tick(CityGrid grid, int population)
     {
+        // Clear one-shot flags
+        FireDamageOccurred = false;
+
         // Count-down cooldown
         if (_cooldownTicks > 0) { _cooldownTicks--; return null; }
 
@@ -45,6 +58,17 @@ public class EventSystem
             _ticksRemaining--;
             if (_ticksRemaining <= 0)
             {
+                // FireBreak ends: if no fire station covered the tile, mark fire damage
+                if (_activeEvent.Type == CityEventType.FireBreak && FireTileX >= 0)
+                {
+                    bool fireStationExists = grid.AllTiles().Any(t => t.Zone == ZoneType.FireStation);
+                    if (!fireStationExists)
+                        FireDamageOccurred = true;
+                    else
+                        // Fire station extinguished it — no damage, clear fire tile
+                        FireTileX = FireTileY = -1;
+                }
+
                 _activeEvent = null;
                 _cooldownTicks = _rng.Next(MinCooldown, MaxCooldown);
             }
@@ -112,12 +136,27 @@ public class EventSystem
             duration = isCovered ? 20 : 60; // covered cities resolve faster
         }
 
+        // For FireBreak: pick a random occupied residential or commercial tile to catch fire
+        if (type == CityEventType.FireBreak)
+        {
+            FireTileX = FireTileY = -1; // reset previous fire tile
+            var candidates = grid.AllTiles()
+                .Where(t => t.Zone is ZoneType.Residential or ZoneType.Commercial && t.Population > 0)
+                .ToArray();
+            if (candidates.Length > 0)
+            {
+                var chosen = candidates[_rng.Next(candidates.Length)];
+                FireTileX = chosen.X;
+                FireTileY = chosen.Y;
+            }
+        }
+
         _activeEvent = type switch
         {
-            CityEventType.FireBreak => new CityEvent(type, "Fire Break!",
-                isCovered ? "Fire stations contain the blaze" : "No fire stations! Happiness dropping fast",
+            CityEventType.FireBreak => new CityEvent(type, "🔥 Fire Break!",
+                isCovered ? "Fire stations contain the blaze" : "No fire stations! Building at risk!",
                 duration),
-            CityEventType.CrimeWave => new CityEvent(type, "Crime Wave!",
+            CityEventType.CrimeWave => new CityEvent(type, "🚔 Crime Wave!",
                 isCovered ? "Police keep the streets safe" : "No police stations! Citizens fleeing",
                 duration),
             CityEventType.PowerOutage => new CityEvent(type, "⚡ Power Outage!",

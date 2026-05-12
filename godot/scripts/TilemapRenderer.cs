@@ -1,4 +1,5 @@
 using Godot;
+using System;
 using System.Collections.Generic;
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
@@ -90,6 +91,24 @@ public partial class TilemapRenderer : Node2D
     private static readonly Color IdleBorderColor   = new Color(1f, 0.561f, 0f, 0.85f); // #FF8F00
 
     private bool _isBrownout = false;
+
+    // Fire tile — on-fire overlay for FireBreak event
+    private static readonly Color FireOverlay = new Color(1f, 0.25f, 0f, 0.60f);   // vivid orange-red
+    private static readonly Color FireBorder  = new Color(1f, 0.70f, 0f, 0.95f);   // bright amber border
+    private int _fireTileX = -1;
+    private int _fireTileY = -1;
+
+    /// <summary>
+    /// Sets the tile currently on fire (shown with vivid orange-red overlay).
+    /// Pass (-1, -1) to clear the fire tile.
+    /// </summary>
+    public void SetFireTile(int x, int y)
+    {
+        if (_fireTileX == x && _fireTileY == y) return;
+        _fireTileX = x;
+        _fireTileY = y;
+        QueueRedraw();
+    }
 
     // Rectangle paint preview
     private bool _hasRectPreview = false;
@@ -955,9 +974,35 @@ public partial class TilemapRenderer : Node2D
             if (w > 1 || h > 1)
             {
                 var labelPos = new Vector2(rx + previewBorderW + 2, ry + previewBorderW + 1);
-                DrawString(ThemeDB.FallbackFont, labelPos, $"{w}×{h}", HorizontalAlignment.Left, -1, 11,
+                DrawString(ThemeDB.FallbackFont, labelPos, $"{w}\xd7{h}", HorizontalAlignment.Left, -1, 11,
                     new Color(1f, 1f, 1f, 0.9f));
             }
+        }
+
+        // ── Fire tile overlay ────────────────────────────────────────────────
+        // Vivid orange-red pulse over the burning tile during a FireBreak event.
+        if (_fireTileX >= 0 && _fireTileY >= 0)
+        {
+            // Pulsing intensity: oscillate between 40% and 85% opacity
+            var pulse = (float)(0.60 + 0.25 * Math.Sin(Time.GetTicksMsec() / 250.0));
+            var fireColor = new Color(FireOverlay.R, FireOverlay.G, FireOverlay.B, pulse);
+            var fireRect  = new Rect2(_fireTileX * TileSize, _fireTileY * TileSize, TileSize, TileSize);
+            DrawRect(fireRect, fireColor);
+
+            // Bright amber border
+            const int fireBorderW = 3;
+            var fb = FireBorder;
+            DrawRect(new Rect2(fireRect.Position, new Vector2(fireRect.Size.X, fireBorderW)), fb);
+            DrawRect(new Rect2(fireRect.Position.X, fireRect.End.Y - fireBorderW, fireRect.Size.X, fireBorderW), fb);
+            DrawRect(new Rect2(fireRect.Position, new Vector2(fireBorderW, fireRect.Size.Y)), fb);
+            DrawRect(new Rect2(fireRect.End.X - fireBorderW, fireRect.Position.Y, fireBorderW, fireRect.Size.Y), fb);
+
+            // Fire emoji drawn above the tile
+            var emojiPos = new Vector2(_fireTileX * TileSize + 4, _fireTileY * TileSize - 2);
+            DrawString(ThemeDB.FallbackFont, emojiPos, "fire", HorizontalAlignment.Left, -1, 18,
+                new Color(1f, 0.8f, 0f, 0.9f));
+
+            QueueRedraw(); // keep pulsing each frame
         }
     }
 }

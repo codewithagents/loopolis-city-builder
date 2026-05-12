@@ -154,6 +154,7 @@ public partial class SharedStateReader : Node
             DetectBuildingDegradation(state);
             _renderer.RefreshWithHeight(grid, heightMap, forestMap);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
+            _renderer.SetFireTile(state.EventTileX, state.EventTileY);
             _hud.UpdateStats(state);
             _hintOverlay.UpdateHints(state);
             _cityHealth.UpdateWarnings(state);
@@ -392,7 +393,9 @@ public record SharedState(
     string? PauseReason = null,
     PowerStateDto? Power = null,            // power supply/demand from PowerCapacitySystem
     WorkerFlowDto? WorkerFlow = null,       // commute routing stats (G4)
-    string[]? LastDegradedBuildings = null  // typeIds of buildings demolished by degradation this tick
+    string[]? LastDegradedBuildings = null, // typeIds of buildings demolished by degradation this tick
+    int EventTileX = -1,                    // X of tile currently on fire (-1 = none)
+    int EventTileY = -1                     // Y of tile currently on fire (-1 = none)
 )
 {
     /// <summary>

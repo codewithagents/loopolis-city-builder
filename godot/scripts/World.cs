@@ -1276,6 +1276,7 @@ public partial class World : Node2D
         _hintOverlay.UpdateHints(state);
         _cityHealth.UpdateWarnings(state);
         _renderer.SetBrownout(pcs.IsBrownout);
+        _renderer.SetFireTile(_engine.EventSystem.FireTileX, _engine.EventSystem.FireTileY);
         _toolbar.UpdateMilestoneLocks(_population.Population);
         UpdateEventLog(state, milestone);
     }

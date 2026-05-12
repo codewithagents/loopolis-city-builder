@@ -176,6 +176,12 @@ public class SimulationEngine
         DemandSystem.Propagate(Grid);      // demand before happiness
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
+
+        // Fire damage: demolish the burning tile when FireBreak ends without fire station
+        if (EventSystem.FireDamageOccurred && EventSystem.FireTileX >= 0)
+        {
+            EraseTile(EventSystem.FireTileX, EventSystem.FireTileY);
+        }
         HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute (road-graph distance)
         LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph);  // capacity-aware service coverage snapshot
         LandValueSystem.Propagate(Grid);   // land value after happiness is computed
