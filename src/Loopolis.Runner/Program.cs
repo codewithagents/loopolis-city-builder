@@ -253,8 +253,10 @@ static string? DetectActionableSkipPauseReason(SimulationEngine engine, CityGrid
     if (engine.Budget.Balance < oneTick && engine.Budget.Balance < 0)
         return "BankruptcyWarning";
 
-    // Brownout: supply dropped below demand this tick
-    if (engine.PowerCapacitySystem.IsBrownout)
+    // Brownout: supply dropped below demand this tick.
+    // Only fire when there IS a power plant (IsActiveBrownout) AND the city is past the
+    // 30-tick grace period.  No-plant early-game states (supply == 0) are NOT actionable.
+    if (engine.PowerCapacitySystem.IsActiveBrownout && engine.TickCount > 30)
         return "Brownout";
 
     // Abandonment warning: happiness dropping below threshold
@@ -1293,6 +1295,9 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             // School at (13,16): road-adjacent to (13,15). Graph distance to west residential (7,14) ≈ 7.
             // Graph distance to east residential (17,14) ≈ 5. Both well within School radius 10.0.
             grid.SetZone(13, 16, ZoneType.School);
+
+            // Park near residential center — gives +0.10 happiness to Chebyshev-2 neighbours
+            grid.SetZone(11, 13, ZoneType.Park);
             break;
 
         case "powered_start":
@@ -1607,6 +1612,7 @@ static class AsciiRenderer
                     ZoneType.CoalPlant    => ("K", Red),
                     ZoneType.NuclearPlant => ("N", White),
                     ZoneType.PowerLine    => ("╌", Cyan),
+                    ZoneType.Park         => ("P", Green),
                     _                     => ("·", Gray),
                 };
                 Console.Write($"{color}{symbol}{Reset}");

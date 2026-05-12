@@ -56,6 +56,14 @@ public class PowerCapacitySystem
     public bool   IsBrownout       { get; private set; }
 
     /// <summary>
+    /// True only when there IS at least one power plant (supply > 0) but demand exceeds supply.
+    /// False when there is no power plant at all (supply == 0), which is the normal early-game
+    /// state and should NOT be treated as an actionable brownout.
+    /// Use this in Tier-1 skip-pause checks instead of IsBrownout.
+    /// </summary>
+    public bool IsActiveBrownout => TotalSupplyMW > 0 && IsBrownout;
+
+    /// <summary>
     /// Happiness penalty per powered tile during a brownout: −0.10 × (1.0 − capacityRatio).
     /// Zero when not in brownout.
     /// </summary>

@@ -27,6 +27,7 @@ public class BudgetSystem
             { ZoneType.PoliceHQ,     15.0 },   // was 25.0
             { ZoneType.FireHQ,       15.0 },   // was 25.0
             { ZoneType.Hospital,     20.0 },   // was 35.0
+            { ZoneType.Park,          1.0 },   // decorative tile — modest maintenance
         };
 
     /// <summary>
@@ -51,6 +52,7 @@ public class BudgetSystem
             { "PoliceHQ",    2_000.0 },
             { "FireHQ",      2_000.0 },
             { "Hospital",    3_000.0 },
+            { "Park",           50.0 },
             { "Erase",           0.0 },
         };
 

@@ -414,6 +414,77 @@ public class PowerCapacitySystemTests
             "NuclearPlant must propagate power to adjacent zones");
     }
 
+    // ── IsActiveBrownout ────────────────────────────────────────────────────
+
+    [Test]
+    public void IsActiveBrownout_FalseWhenNoPlant()
+    {
+        // No power plant at all — early game with only zones. IsBrownout may be true
+        // (ratio < 1.0 because demand > 0) but IsActiveBrownout must be false.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetZone(5, 6, ZoneType.Commercial);
+
+        _capacity.Propagate(grid);
+
+        Assert.That(_capacity.TotalSupplyMW, Is.EqualTo(0),  "No plant means zero supply");
+        Assert.That(_capacity.IsActiveBrownout, Is.False,
+            "IsActiveBrownout must be false when there is no power plant (supply == 0)");
+    }
+
+    [Test]
+    public void IsActiveBrownout_FalseWhenNoZonesAndNoPlant()
+    {
+        // Completely empty grid — supply=0, demand=0. Neither IsBrownout nor IsActiveBrownout.
+        var grid = new CityGrid(10, 10);
+
+        _capacity.Propagate(grid);
+
+        Assert.That(_capacity.IsActiveBrownout, Is.False,
+            "Empty grid: no plant, no zones — IsActiveBrownout must be false");
+    }
+
+    [Test]
+    public void IsActiveBrownout_TrueWhenPlantButOverloaded()
+    {
+        // CoalPlant (500 MW) + 102 Industrial tiles (510 MW demand) → ratio < 1.0, supply > 0
+        var grid = new CityGrid(20, 20);
+        grid.SetZone(0, 0, ZoneType.CoalPlant);
+
+        var count = 0;
+        for (var x = 1; x < 20 && count < 102; x++)
+        for (var y = 0; y < 20 && count < 102; y++)
+        {
+            if (grid.GetTile(x, y).Zone == ZoneType.Empty)
+            {
+                grid.SetZone(x, y, ZoneType.Industrial);
+                count++;
+            }
+        }
+
+        _capacity.Propagate(grid);
+
+        Assert.That(_capacity.TotalSupplyMW, Is.GreaterThan(0),  "Plant must be present");
+        Assert.That(_capacity.IsBrownout,   Is.True,             "Demand exceeds supply");
+        Assert.That(_capacity.IsActiveBrownout, Is.True,
+            "IsActiveBrownout must be true when plant exists but demand > supply");
+    }
+
+    [Test]
+    public void IsActiveBrownout_FalseWhenPlantWithSufficientSupply()
+    {
+        // NuclearPlant (3,000 MW) + a handful of zones — plenty of headroom
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.NuclearPlant);
+        grid.SetZone(5, 6, ZoneType.Residential);
+        grid.SetZone(5, 7, ZoneType.Commercial);
+
+        _capacity.Propagate(grid);
+
+        Assert.That(_capacity.IsActiveBrownout, Is.False,
+            "Surplus supply → no brownout, IsActiveBrownout must be false");
+    }
+
     // ── HappinessSystem integration ─────────────────────────────────────────
 
     [Test]

@@ -22,6 +22,7 @@ public enum ZoneType
     Hospital,       // coverage radius 8, happiness +0.15 — halves EventPenalty for covered tiles — unlocks at City milestone
     CoalPlant,      // 500 MW output, $500 placement, $8/tick maintenance, emits pollution radius 3 strength 0.4
     NuclearPlant,   // 3,000 MW output, $8,000 placement, $50/tick maintenance, zero pollution — unlocks at Town milestone (pop ≥ 500)
+    Park,           // decorative — no power/road required; +0.10 happiness to residential within Chebyshev-2; $1/tick maintenance
 }
 
 public record Tile(int X, int Y)
@@ -78,6 +79,7 @@ public record Tile(int X, int Y)
     {
         ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial => HasPower && HasRoadAccess,
         ZoneType.Empty => false,
+        ZoneType.Park  => true,  // parks are always ready — no power or road required
         _ => true  // infrastructure tiles (roads, power, services) don't need access to themselves
     };
 

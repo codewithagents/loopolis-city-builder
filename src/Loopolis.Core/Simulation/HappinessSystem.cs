@@ -141,6 +141,9 @@ public class HappinessSystem
         };
     }
 
+    private const int ParkBonusRadius = 2;       // Chebyshev distance
+    private const double ParkHappinessBonus = 0.10;
+
     public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
         RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null,
         int cityPopulation = 0, RoadGraph? roadGraph = null)
@@ -151,6 +154,9 @@ public class HappinessSystem
         var services = grid.AllTiles()
             .Where(t => ServiceRadius.ContainsKey(t.Zone))
             .ToList();
+
+        // Pre-compute: park tile positions for Chebyshev-2 happiness bonus
+        var parkTiles = grid.TilesOfType(ZoneType.Park).ToList();
 
         // Pre-compute: which Hospital tiles exist for event penalty reduction
         var hospitals = services.Where(t => t.Zone == ZoneType.Hospital).ToList();
@@ -240,6 +246,16 @@ public class HappinessSystem
             // brownoutPenalty is negative (e.g. −0.02), add it directly.
             if (brownoutPenalty != 0.0 && tile.HasPower)
                 happiness += brownoutPenalty;
+
+            // Park bonus: +0.10 if any park tile is within Chebyshev distance 2 (does not stack)
+            if (parkTiles.Count > 0)
+            {
+                var hasParkNearby = parkTiles.Any(p =>
+                    Math.Abs(p.X - tile.X) <= ParkBonusRadius &&
+                    Math.Abs(p.Y - tile.Y) <= ParkBonusRadius);
+                if (hasParkNearby)
+                    happiness += ParkHappinessBonus;
+            }
 
             // Traffic congestion penalty: −0.10 if adjacent to an overloaded road/avenue
             if (trafficSystem != null)
