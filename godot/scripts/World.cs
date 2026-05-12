@@ -153,10 +153,8 @@ public partial class World : Node2D
 
     private void SetupStandaloneSimulation()
     {
-        _grid = new CityGrid(StandaloneMapSize, StandaloneMapSize);
-        _terrainSeed = (int)(GD.Randi() % int.MaxValue); // random seed this run
-        GenerateTerrain(_grid, _terrainSeed);
-        SeedStarterCity(_grid);
+        _grid        = new CityGrid(StandaloneMapSize, StandaloneMapSize);
+        _terrainSeed = 0; // flat terrain — no seed needed
 
         _budget     = new BudgetSystem(); // default $4,000 starting balance
         _population = new PopulationSystem();
@@ -167,32 +165,34 @@ public partial class World : Node2D
         _engine   = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
         _gameOver = false;
 
+        SetupDefaultNewGame();
+
         _renderer.Refresh(_grid);
-        // Fit the camera to show the full map on startup
+        // Fit the camera to show the full map including the south-edge border road
         _camera.FitToMap(StandaloneMapSize, StandaloneMapSize);
         PushStandaloneHudUpdate();
     }
 
     /// <summary>
-    /// Pre-seed a minimal working city so new players immediately see the
-    /// power → road → residential chain in action.
-    ///
-    /// Layout centred around (16,14)–(16,15) on a 32×32 grid:
-    ///   PowerPlant  at (16,13)
-    ///   Road        at (16,14) and (16,15)
-    ///   Residential at (15,14), (17,14), (15,15), (17,15)
+    /// Initialises a new standalone game to match the Runner's "default" scenario:
+    /// flat terrain, a border connection at the centre of the south edge, and three
+    /// starter road tiles extending north from it.  No power plant, no pre-placed zones.
     /// </summary>
-    private static void SeedStarterCity(CityGrid grid)
+    private void SetupDefaultNewGame()
     {
-        var cx = grid.Width / 2;
-        var cy = grid.Height / 2;
-        grid.SetZone(cx,     cy - 2, ZoneType.PowerPlant);
-        grid.SetZone(cx,     cy - 1, ZoneType.Road);
-        grid.SetZone(cx,     cy,     ZoneType.Road);
-        grid.SetZone(cx - 1, cy - 1, ZoneType.Residential);
-        grid.SetZone(cx + 1, cy - 1, ZoneType.Residential);
-        grid.SetZone(cx - 1, cy,     ZoneType.Residential);
-        grid.SetZone(cx + 1, cy,     ZoneType.Residential);
+        // Flat terrain — no hills, no water, no forests
+        _grid.SetFlatTerrain();
+
+        // Border connection — centre of south edge, unerasable Regional Highway
+        _grid.PlaceBorderConnection(StandaloneMapSize / 2, StandaloneMapSize - 1);
+
+        // 3 starter road tiles extending north from the border
+        _grid.SetZone(StandaloneMapSize / 2, StandaloneMapSize - 2, ZoneType.Road);
+        _grid.SetZone(StandaloneMapSize / 2, StandaloneMapSize - 3, ZoneType.Road);
+        _grid.SetZone(StandaloneMapSize / 2, StandaloneMapSize - 4, ZoneType.Road);
+
+        // Seed road graph so the border connection registers as an ExternalAnchor
+        _engine.SeedRoadGraphFromGrid();
     }
 
     private static void GenerateTerrain(CityGrid grid, int seed)
