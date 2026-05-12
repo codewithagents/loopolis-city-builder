@@ -905,6 +905,8 @@ static void WriteState(
         totalHappiness  += zt.Happiness;
     }
     var zonedCount = zonedTiles.Count;
+    // G4: capacity-aware coverage from the last service coverage snapshot
+    var capacityCoverage = engine.LastServiceCoverage;
     var coverageSummary = new CoverageSummary(
         PoweredZonedTilesCount:   poweredZoned,
         UnpoweredZonedTilesCount: unpoweredZoned,
@@ -917,7 +919,15 @@ static void WriteState(
         OverloadedRoadCount:      engine.RoadTrafficSystem.OverloadedRoadCount,
         AvgTrafficLoad:           Math.Round(engine.RoadTrafficSystem.AvgTrafficLoad, 4),
         LandValueAvg:             Math.Round(engine.LandValueSystem.AverageLandValue(grid), 4),
-        LandValueMax:             Math.Round(engine.LandValueSystem.MaxLandValue(grid), 4)
+        LandValueMax:             Math.Round(engine.LandValueSystem.MaxLandValue(grid), 4),
+        SchoolSeatsUsed:          capacityCoverage?.SchoolSeatsUsed    ?? 0,
+        SchoolSeatsTotal:         capacityCoverage?.SchoolSeatsTotal   ?? 0,
+        PoliceCapacityUsed:       capacityCoverage?.PoliceCapacityUsed ?? 0,
+        PoliceCapacityTotal:      capacityCoverage?.PoliceCapacityTotal ?? 0,
+        FireCapacityUsed:         capacityCoverage?.FireCapacityUsed   ?? 0,
+        FireCapacityTotal:        capacityCoverage?.FireCapacityTotal  ?? 0,
+        HospitalBedsUsed:         capacityCoverage?.HospitalBedsUsed   ?? 0,
+        HospitalBedsTotal:        capacityCoverage?.HospitalBedsTotal  ?? 0
     );
 
     // --- Employment ---
@@ -1371,7 +1381,16 @@ record CoverageSummary(
     [property: JsonPropertyName("overloadedRoadCount")]      int    OverloadedRoadCount = 0,
     [property: JsonPropertyName("avgTrafficLoad")]           double AvgTrafficLoad = 0.0,
     [property: JsonPropertyName("landValueAvg")]             double LandValueAvg = 0.0,
-    [property: JsonPropertyName("landValueMax")]             double LandValueMax = 0.0);
+    [property: JsonPropertyName("landValueMax")]             double LandValueMax = 0.0,
+    // G4: capacity model fields
+    [property: JsonPropertyName("schoolSeatsUsed")]          int    SchoolSeatsUsed = 0,
+    [property: JsonPropertyName("schoolSeatsTotal")]         int    SchoolSeatsTotal = 0,
+    [property: JsonPropertyName("policeCapacityUsed")]       int    PoliceCapacityUsed = 0,
+    [property: JsonPropertyName("policeCapacityTotal")]      int    PoliceCapacityTotal = 0,
+    [property: JsonPropertyName("fireCapacityUsed")]         int    FireCapacityUsed = 0,
+    [property: JsonPropertyName("fireCapacityTotal")]        int    FireCapacityTotal = 0,
+    [property: JsonPropertyName("hospitalBedsUsed")]         int    HospitalBedsUsed = 0,
+    [property: JsonPropertyName("hospitalBedsTotal")]        int    HospitalBedsTotal = 0);
 
 record PowerState(
     [property: JsonPropertyName("supplyMW")]       int    SupplyMW,

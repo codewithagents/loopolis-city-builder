@@ -26,6 +26,9 @@ public class RoadGraph
     /// <summary>Total number of nodes in the graph.</summary>
     public int NodeCount => _nodes.Count;
 
+    /// <summary>Returns true if (x,y) is a registered road/avenue node in this graph.</summary>
+    public bool IsRoadNode(int x, int y) => _nodes.ContainsKey((x, y));
+
     /// <summary>
     /// Total number of undirected edges in the graph.
     /// Each edge is stored in both adjacency dictionaries, so we divide by 2.

@@ -51,6 +51,12 @@ public class SimulationEngine
     /// <summary>Result of the most recent WorkerFlowSystem.Route call. Null before first tick.</summary>
     public WorkerFlowResult? LastWorkerFlow { get; private set; }
 
+    /// <summary>
+    /// Capacity-aware service coverage snapshot from the most recent tick. Null before first tick.
+    /// Computed by HappinessSystem.ComputeServiceCoverage after happiness propagation.
+    /// </summary>
+    public ServiceCoverageResult? LastServiceCoverage { get; private set; }
+
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
     public string? LatestEventBanner { get; private set; }
 
@@ -150,6 +156,7 @@ public class SimulationEngine
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
         HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute (road-graph distance)
+        LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph);  // capacity-aware service coverage snapshot
         LandValueSystem.Propagate(Grid);   // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition

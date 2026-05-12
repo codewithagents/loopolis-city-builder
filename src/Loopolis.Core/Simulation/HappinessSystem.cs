@@ -267,4 +267,252 @@ public class HappinessSystem
         if (ready.Count == 0) return 1.0;
         return ready.Average(t => t.Happiness);
     }
+
+    /// <summary>
+    /// Computes capacity-aware service coverage for all four service types.
+    ///
+    /// For each service building:
+    ///   1. Run Dijkstra from the building's road neighbour → distances to all road nodes.
+    ///   2. Collect candidate tiles (residential for School/Police/Hospital; any developed tile for Fire).
+    ///   3. Sort candidates by road-graph distance ascending (closest first).
+    ///   4. Drain building capacity: mark tiles covered until capacity runs out.
+    ///
+    /// Multiple buildings of the same type stack: a tile covered by ANY building of that type is covered.
+    /// Results are aggregated into a <see cref="ServiceCoverageResult"/> snapshot.
+    /// </summary>
+    public ServiceCoverageResult ComputeServiceCoverage(CityGrid grid, RoadGraph? roadGraph = null)
+    {
+        // Service types that use capacity model (base types only — HQ variants use same logic)
+        var serviceGroups = new[]
+        {
+            new ServiceGroup(ZoneType.School,        "School"),
+            new ServiceGroup(ZoneType.PoliceStation, "Police"),
+            new ServiceGroup(ZoneType.FireStation,   "Fire"),
+            new ServiceGroup(ZoneType.Hospital,      "Hospital"),
+        };
+
+        // Collect HQ types that map onto base types
+        // PoliceHQ → PoliceStation category, FireHQ → FireStation category
+        static ZoneType BaseCategory(ZoneType z) => z switch
+        {
+            ZoneType.PoliceHQ => ZoneType.PoliceStation,
+            ZoneType.FireHQ   => ZoneType.FireStation,
+            _                 => z,
+        };
+
+        // Find all service buildings per category
+        var allServiceTiles = grid.AllTiles()
+            .Where(t => ServiceCapacityModel.Capacity.ContainsKey(t.Zone))
+            .ToList();
+
+        // For FireStation/FireHQ: candidate tiles are all developed tiles (any zone with BuildingId)
+        // For others: candidate tiles are residential tiles with road access
+        var residentialCandidates = grid.TilesOfType(ZoneType.Residential)
+            .Where(t => t.IsReadyToDevelop)
+            .ToList();
+
+        var developedCandidates = grid.AllTiles()
+            .Where(t => t.BuildingId != null)
+            .ToList();
+
+        var results = new Dictionary<ZoneType, ServiceGroupResult>();
+
+        foreach (var group in serviceGroups)
+        {
+            var serviceType    = group.ServiceType;
+            var candidates     = (serviceType == ZoneType.FireStation)
+                ? developedCandidates
+                : residentialCandidates;
+
+            // Gather all buildings in this category (including HQ variants)
+            var buildings = allServiceTiles
+                .Where(t => BaseCategory(t.Zone) == serviceType)
+                .ToList();
+
+            var seatsTotal = buildings.Sum(b => ServiceCapacityModel.Capacity[b.Zone]);
+
+            if (buildings.Count == 0 || candidates.Count == 0)
+            {
+                results[serviceType] = new ServiceGroupResult(
+                    CoveredTiles:  new HashSet<(int, int)>(),
+                    SeatsUsed:     0,
+                    SeatsTotal:    seatsTotal,
+                    TotalCandidates: candidates.Count);
+                continue;
+            }
+
+            var coveredSet = new HashSet<(int, int)>();
+            var seatsUsed  = 0;
+
+            foreach (var building in buildings)
+            {
+                if (roadGraph == null)
+                {
+                    // Fallback: Manhattan distance, no capacity drain — just pure radius coverage
+                    var mRadius = ServiceRadius.TryGetValue(building.Zone, out var r)
+                        ? r : 0;
+                    var mRadiusManhattan = ServiceRadiusManhattan.TryGetValue(building.Zone, out var mr)
+                        ? mr : 0;
+                    var capacity   = ServiceCapacityModel.Capacity[building.Zone];
+                    var remaining  = capacity;
+
+                    var sorted = candidates
+                        .OrderBy(c => Math.Abs(c.X - building.X) + Math.Abs(c.Y - building.Y))
+                        .Take(ServiceCapacityModel.MaxTilesPerBuilding)
+                        .ToList();
+
+                    foreach (var candidate in sorted)
+                    {
+                        if (remaining <= 0) break;
+                        var dist = Math.Abs(candidate.X - building.X) + Math.Abs(candidate.Y - building.Y);
+                        if (dist > mRadiusManhattan) break; // sorted ascending, can break early
+
+                        if (!coveredSet.Contains((candidate.X, candidate.Y)))
+                        {
+                            var demand = ServiceCapacityModel.GetDemandPerTile(serviceType, candidate);
+                            if (demand > 0 && remaining >= demand)
+                            {
+                                coveredSet.Add((candidate.X, candidate.Y));
+                                remaining  -= demand;
+                                seatsUsed  += demand;
+                            }
+                            else if (demand == 0)
+                            {
+                                // Tile with 0 demand (e.g. unpopulated residential) — still mark covered
+                                // but don't drain capacity for 0-demand tiles
+                                coveredSet.Add((candidate.X, candidate.Y));
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Road-graph distance coverage with capacity
+                    var radius   = ServiceRadius.TryGetValue(building.Zone, out var r) ? r : 0f;
+                    var capacity = ServiceCapacityModel.Capacity[building.Zone];
+                    var remaining = capacity;
+
+                    // Find the building's road neighbour
+                    var buildingRoadNeighbour = FindRoadNeighbour(grid, roadGraph, building.X, building.Y);
+                    if (buildingRoadNeighbour == null) continue; // building not road-accessible
+
+                    // Run Dijkstra from the building's road node → distances to all reachable road nodes
+                    var distMap = roadGraph.ShortestPathSourceMap(
+                        buildingRoadNeighbour.Value.x,
+                        buildingRoadNeighbour.Value.y);
+
+                    // Compute road-graph distance to each candidate
+                    var candidatesWithDist = new List<(Tile tile, float dist)>(
+                        Math.Min(candidates.Count, ServiceCapacityModel.MaxTilesPerBuilding * 2));
+
+                    foreach (var candidate in candidates)
+                    {
+                        var candRoadNeighbour = FindRoadNeighbour(grid, roadGraph, candidate.X, candidate.Y);
+                        if (candRoadNeighbour == null) continue;
+
+                        if (!distMap.TryGetValue(candRoadNeighbour.Value, out var d)) continue;
+                        if (d > radius) continue; // beyond service radius
+
+                        candidatesWithDist.Add((candidate, d));
+                    }
+
+                    // Sort by distance ascending — closest first
+                    candidatesWithDist.Sort((a, b) => a.dist.CompareTo(b.dist));
+
+                    // Take up to MaxTilesPerBuilding
+                    var limit = Math.Min(candidatesWithDist.Count, ServiceCapacityModel.MaxTilesPerBuilding);
+
+                    for (var i = 0; i < limit; i++)
+                    {
+                        if (remaining <= 0) break;
+                        var candidate = candidatesWithDist[i].tile;
+                        var key = (candidate.X, candidate.Y);
+
+                        if (!coveredSet.Contains(key))
+                        {
+                            var demand = ServiceCapacityModel.GetDemandPerTile(serviceType, candidate);
+                            if (demand == 0)
+                            {
+                                // Zero-demand tile (e.g. no-pop residential, no-building tile)
+                                // Mark covered without draining capacity
+                                coveredSet.Add(key);
+                            }
+                            else if (remaining >= demand)
+                            {
+                                coveredSet.Add(key);
+                                remaining  -= demand;
+                                seatsUsed  += demand;
+                            }
+                            // If demand > remaining, tile is NOT covered (out of capacity)
+                        }
+                    }
+                }
+            }
+
+            results[serviceType] = new ServiceGroupResult(
+                CoveredTiles:    coveredSet,
+                SeatsUsed:       seatsUsed,
+                SeatsTotal:      seatsTotal,
+                TotalCandidates: candidates.Count);
+        }
+
+        // --- Build result ---
+        var schoolResult  = results[ZoneType.School];
+        var policeResult  = results[ZoneType.PoliceStation];
+        var fireResult    = results[ZoneType.FireStation];
+        var hospitalResult = results[ZoneType.Hospital];
+
+        float CoveragePercent(ServiceGroupResult g) =>
+            g.TotalCandidates == 0 ? 0f
+            : (float)g.CoveredTiles.Count / g.TotalCandidates;
+
+        return new ServiceCoverageResult(
+            SchoolCoveragePercent:   CoveragePercent(schoolResult),
+            PoliceCoveragePercent:   CoveragePercent(policeResult),
+            FireCoveragePercent:     CoveragePercent(fireResult),
+            HospitalCoveragePercent: CoveragePercent(hospitalResult),
+            SchoolSeatsUsed:         schoolResult.SeatsUsed,
+            SchoolSeatsTotal:        schoolResult.SeatsTotal,
+            PoliceCapacityUsed:      policeResult.SeatsUsed,
+            PoliceCapacityTotal:     policeResult.SeatsTotal,
+            FireCapacityUsed:        fireResult.SeatsUsed,
+            FireCapacityTotal:       fireResult.SeatsTotal,
+            HospitalBedsUsed:        hospitalResult.SeatsUsed,
+            HospitalBedsTotal:       hospitalResult.SeatsTotal
+        );
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private static readonly (int dx, int dy)[] CardinalDirections =
+        { (0, -1), (0, 1), (-1, 0), (1, 0) };
+
+    /// <summary>
+    /// Returns the road-graph node for the tile at (x,y) (if it is itself a node)
+    /// or the first cardinal road-adjacent neighbour, or null if none exists.
+    /// </summary>
+    private static (int x, int y)? FindRoadNeighbour(CityGrid grid, RoadGraph roadGraph, int x, int y)
+    {
+        // Check if the tile itself is a road node
+        if (roadGraph.IsRoadNode(x, y)) return (x, y);
+
+        foreach (var (dx, dy) in CardinalDirections)
+        {
+            var nx = x + dx;
+            var ny = y + dy;
+            if (!grid.IsInBounds(nx, ny)) continue;
+            if (roadGraph.IsRoadNode(nx, ny)) return (nx, ny);
+        }
+        return null;
+    }
+
+    // ── Private helpers ────────────────────────────────────────────────────────
+
+    private record ServiceGroup(ZoneType ServiceType, string Name);
+
+    private record ServiceGroupResult(
+        HashSet<(int, int)> CoveredTiles,
+        int SeatsUsed,
+        int SeatsTotal,
+        int TotalCandidates);
 }
