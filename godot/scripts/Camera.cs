@@ -104,6 +104,7 @@ public partial class Camera : Camera2D
         var zoomX = viewportSize.X * 0.80f / mapPixelW;
         var zoomY = viewportSize.Y * 0.80f / mapPixelH;
         var initial = Math.Min(zoomX, zoomY);
+        initial = Math.Max(initial, 1.5f);   // never start more zoomed-out than 1.5× (48px tiles)
         initial = Mathf.Clamp(initial, ZoomMin, ZoomMax);
 
         Zoom     = new Vector2(initial, initial);

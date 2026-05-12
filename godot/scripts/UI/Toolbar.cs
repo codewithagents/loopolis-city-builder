@@ -104,6 +104,7 @@ public partial class Toolbar : CanvasLayer
         {
             var capturedTab = i;
             var tabBtn = new Button();
+            tabBtn.FocusMode = Control.FocusModeEnum.None;
             tabBtn.Text = TabLabels[i];
             tabBtn.CustomMinimumSize = new Vector2(100, 28);
             tabBtn.AddThemeFontSizeOverride("font_size", 12);
@@ -185,6 +186,7 @@ public partial class Toolbar : CanvasLayer
 
         // Pause button
         _pauseButton = new Button();
+        _pauseButton.FocusMode = Control.FocusModeEnum.None;
         _pauseButton.Text = "Pause";
         _pauseButton.CustomMinimumSize = new Vector2(80, 44);
         _pauseButton.AddThemeFontSizeOverride("font_size", 14);
@@ -209,6 +211,7 @@ public partial class Toolbar : CanvasLayer
         foreach (var (slabel, tps) in speedOptions)
         {
             var btn = new Button();
+            btn.FocusMode = Control.FocusModeEnum.None;
             btn.Text = slabel;
             btn.CustomMinimumSize = new Vector2(44, 44);
             btn.AddThemeFontSizeOverride("font_size", 13);
@@ -226,6 +229,7 @@ public partial class Toolbar : CanvasLayer
 
         // New Game button
         var newGameBtn = new Button();
+        newGameBtn.FocusMode = Control.FocusModeEnum.None;
         newGameBtn.Text = "New Game";
         newGameBtn.CustomMinimumSize = new Vector2(90, 44);
         newGameBtn.AddThemeFontSizeOverride("font_size", 14);
@@ -234,6 +238,7 @@ public partial class Toolbar : CanvasLayer
 
         // Menu button
         var menuBtn = new Button();
+        menuBtn.FocusMode = Control.FocusModeEnum.None;
         menuBtn.Text = "Menu";
         menuBtn.CustomMinimumSize = new Vector2(70, 44);
         menuBtn.AddThemeFontSizeOverride("font_size", 14);
@@ -519,6 +524,7 @@ public partial class Toolbar : CanvasLayer
     private static Button MakeZoneButton(string label, Color bgColor, string tooltip = "")
     {
         var btn = new Button();
+        btn.FocusMode   = Control.FocusModeEnum.None;
         btn.Text        = label;
         btn.TooltipText = tooltip;
         btn.CustomMinimumSize = new Vector2(64, 44);
