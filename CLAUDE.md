@@ -61,8 +61,10 @@ Output is JSON — designed for agent analysis.
 23. ✅ **Service Capacity (G4)** — School=200 seats, Police=300, Fire=400 bldgs, Hospital=80 beds. Closest-first drain. Capacity shown in HUD.
 24. ✅ HeightMapGenerator — diamond-square, dynamic canvas (33→129 for 128×128 maps). Scenarios: 32×32 (default), 64×64 (generated_map), 128×128 (generated_128).
 25. ✅ Border Road — `IsBorderConnection` flag (unerasable). One Regional Highway enters from center-south edge. R-tiles within graph-distance 12 get 1.2× growth multiplier. `ExternalAnchor` in RoadGraph for future worker routing.
+26. ✅ Power-as-Density Unlock (P1) — `res_house_1x1` forms from road access only (no power). Unpowered cottage: capacity 25, 0.7× tax. Powered: capacity 50, full tax. All 2×2+ buildings require all footprint tiles powered. Unpowered industrial: 2 placeholder jobs, zero pollution.
+27. ✅ BuildingDegradationSystem — Multi-tile buildings that lose power or road access have 2% chance/tick to demolish back to bare zone. `LastDegradedBuildings` on engine. `BuildingCatalog.GetZoneForBuilding()` helper.
 
-**455 tests · 0 failures**
+**473 tests · 0 failures**
 
 ## Building Catalog
 
