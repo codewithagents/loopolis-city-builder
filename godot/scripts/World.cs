@@ -41,6 +41,9 @@ public partial class World : Node2D
     // Last known SharedState (for passing city-wide stats to tooltip)
     private SharedState? _lastState;
 
+    // Building birth tracking for standalone mode
+    private readonly System.Collections.Generic.HashSet<string> _standaloneKnownBuildingIds = new();
+
     // Event log tracking fields
     private int _lastLoggedPop = 0;
     private bool _wasNegative = false;
@@ -127,6 +130,7 @@ public partial class World : Node2D
         {
             GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
             _reader = new SharedStateReader();
+            _reader.BuildingBorn += (typeId, ax, ay) => SpawnBuildingBirthLabel(typeId, ax, ay);
             AddChild(_reader);
             _viewerMode = true;
             return;
@@ -251,8 +255,20 @@ public partial class World : Node2D
         if (_tickTimer >= _tickInterval)
         {
             _tickTimer = 0;
+
+            // Snapshot building IDs before tick so we can detect births
+            var priorBuildingIds = new System.Collections.Generic.HashSet<string>(_grid.Buildings.Keys);
+
             _engine.Tick();
             _standaloneTick++;
+
+            // Detect new buildings spawned this tick
+            foreach (var kvp in _grid.Buildings)
+            {
+                if (!priorBuildingIds.Contains(kvp.Key) && _standaloneKnownBuildingIds.Add(kvp.Key))
+                    SpawnBuildingBirthLabel(kvp.Value.TypeId, kvp.Value.AnchorX, kvp.Value.AnchorY);
+            }
+
             _renderer.Refresh(_grid);
             PushStandaloneHudUpdate();
 
@@ -297,7 +313,11 @@ public partial class World : Node2D
         var tile = grid.GetTile(tileX, tileY);
         if (tile.Zone == Loopolis.Core.Grid.ZoneType.Empty)
         {
-            _tooltip.Hide();
+            // Show terrain tooltip for non-flat empty tiles (Hill, Forest, Water)
+            if (tile.Terrain != Loopolis.Core.Grid.TerrainType.Flat)
+                _tooltip.ShowForEmptyTerrain(tile, GetViewport().GetMousePosition());
+            else
+                _tooltip.Hide();
             return;
         }
 
@@ -626,6 +646,10 @@ public partial class World : Node2D
             else
                 cmd = $"{{\"cmd\":\"place_zone\",\"x\":{tileX},\"y\":{tileY},\"zone\":\"{selectedZone}\"}}";
             WriteCommand(cmd);
+
+            // Optimistic ripple for road/power zones (before server confirms)
+            if (selectedZone is "Road" or "Avenue" or "PowerPlant" or "CoalPlant" or "NuclearPlant")
+                SpawnRipple(tileX, tileY, selectedZone);
         }
         else
         {
@@ -658,6 +682,10 @@ public partial class World : Node2D
                     _budget?.Charge(placementCost);
                     _grid.SetZone(tileX, tileY, zoneType);
                     Log($"[T:{_standaloneTick}] Placed {selectedZone} at ({tileX},{tileY})");
+
+                    // Ripple on road/power placement
+                    if (selectedZone is "Road" or "Avenue" or "PowerPlant" or "CoalPlant" or "NuclearPlant")
+                        SpawnRipple(tileX, tileY, selectedZone);
                 }
             }
             _renderer.Refresh(_grid);
@@ -665,6 +693,74 @@ public partial class World : Node2D
     }
 
     private void Log(string text) => _eventLog.AddEntry(text);
+
+    // ── Visual effects ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Spawns a RippleEffect centred on the tile at (tileX, tileY).
+    /// Color is gold for power plants, light grey for roads.
+    /// </summary>
+    private void SpawnRipple(int tileX, int tileY, string zone)
+    {
+        var ripple = new RippleEffect();
+        ripple.RippleColor = zone switch
+        {
+            "PowerPlant" or "CoalPlant" or "NuclearPlant" => new Color(1f, 0.835f, 0.31f),  // #FFD54F gold
+            _                                              => new Color(0.690f, 0.745f, 0.773f), // #B0BEC5 light grey
+        };
+        _renderer.AddChild(ripple);
+        var center = new Vector2(
+            (tileX + 0.5f) * TilemapRenderer.TileSize,
+            (tileY + 0.5f) * TilemapRenderer.TileSize);
+        ripple.Start(center);
+    }
+
+    /// <summary>
+    /// Spawns a BuildingBirthLabel floating above the given anchor tile.
+    /// </summary>
+    private void SpawnBuildingBirthLabel(string typeId, int anchorX, int anchorY)
+    {
+        var label = new BuildingBirthLabel();
+        _renderer.AddChild(label);
+        var center = new Vector2(
+            (anchorX + 0.5f) * TilemapRenderer.TileSize,
+            (anchorY + 0.5f) * TilemapRenderer.TileSize);
+        label.Start(center, FormatBirthText(typeId));
+    }
+
+    /// <summary>
+    /// Converts a building TypeId to a short birth announcement string.
+    /// e.g. "res_townhouse_2x2" → "+Townhouse", "res_apartment_4x4" → "+Apartment!"
+    /// </summary>
+    private static string FormatBirthText(string typeId)
+    {
+        // Strip zone prefix
+        var s = typeId;
+        foreach (var prefix in new[] { "res_", "com_", "ind_" })
+        {
+            if (s.StartsWith(prefix)) { s = s[prefix.Length..]; break; }
+        }
+
+        // Strip trailing _WxH
+        var parts = s.Split('_');
+        var nameParts = parts;
+        if (parts.Length > 1)
+        {
+            var last = parts[^1];
+            if (last.Contains('x') && last.Length <= 5)
+                nameParts = parts[..^1];
+        }
+
+        // Title-case
+        var name = string.Join(" ", System.Array.ConvertAll(nameParts,
+            p => p.Length == 0 ? p : char.ToUpper(p[0]) + p[1..]));
+
+        // Exclamation for largest tier buildings
+        var exclaim = typeId.Contains("apartment") || typeId.Contains("shopping") || typeId.Contains("park")
+            ? "!" : "";
+
+        return $"+{name}{exclaim}";
+    }
 
     // ── Save / Load ────────────────────────────────────────────────────────
 

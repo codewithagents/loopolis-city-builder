@@ -36,6 +36,15 @@ public partial class SharedStateReader : Node
     private string? _sessionId;
     private bool _sessionExpired;
 
+    // Building birth tracking — detect when new buildings appear between ticks
+    private readonly System.Collections.Generic.HashSet<string> _knownBuildingIds = new();
+
+    /// <summary>
+    /// Fired when a building appears for the first time.
+    /// Parameters: typeId (e.g. "res_townhouse_2x2"), anchorX, anchorY.
+    /// </summary>
+    public event Action<string, int, int>? BuildingBorn;
+
     /// <summary>Last grid received from the server. World.cs uses this for optimistic tile placement.</summary>
     public CityGrid? LastGrid { get; private set; }
 
@@ -115,6 +124,7 @@ public partial class SharedStateReader : Node
             var grid = RebuildGrid(state);
             LastGrid  = grid;
             LastState = state;
+            DetectBuildingBirths(state);
             _renderer.Refresh(grid);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _hud.UpdateStats(state);
@@ -158,6 +168,33 @@ public partial class SharedStateReader : Node
     }
 
     /// <summary>
+    /// Compares the current state's building list against previously seen building IDs.
+    /// Any ID that is new fires the BuildingBorn event.
+    /// The first tick is used to populate the initial set without firing events.
+    /// </summary>
+    private void DetectBuildingBirths(SharedState state)
+    {
+        if (state.Buildings == null) return;
+
+        // On the very first tick received, populate the baseline without emitting events.
+        if (_knownBuildingIds.Count == 0 && _lastTick <= 0)
+        {
+            foreach (var b in state.Buildings)
+                _knownBuildingIds.Add(b.Id);
+            return;
+        }
+
+        foreach (var b in state.Buildings)
+        {
+            if (_knownBuildingIds.Add(b.Id))
+            {
+                // New building not seen before — fire birth event
+                BuildingBorn?.Invoke(b.TypeId, b.X, b.Y);
+            }
+        }
+    }
+
+    /// <summary>
     /// Scans <paramref name="sharedDir"/> for state-*.json files written within the last 2 seconds.
     /// Returns the most recently written candidate, or null if none found.
     /// </summary>
@@ -176,8 +213,16 @@ public partial class SharedStateReader : Node
         var grid = new CityGrid(32, 32);
         foreach (var tile in state.Tiles)
         {
+            // Set terrain first (before zone — water blocks SetZone)
+            if (!string.IsNullOrEmpty(tile.Terrain) && tile.Terrain != "Flat")
+            {
+                if (Enum.TryParse<TerrainType>(tile.Terrain, out var terrainType))
+                    grid.SetTerrain(tile.X, tile.Y, terrainType);
+            }
+
             var zoneType = Enum.Parse<ZoneType>(tile.Zone);
-            grid.SetZone(tile.X, tile.Y, zoneType);
+            if (zoneType != ZoneType.Empty)
+                grid.SetZone(tile.X, tile.Y, zoneType);
             if (tile.HasPower) grid.SetPower(tile.X, tile.Y, true);
             if (tile.HasRoadAccess) grid.SetRoadAccess(tile.X, tile.Y, true);
             if (tile.Population > 0) grid.SetPopulation(tile.X, tile.Y, tile.Population);
@@ -293,5 +338,6 @@ public record SharedTile(
     bool HasDemandBoost,    // commercial adjacency boost active for this tile
     string? BuildingId = null,
     string? BuildingType = null,
-    int TrafficLoad = 0     // RoadTrafficSystem load — only set for Road/Avenue tiles
+    int TrafficLoad = 0,    // RoadTrafficSystem load — only set for Road/Avenue tiles
+    string? Terrain = null  // TerrainType as string ("Flat", "Hill", "Forest", "Water") — null means Flat
 );

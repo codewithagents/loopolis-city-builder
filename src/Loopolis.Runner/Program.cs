@@ -723,7 +723,7 @@ static void WriteState(
         kvp => kvp.Value.TypeId);
 
     var nonEmptyTiles = grid.AllTiles()
-        .Where(t => t.Zone != ZoneType.Empty)
+        .Where(t => t.Zone != ZoneType.Empty || t.Terrain != TerrainType.Flat)
         .Select(t => new TileState(
             t.X, t.Y, t.Zone.ToString(), t.HasPower, t.HasRoadAccess,
             t.Zone == ZoneType.Residential ? grid.GetPopulation(t.X, t.Y) : 0,
@@ -732,7 +732,8 @@ static void WriteState(
             t.HasDemandBoost,
             t.BuildingId,
             t.BuildingId != null ? buildingTypeLookup.GetValueOrDefault(t.BuildingId) : null,
-            t.TrafficLoad))
+            t.TrafficLoad,
+            t.Terrain != TerrainType.Flat ? t.Terrain.ToString() : null))
         .ToList();
 
     // --- Enriched building info ---
@@ -1267,7 +1268,8 @@ record TileState(
     [property: JsonPropertyName("hasDemandBoost")] bool HasDemandBoost,
     [property: JsonPropertyName("buildingId")] string? BuildingId = null,
     [property: JsonPropertyName("buildingType")] string? BuildingType = null,
-    [property: JsonPropertyName("trafficLoad")] int TrafficLoad = 0);
+    [property: JsonPropertyName("trafficLoad")] int TrafficLoad = 0,
+    [property: JsonPropertyName("terrain")] string? Terrain = null);
 
 record CoverageSummary(
     [property: JsonPropertyName("poweredZonedTilesCount")]   int    PoweredZonedTilesCount,

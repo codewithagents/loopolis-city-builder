@@ -226,6 +226,37 @@ public partial class TileTooltip : CanvasLayer
         PositionAndShow(screenPos);
     }
 
+    /// <summary>
+    /// Show a minimal tooltip for an empty tile that has non-Flat terrain.
+    /// Gives the player feedback that terrain has mechanical effects.
+    /// </summary>
+    public void ShowForEmptyTerrain(Tile tile, Vector2 screenPos)
+    {
+        foreach (Node child in _vbox.GetChildren())
+            child.QueueFree();
+
+        switch (tile.Terrain)
+        {
+            case TerrainType.Hill:
+                AddLine("Hill", 15, new Color(0.831f, 0.663f, 0.416f));
+                AddLine("+land value, +$50 build cost", 12, new Color(0.75f, 0.65f, 0.5f));
+                break;
+            case TerrainType.Forest:
+                AddLine("Forest", 15, new Color(0.3f, 0.8f, 0.35f));
+                AddLine("+land value, +$75 clearing cost", 12, new Color(0.5f, 0.75f, 0.5f));
+                break;
+            case TerrainType.Water:
+                AddLine("Water", 15, new Color(0.3f, 0.6f, 1f));
+                AddLine("Cannot build here", 12, new Color(0.5f, 0.65f, 0.85f));
+                break;
+            default:
+                _panel.Visible = false;
+                return;
+        }
+
+        PositionAndShow(screenPos);
+    }
+
     public new void Hide()
     {
         _panel.Visible = false;

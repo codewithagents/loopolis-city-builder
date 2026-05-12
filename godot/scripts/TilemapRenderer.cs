@@ -16,7 +16,9 @@ public partial class TilemapRenderer : Node2D
     private static readonly Color ColorEmpty         = new Color(0.15f, 0.15f, 0.15f);
     private static readonly Color ColorWater        = new Color(0.18f, 0.42f, 0.72f); // blue
     private static readonly Color ColorForest       = new Color(0.13f, 0.42f, 0.18f); // dark green
-    private static readonly Color ColorHill         = new Color(0.52f, 0.46f, 0.34f); // sandy brown
+    private static readonly Color ColorHill         = new Color(0.831f, 0.663f, 0.416f); // warm tan #D4A96A
+    private static readonly Color ColorHillHatch    = new Color(0.627f, 0.471f, 0.353f); // darker hatch lines #A0785A
+    private static readonly Color ColorHillShadow   = new Color(0.627f, 0.471f, 0.353f, 0.8f); // bottom/right edge shadow
     private static readonly Color ColorResidential  = new Color(0.2f,  0.7f,  0.2f);
     private static readonly Color ColorCommercial   = new Color(0.2f,  0.4f,  0.9f);
     private static readonly Color ColorIndustrial   = new Color(0.9f,  0.8f,  0.1f);
@@ -190,6 +192,38 @@ public partial class TilemapRenderer : Node2D
             DrawCircle(new Vector2(startX + i * spacing, centreY), radius, dotColor);
     }
 
+    /// <summary>
+    /// Draws the Hill terrain tile: warm tan base + diagonal hatch lines suggesting elevation
+    /// + a 2px darker shadow on the bottom and right edges for a subtle raised appearance.
+    /// </summary>
+    private void DrawHillTile(float px, float py)
+    {
+        // Base fill (slightly smaller to match the 1px gap on service buildings)
+        DrawRect(new Rect2(px, py, TileSize - 1, TileSize - 1), ColorHill);
+
+        // Three diagonal hatch lines (top-left → bottom-right), evenly spaced
+        const float hatchWidth = 1.2f;
+        const int   steps      = 3;
+        for (int i = 0; i < steps; i++)
+        {
+            float offset = (TileSize - 1) * (i + 1) / (steps + 1);
+            // Start on the top edge, end on the left edge when offset < TileSize, else wrap
+            var a = new Vector2(px + offset, py);
+            var b = new Vector2(px, py + offset);
+            DrawLine(a, b, ColorHillHatch, hatchWidth, false);
+
+            // Mirror: start on right edge, end on bottom edge
+            var c = new Vector2(px + TileSize - 1 - offset, py + TileSize - 1);
+            var d = new Vector2(px + TileSize - 1, py + TileSize - 1 - offset);
+            DrawLine(c, d, ColorHillHatch, hatchWidth, false);
+        }
+
+        // 2px shadow on bottom edge (suggests a drop in elevation below)
+        DrawRect(new Rect2(px, py + TileSize - 3, TileSize - 1, 2), ColorHillShadow);
+        // 2px shadow on right edge
+        DrawRect(new Rect2(px + TileSize - 3, py, 2, TileSize - 1), ColorHillShadow);
+    }
+
     private bool IsSameZone(ZoneType zone, int x, int y)
     {
         if (_grid == null) return false;
@@ -361,6 +395,13 @@ public partial class TilemapRenderer : Node2D
                         _                                      => ColorEmpty,
                     };
                     break;
+            }
+
+            // Hill terrain: use special hatched rendering instead of a plain rect
+            if (tile.Zone == ZoneType.Empty && tile.Terrain == Loopolis.Core.Grid.TerrainType.Hill)
+            {
+                DrawHillTile(px, py);
+                continue;
             }
 
             // Service buildings and terrain: keep 1px gap (stand-alone structures)
