@@ -58,7 +58,7 @@
 | BuildingDegradationSystem | ✅ Done | 9 new (BuildingDegradationTests) |
 | Tick-108 crash fixes | ✅ Done | 12 new (CityGridTests + BuildingGrowthSystemTests + SimulationEngineTests) |
 
-**Total: 485 tests · 0 failures · ~0.71s runtime**
+**Total: 489 tests · 0 failures · ~0.71s runtime**
 
 ---
 
@@ -212,4 +212,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-12 | no_power | P1 power-as-density: no_power scenario now shows pop=25 (cottage cap), TaxIncome=2.26/tick (0.7× unpowered modifier applied), balance +0.86/tick. Unpowered industrial: 0 pollution, 2 placeholder jobs. powered_start comparison: pop=236, TaxIncome=22.66/tick — ~10× more productive. 2×2+ buildings correctly blocked without power. BuildingDegradationSystem wired: multi-tile buildings degrade 2%/tick when requirements fail. 473 tests green. | — |
 | 2026-05-12 | stress_test | Tick-108 crash fixes: BuildingGrowthSystem.TryGrow now null-guards catalog lookup (no NullReferenceException on unknown TypeId). CityGrid.SetZone(Empty) now calls EraseBuildingAt to demolish multi-tile buildings atomically — fixes orphaned Buildings entries when Godot standalone erases tiles via SetZone directly. stress_test: 200 growth ticks + 200 degradation ticks → no crash, city goes Bankrupt (expected — 96 unpowered buildings + high costs). 485 tests green. | — |
 
-*Last updated: 2026-05-12 — tick-108 crash fix: BuildingGrowthSystem null guard, CityGrid.EraseBuildingAt, SetZone auto-demolish, stress_test scenario, 12 new tests*
+| 2026-05-12 | cottage_start | Balance fixes: GrowthRate 0.05→0.07 (+40%), IndustrialGrowthRate 0.025→0.05 (2×). cottage_start scenario (7R + road + 7C, no power): pop=105 at tick 500 (all cottages at 15 pop cap). AverageNeglect metric added to HappinessSystem and exposed in happinessBreakdown JSON. 4 new tests. 489 total. | — |
+
+*Last updated: 2026-05-12 — balance fixes: GrowthRate 0.05→0.07, IndustrialGrowthRate 0.025→0.05, cottage_start scenario, AverageNeglect metric, 489 tests*
