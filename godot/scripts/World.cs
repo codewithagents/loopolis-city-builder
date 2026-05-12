@@ -149,12 +149,12 @@ public partial class World : Node2D
 		SetupStandaloneSimulation();
 	}
 
-	private const int StandaloneMapSize = 32; // standalone default — 32×32 grid (matches "default" scenario)
+	private const int StandaloneMapSize = 64; // standalone default — 64×64 grid with procedural terrain
 
 	private void SetupStandaloneSimulation()
 	{
 		_grid        = new CityGrid(StandaloneMapSize, StandaloneMapSize);
-		_terrainSeed = 0; // flat terrain — no seed needed
+		_terrainSeed = (int)(GD.Randi() % int.MaxValue);
 
 		_budget     = new BudgetSystem(); // default $4,000 starting balance
 		_population = new PopulationSystem();
@@ -174,14 +174,14 @@ public partial class World : Node2D
 	}
 
 	/// <summary>
-	/// Initialises a new standalone game to match the Runner's "default" scenario:
-	/// flat terrain, a border connection at the centre of the south edge, and three
-	/// starter road tiles extending north from it.  No power plant, no pre-placed zones.
+	/// Initialises a new standalone game with procedural terrain, a border connection
+	/// at the centre of the south edge, and three starter road tiles extending north
+	/// from it.  No power plant, no pre-placed zones.
 	/// </summary>
 	private void SetupDefaultNewGame()
 	{
-		// Flat terrain — no hills, no water, no forests
-		_grid.SetFlatTerrain();
+		// Procedural terrain — hills, water, forests based on random seed
+		GenerateTerrain(_grid, _terrainSeed);
 
 		// Border connection — centre of south edge, unerasable Regional Highway
 		_grid.PlaceBorderConnection(StandaloneMapSize / 2, StandaloneMapSize - 1);

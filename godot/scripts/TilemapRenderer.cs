@@ -285,7 +285,7 @@ public partial class TilemapRenderer : Node2D
 			baseColor = HeightToColor(height);
 		}
 
-		DrawRect(new Rect2(px, py, TileSize - 1, TileSize - 1), baseColor);
+		DrawRect(new Rect2(px, py, TileSize, TileSize), baseColor);
 
 		// ── Water depth effect: darker small rect in center ────────────────
 		if (height <= 0)
@@ -305,7 +305,7 @@ public partial class TilemapRenderer : Node2D
 		// ── Forest overlay ─────────────────────────────────────────────────
 		if (isForest)
 		{
-			DrawRect(new Rect2(px, py, TileSize - 1, TileSize - 1), ColorForestOverlay);
+			DrawRect(new Rect2(px, py, TileSize, TileSize), ColorForestOverlay);
 			// Small dark green dot in center
 			var dotSize = 5f;
 			DrawRect(new Rect2(
@@ -318,16 +318,16 @@ public partial class TilemapRenderer : Node2D
 		const float cliffWidth = 3f;
 		// Left edge
 		if (System.Math.Abs(height - GetHeight(tileX - 1, tileY)) > 1)
-			DrawRect(new Rect2(px, py, cliffWidth, TileSize - 1), CliffEdgeColor);
+			DrawRect(new Rect2(px, py, cliffWidth, TileSize), CliffEdgeColor);
 		// Right edge
 		if (System.Math.Abs(height - GetHeight(tileX + 1, tileY)) > 1)
-			DrawRect(new Rect2(px + TileSize - 1 - cliffWidth, py, cliffWidth, TileSize - 1), CliffEdgeColor);
+			DrawRect(new Rect2(px + TileSize - cliffWidth, py, cliffWidth, TileSize), CliffEdgeColor);
 		// Top edge
 		if (System.Math.Abs(height - GetHeight(tileX, tileY - 1)) > 1)
-			DrawRect(new Rect2(px, py, TileSize - 1, cliffWidth), CliffEdgeColor);
+			DrawRect(new Rect2(px, py, TileSize, cliffWidth), CliffEdgeColor);
 		// Bottom edge
 		if (System.Math.Abs(height - GetHeight(tileX, tileY + 1)) > 1)
-			DrawRect(new Rect2(px, py + TileSize - 1 - cliffWidth, TileSize - 1, cliffWidth), CliffEdgeColor);
+			DrawRect(new Rect2(px, py + TileSize - cliffWidth, TileSize, cliffWidth), CliffEdgeColor);
 
 		// ── Plateau highlight: all 4 cardinal neighbours within ±1 height ──
 		if (height >= 2)
@@ -481,30 +481,30 @@ public partial class TilemapRenderer : Node2D
 	/// </summary>
 	private void DrawHillTile(float px, float py)
 	{
-		// Base fill (slightly smaller to match the 1px gap on service buildings)
-		DrawRect(new Rect2(px, py, TileSize - 1, TileSize - 1), ColorHill);
+		// Base fill — full tile, seamless
+		DrawRect(new Rect2(px, py, TileSize, TileSize), ColorHill);
 
 		// Three diagonal hatch lines (top-left → bottom-right), evenly spaced
 		const float hatchWidth = 1.2f;
 		const int   steps      = 3;
 		for (int i = 0; i < steps; i++)
 		{
-			float offset = (TileSize - 1) * (i + 1) / (steps + 1);
+			float offset = TileSize * (i + 1) / (steps + 1);
 			// Start on the top edge, end on the left edge when offset < TileSize, else wrap
 			var a = new Vector2(px + offset, py);
 			var b = new Vector2(px, py + offset);
 			DrawLine(a, b, ColorHillHatch, hatchWidth, false);
 
 			// Mirror: start on right edge, end on bottom edge
-			var c = new Vector2(px + TileSize - 1 - offset, py + TileSize - 1);
-			var d = new Vector2(px + TileSize - 1, py + TileSize - 1 - offset);
+			var c = new Vector2(px + TileSize - offset, py + TileSize);
+			var d = new Vector2(px + TileSize, py + TileSize - offset);
 			DrawLine(c, d, ColorHillHatch, hatchWidth, false);
 		}
 
 		// 2px shadow on bottom edge (suggests a drop in elevation below)
-		DrawRect(new Rect2(px, py + TileSize - 3, TileSize - 1, 2), ColorHillShadow);
+		DrawRect(new Rect2(px, py + TileSize - 3, TileSize, 2), ColorHillShadow);
 		// 2px shadow on right edge
-		DrawRect(new Rect2(px + TileSize - 3, py, 2, TileSize - 1), ColorHillShadow);
+		DrawRect(new Rect2(px + TileSize - 3, py, 2, TileSize), ColorHillShadow);
 	}
 
 	// ── Overlay color helpers ───────────────────────────────────────────────
@@ -768,8 +768,8 @@ public partial class TilemapRenderer : Node2D
 					continue;
 			}
 
-			// Service buildings and utility tiles: keep 1px gap (stand-alone structures)
-			var rect = new Rect2(px, py, TileSize - 1, TileSize - 1);
+			// Service buildings and utility tiles
+			var rect = new Rect2(px, py, TileSize, TileSize);
 			DrawRect(rect, color);
 		}
 
@@ -795,7 +795,7 @@ public partial class TilemapRenderer : Node2D
 			var overlayColor = new Color(_coverageColor.R, _coverageColor.G, _coverageColor.B, 0.3f);
 			foreach (var (cx, cy) in _coverageHighlight)
 			{
-				var rect = new Rect2(cx * TileSize, cy * TileSize, TileSize - 1, TileSize - 1);
+				var rect = new Rect2(cx * TileSize, cy * TileSize, TileSize, TileSize);
 				DrawRect(rect, overlayColor);
 			}
 		}
