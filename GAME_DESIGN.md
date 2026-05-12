@@ -41,12 +41,20 @@ Plan → Build → Zone → Watch → React → Expand → repeat
 ## Mechanics Reference
 
 ### Power System
+
+> Updated 2026-05-12. Power is no longer a prerequisite for *any* growth. It is the universal "density unlock" — basic 1×1 residential develops without it; everything else (larger residential, commercial, industrial productivity) requires it.
+
 - Power plants generate electricity and broadcast it to adjacent tiles
 - Power spreads through: roads, power lines, residential, commercial, industrial zones
 - Empty tiles **break the chain** — you must route power deliberately
-- Zones without power never develop — they sit empty forever
+- **Unpowered 1×1 residential still develops** at half capacity and 70% tax yield ("Cottage" state). It exists to give the player something to watch grow before the first power plant.
+- **Powered 1×1 residential** is the same building at full capacity and full tax ("Powered Cottage" state).
+- **All larger residential tiers (2×2 townhouse, villas, apartments)** require power — they will not grow from an unpowered 1×1 cottage.
+- **All commercial tiles** require power (no unpowered commerce; cash registers and lights are non-negotiable narratively).
+- **Industrial tiles** can develop unpowered but generate no Output (just base jobs at a heavy productivity penalty — see Power & Industry below).
+- **Services (Fire/Police/School/Hospital)** require power to function — unpowered services exist on the map but provide no coverage.
 
-**Player experience:** "I need to connect my power plant to my zones. I can run it through roads (free conductor) or dedicated power lines (costs more but goes anywhere)."
+**Player experience:** "I zoned some homes along the starter road and they slowly filled with cottages. Then I built a power plant and the cottages doubled in size and tax — suddenly townhouses and shops became possible. Power isn't *required to play*; it's *required to grow*."
 
 ### Road Network
 - Zones (R/C/I) need at least one adjacent road tile to develop
@@ -59,15 +67,24 @@ Plan → Build → Zone → Watch → React → Expand → repeat
 
 | Zone | Purpose | Needs to develop | Produces |
 |---|---|---|---|
-| Residential | Housing | Power + road access | Population → tax income |
-| Commercial | Business | Power + road + nearby residents *(planned)* | Jobs → draws more residents |
-| Industrial | Manufacturing | Power + road + nearby commercial *(planned)* | Supports commercial, generates pollution |
+| Residential (1×1 Cottage) | Housing | Road access | Population (50% cap) → tax income (70%) |
+| Residential (Powered Cottage) | Housing | Road + power | Population (full) → tax income (full) |
+| Residential (2×2+) | Housing, higher tier | Road + power + tier conditions | Population → tax (scales with size) |
+| Commercial | Business | Road + power + nearby residents | Jobs / customers → draws more residents |
+| Industrial | Manufacturing | Road (powered for Output) | Jobs (unpowered) + Output (powered only) |
+
+### Power & Industry (the legibility detail)
+
+Industrial without power = "Bare Lot": minimum jobs (0.1× normal), Output = 0, no goods.
+Industrial with power = "Factory": full jobs, full Output, full goods generation.
+
+Why allow unpowered industrial at all? So the player can pre-zone industrial sites near the border road without losing the budget tick they'd lose by leaving the land idle. Powering them is the upgrade decision, not the existence decision.
 
 ### Budget
 
 | Source | Formula | Notes |
 |---|---|---|
-| Tax income | Population × tax rate (9% default) | Scales with how many people live in your city |
+| Tax income | Population × tax rate (9% default) × land value × power multiplier | Unpowered 1×1 res taxes at 0.7× |
 | Maintenance — Power Plant | $10 / tick | Expensive to run, worth it if connected |
 | Maintenance — Road | $1 / tick per tile | Scales with network size — every road costs |
 | Maintenance — Zone (R/C/I) | $0.5 / tick per tile | Small but adds up at scale |
@@ -77,14 +94,23 @@ Plan → Build → Zone → Watch → React → Expand → repeat
 
 **Break-even point:** ~12 powered, road-accessible residential zones.
 
+**Early-game flow under new power rules:**
+- Tick 1: starting budget $4,000. 1 border road tile + 3 starter road tiles = $4/tick maintenance.
+- Player zones a strip of residential along the starter road. ~3 tiles, $1.50/tick maintenance.
+- Cottages start growing immediately at half capacity. Tax trickle begins (~$2/tick at full).
+- Budget bleeds slowly — pressure to build a plant arrives organically (not as a wall).
+- Player buys coal plant ($1000), routes power along the road spine. Cottages double in capacity/tax. Now ~+$4/tick. Time to expand commercial.
+
+This is the SimCity 2000 onramp: power is *acceleration*, not *ignition*.
+
 ### Population
 
-- Each ready residential zone supports 50 residents maximum
+- Each ready residential zone supports 50 residents at full power, 25 unpowered
 - Population grows toward capacity at 5%/tick when zones are ready
-- Population declines only when capacity drops below current population (services lost)
+- Population declines only when capacity drops below current population (services lost, OR power lost on a previously-powered 2×2+)
 - Zones that were never developed don't cause decline — they just sit empty
 
-**Player experience:** "My city grows steadily when things are connected. If I lose power, people leave — but slowly enough that I can fix it. Zones I haven't connected yet don't hurt me, they're just waiting."
+**Player experience:** "My city grows steadily when things are connected. If I lose power, the townhouses degrade back to cottages — but the cottages stay. People don't all flee; the city just shrinks to what's sustainable."
 
 ---
 
@@ -108,11 +134,12 @@ Each milestone unlocks new zone types or building options (design TBD).
 
 ### Early Game (0 – 500 residents)
 - Empty map at new game: only the unerasable **border road** (south-center) and 2-3 starter road tiles extending into the map. No power plant, no zones, no services.
-- First decision: *where to place your power plant relative to the border road*. Near the border = cheap road extension, more pollution near the regional connection. Far from the border = preserves "downtown" but demands a longer power/road spine.
-- Build out: 1 power plant, handful of roads, 3-10 residential zones along the spine
+- First decision: *where to zone residential first*. Cottages grow without power, so the first 30-60 ticks are about watching tiny houses fill in along the spine while you plan the plant placement.
+- Second decision: *where to place the power plant*. Near the border = cheap road extension, pollution near the migration anchor. Far from the border = preserves "downtown" but demands a longer power/road spine.
+- Build out: 1 power plant, handful of roads, 3-10 residential zones along the spine. After power: townhouses, shops, factories all unlock.
 - Budget is slightly negative — urgent pressure to grow
 - Core challenge: connect power to zones AND put roads adjacent to them, while staying in reach of the border road for the migration bonus
-- Reward: first moment the simulation shows population > 0 — and migration arrives visibly along the spine from the border
+- Reward: first moment the simulation shows population > 0 — cottages appearing within the first 30 ticks, then the visible "level-up" when power arrives
 
 ### Mid Game (500 – 10,000 residents)
 - Multiple power sources, planned road networks
@@ -142,6 +169,7 @@ Each milestone unlocks new zone types or building options (design TBD).
 | 4 | **Traffic density + failure diagnosis** | (Shipped) Players need to see *why* zones don't grow. Diagnosis UI is the gateway to every other system being legible. |
 | 5 | **Commute Happiness + Wider Mixed-Use Bonus** | Penalize zone segregation softly. Workers far from jobs are unhappy; mixed districts grow faster. Closes the loophole where a single spine road avoids all consequences. |
 | 6 | **C/I Vitality HUD (Customers, Workers, Output)** | Commerce and industry get the same `current/capacity` narrative that residential has via Pop. Players can finally see at a glance whether their districts are thriving or stagnant. |
+| 7 | **Power-as-density-unlock (P1)** | NEW. Cottages grow without power at 0.5× cap / 0.7× tax. Power upgrades them to full. 2×2+, commercial, and industrial productivity still require power. Removes the dead-start problem on empty-map onboarding. |
 
 ### M8.5 — "Feel Sprint" (next sprint — make the game *feel* good)
 
@@ -151,7 +179,7 @@ Each milestone unlocks new zone types or building options (design TBD).
 |---|---|---|
 | F1 | **Road Pulse on Build** | When the player places a road / power plant / zone, a ripple animates outward and every tile that becomes newly powered or newly ready briefly pulses gold. Makes the BFS that already runs visible. Cheapest possible "wow" because the data is already there. This is the Mini-Metro line-drawing satisfaction equivalent. |
 | F2 | **Seeded Scenarios with Goals** | A scenario picker with 6-8 named challenges (Coastal Town, Industrial Heart, No Coal Allowed, The Hill). Each has fixed terrain seed, a goal (e.g. "5k pop in 1000 ticks"), and a gold/silver/bronze medal. Converts depth-that-exists into hours-of-replay. Single biggest score lever in the ideation pool. |
-| F3 | **Building Birth Announcement** | When a building grows tier (cottage → townhouse → villa, shop → strip → mall), a floating label flies up from the tile ("Hillside Villa! +$4/tick") with a zone-specific chime. Converts the existing growth system into a steady drip of positive feedback the player currently never sees. |
+| F3 | **Building Birth Announcement** | When a building grows tier (cottage → townhouse → villa, shop → strip → mall), a floating label flies up from the tile ("Hillside Villa! +$4/tick") with a zone-specific chime. Converts the existing growth system into a steady drip of positive feedback the player currently never sees. Extended 2026-05-12 to also fire on Cottage → Powered Cottage transition. |
 
 ### M9 — "Specialization & Goods"
 
@@ -205,6 +233,9 @@ Each milestone unlocks new zone types or building options (design TBD).
 - **Mixed-use bonus increase as standalone solution** — pure buff with no cost; violates "features without tradeoffs are just options." Kept only as supplement to Commute Happiness.
 - **Per-citizen agent simulation** — out of scope forever. Loopolis is a planner game. Agent flows are aggregate per-district, not per-person.
 - **Full A* per-worker pathfinding every tick** — combinatorially insane at 256². Replaced with cached centroid-to-centroid shortest paths in the Graph Architecture spec.
+- **"Powered 1×1" as a separate building type in the catalog** (rejected 2026-05-12) — Doubles catalog size for the only quality that varies (power). Instead: same building TypeId, `IsPowered` state toggles capacity/tax multipliers. One building, two states. Same pattern as "ready to develop" — a state, not an entity.
+- **Letting commercial develop unpowered** (rejected 2026-05-12) — Commerce without power has no narrative basis (a closed shop with no lights is not a "low-tier shop"), and gives the player a way to grow tax base indefinitely without ever building a plant. Commerce remains a power-gated unlock; this is the player's first deliberate "I need power now" moment.
+- **Industrial unpowered = no jobs at all** (rejected 2026-05-12) — Too punitive on pre-zoning. Bare-minimum jobs at 0.1× lets the player stake industrial sites near the border without losing budget; powering them is the *productivity* decision, not the *existence* decision.
 
 ---
 
@@ -324,6 +355,56 @@ A single shading rule applied uniformly to all three zone types: tiles tint dark
 - Daily-revenue-per-shop as a top-level HUD metric (it's derivable, ship as tooltip only)
 - Vacancy rate as a separate HUD metric (utilization% already communicates this)
 
+### P1 — Power-as-Density-Unlock
+
+**Problem solved:** With the new empty-map start, the current "power required for any growth" rule turns the first 5–10 minutes of every new game into the same single-track puzzle: build the $1000 plant before anything happens, on $4000 of starting cash. There is no alternative first move, no decision, and a brand-new player who zones first sees nothing for 60 ticks and reasonably concludes the game is broken.
+
+This is the worst possible failure mode in a city builder: nothing happening, no diagnosis, no path forward. Inspired by SimCity 2000, where low-density develops without power and power is the *density unlock* — not the *existence* gate.
+
+**Mechanic:**
+
+1. **Unpowered `res_house_1x1`** ("Cottage" state): grows on any road-adjacent residential tile with no power. Capacity 25 (vs 50 powered). Tax multiplier 0.7× (on top of existing land value and rate). Same building TypeId, same footprint — only the IsPowered state differs.
+2. **Powered `res_house_1x1`** ("Powered Cottage" state): the same building when its tile becomes powered. Capacity flips to 50; tax multiplier flips to 1.0×. No demolition, no rebuild — the state flips and the renderer updates the sprite/label.
+3. **All other residential tiers (2×2 townhouse, villas, apartments, etc.)** still require power to grow. An unpowered 1×1 cottage CANNOT grow into a 2×2 townhouse — the cottage is the ceiling of the unpowered ladder.
+4. **Commercial** still requires power, no exceptions. Commerce without power has no narrative justification and would let players skip the plant decision indefinitely.
+5. **Industrial** can develop unpowered ("Bare Lot" state) but generates 0.1× jobs and 0 Output. Powering it converts it to "Factory" state with full jobs + full Output. Same pattern: state, not entity.
+6. **Services** unpowered = no coverage. (Unchanged.)
+7. **Power loss on a 2×2+ building:** building degrades back to 1×1 cottage(s) on the powered tiles, demolishes the rest. Pop drops to what cottages can hold. This is the existing "capacity drop → pop decline" pipeline — no new sim work.
+
+**Tradeoff:**
+- **Without power:** you can grow a city up to ~25 pop × N cottages. Tax trickles in slowly. You stay in the early-budget squeeze for longer but never zero-out.
+- **With power:** you double capacity and tax on all your existing 1×1s, unlock commerce + industry productivity + larger tiers. Power costs $1000 up front and $8/tick maintenance.
+- "Do I plant early (expensive, opens everything) or zone first (slow trickle, frees the plant cash for a better spot)?"
+
+This is the first real strategic *choice* in the early game. There is no longer one correct first move.
+
+**Legibility:**
+- Cottage vs Powered Cottage have distinct sprites (existing "powered vs unpowered" tint already exists in the renderer — just needs the size/density indicator).
+- F3 Building Birth Announcement fires on Cottage → Powered Cottage transition: `Powered Cottage! +$1/tick` floating label. The player *sees* the upgrade arrive when power reaches the tile.
+- Tooltip on a Cottage tile reads: `Cottage (unpowered) — 25 cap, 70% tax. Build a power plant to upgrade.` Tooltip on a Powered Cottage reads: `Cottage (powered) — 50 cap, full tax. Townhouse upgrade pending — need 80% capacity.`
+- The City Health panel breakdown line `Unpowered: N cottages capped at 50% growth` makes the cumulative cost visible.
+
+**Tutorial hint rewrite:**
+- Old: "Place a power plant — your city needs power to grow."
+- New: "Zone homes along the road to attract residents. Build a power plant to unlock larger buildings and businesses."
+
+The new hint frames power as *acceleration*, not *ignition*. Vanishes after the first plant is placed (existing logic).
+
+**Numbers flagged for balancer:**
+- Cottage capacity 25 (half of powered 50) — large enough to feel like a real downgrade, small enough that the player still cares about powering.
+- Tax multiplier 0.7× — punchy enough to make the powered upgrade feel rewarding, not so harsh that unpowered Cottage gameplay collapses.
+- Industrial unpowered job multiplier 0.1× — pre-zoning stays cheap but contributes almost nothing to employment.
+- Test on empty-map default: do players naturally zone first, then plant, in playtest? If they still plant first by reflex, lower the cottage capacity to 20.
+
+**Scope discipline — explicitly rejected:**
+- Separate `res_house_1x1_unpowered` building in the catalog (doubles catalog for one state difference)
+- Commercial unpowered "kiosk" tier (no narrative basis, breaks the "power is the commerce gate" learning moment)
+- Per-tile flickering brownout animation on Cottages (visual noise; the sprite difference between cottage and powered cottage is the signal)
+- Letting unpowered industrial generate any Output (Output → Goods → late-game supply chain; if unpowered industrial counted, the whole goods economy starts free)
+- "Cottage" as a graduated unpowered tier ladder (1×1 unpowered → 2×2 unpowered → ...). Power is the gate to the upgrade ladder, period. One unpowered tier, then the gate.
+
+**Verdict:** Recommended for M8. Small scope, high onboarding impact, sharpens the empty-map first move from "do the prerequisite" to "pick a strategy."
+
 ---
 
 ## M8.5 Feature Specs — "Feel Sprint"
@@ -404,6 +485,7 @@ Each scenario has:
   - Industrial: lower mechanical clack
 - Chimes are throttled: max 3/second city-wide (no auditory chaos when a metropolis upgrades 20 buildings in one tick). Visual labels are not throttled but cap at 8 simultaneous on screen.
 - The EventLog also gets a one-line entry: `Tick 412: Maple Heights — Townhouse → Villa`. Players can review the day's wins.
+- **Extension (2026-05-12):** Same announcement fires on Cottage → Powered Cottage transition (`Powered Cottage! +$1/tick`). Same chime. Treats the power-upgrade as a tier event because it functionally is one.
 
 **Player experience:** "I came back from the kitchen, and three little gold labels were floating up from my downtown. Something good happened while I was gone."
 
@@ -850,6 +932,11 @@ Total milestones from now to graph-Loopolis: 8 sessions. Honest. Doable. Each on
 - **Border road (visual):** Renderer needs a unique sprite/marker for the border tile (downward arrow + "REGIONAL HIGHWAY" tag). Distinct enough that players never try to delete it, but not so loud that it dominates the map.
 - **Starter state (cluster optimization):** Players will optimize layouts to hug the border road (migration bonus + future fallback jobs + future trade). Acceptable in v1 — it's a real incentive that emerges from the system. Counter in F2 scenarios by placing high-value terrain (forest, hills) far from the border on some maps. Don't pre-emptively nerf.
 - **Starter state (legacy scenarios):** Existing scenarios (default/town/mixed/services/no_power/no_roads) were balanced with the seeded starter city. After this change, every scenario's first ~50 ticks looks different. F2 medal thresholds need re-calibration. Regression test scenarios (32² Hamlet) keep the old seeded starter for test stability.
+- **P1 power-as-density (new 2026-05-12):** Should the unpowered Cottage tax multiplier be 0.7× (current spec) or 0.5× (matching capacity)? 0.7× preserves more early income; 0.5× makes the powered upgrade feel more decisive. Lean 0.7× — early income is the harder design constraint.
+- **P1 power-as-density (new 2026-05-12):** When power is lost on a tile with a 2×2+ building, the building degrades back to cottages on the powered tiles only. Should the unpowered tiles in the footprint show "ruined" / "abandoned" sprites, or just revert to empty zone tiles? Lean empty zone — abandonment animation is a separate F3-style polish step.
+- **P1 power-as-density (new 2026-05-12):** Should the `no_power` regression scenario still work, given that unpowered residential now grows? Lean yes — rename the scenario (or its semantics) to "no_power_no_growth_path" and verify cottages cap at the unpowered capacity. The scenario still tests that *higher tiers* gate on power; the no-power-no-anything semantics are gone forever.
+- **P1 power-as-density (new 2026-05-12):** Does the brownout state (when supply < demand in M8 PowerCapacitySystem) treat unpowered cottages differently from powered ones? Lean no — brownout only applies to buildings that are *trying* to draw power. Unpowered cottages don't draw and don't brown out; they just sit at their unpowered ceiling.
+- **P1 power-as-density (new 2026-05-12):** Should unpowered industrial generate any pollution? Lean no — pollution is a productivity-side externality; unpowered industrial at 0.1× jobs and 0 Output is just a parked lot. (Reduces the "stake industrial sites far from residential" anti-pattern.)
 
 ---
 
@@ -910,3 +997,10 @@ Total milestones from now to graph-Loopolis: 8 sessions. Honest. Doable. Each on
 | 2026-05-12 | Border road scope discipline: ONE connection at v1 (not 2-4). Fixed south-center, not random or player-chosen — preserves scenario seeds. Regular Road, not Highway (Highway is a RoadClass deferred to Scale Session 3; the "no zones adjacent to highway" rule would conflict with the border being a development anchor). Multiple border roads deferred until "which border do I prioritize" is a real layout decision (post-G5). |
 | 2026-05-12 | Regional-power-near-border REJECTED for v1 — adds parallel utility system with no clear failure legibility. Reconsider after empty-start playtest if onboarding is too steep. |
 | 2026-05-12 | Onboarding mitigation: tutorial hint banner on first new game ("Place a power plant near the regional highway. Connect zones with roads. Watch your city grow.") that vanishes after first plant is placed. Plant-placement preview showing BFS power-flood radius before commit (natural F1 Road Pulse extension). |
+| 2026-05-12 | **P1 Power-as-density-unlock (new M8 feature):** Power is no longer a prerequisite for *any* growth. Unpowered 1×1 residential ("Cottage") develops at 25 capacity / 0.7× tax. Powering it flips the same building to 50 capacity / 1.0× tax ("Powered Cottage"). All 2×2+ residential, all commercial, and industrial productivity (Output) still require power. Industrial unpowered = "Bare Lot" at 0.1× jobs / 0 Output. Removes the "do the prerequisite" wall on new game's empty start. SimCity 2000 precedent. |
+| 2026-05-12 | P1 implementation: `IsPowered` is a STATE on the existing `res_house_1x1` building, NOT a new catalog entry. Same TypeId, two states. Same pattern as `tile.IsReadyToDevelop`. Doubling the catalog for one varying property explicitly rejected. |
+| 2026-05-12 | P1 commercial rule: commerce remains hard-gated on power. Letting commercial develop unpowered removes the "I need a plant for shops" learning moment and lets the player skip the plant decision indefinitely. |
+| 2026-05-12 | P1 industrial rule: unpowered industrial gets 0.1× jobs and 0 Output — exists for pre-zoning, doesn't function. Pollution is 0 when unpowered (productivity-side externality). Powering an unpowered I tile is the productivity decision; existence is decoupled. |
+| 2026-05-12 | P1 tutorial hint rewrite: old "Place a power plant — your city needs power to grow" replaced with "Zone homes along the road to attract residents. Build a power plant to unlock larger buildings and businesses." Reframes power as acceleration, not ignition. |
+| 2026-05-12 | P1 F3 extension: Building Birth Announcement now fires on Cottage → Powered Cottage transition. Same chime, "+$1/tick" floating label. Treats the power upgrade as a tier event because functionally it is one. |
+
