@@ -143,7 +143,7 @@ public partial class World : Node2D
 
     private void SetupStandaloneSimulation()
     {
-        _grid = new CityGrid(64, 64);
+        _grid = new CityGrid(32, 32);
         _terrainSeed = (int)(GD.Randi() % int.MaxValue); // random seed this run
         GenerateTerrain(_grid, _terrainSeed);
         SeedStarterCity(_grid);
@@ -165,20 +165,22 @@ public partial class World : Node2D
     /// Pre-seed a minimal working city so new players immediately see the
     /// power → road → residential chain in action.
     ///
-    /// Layout centred around (32,30)–(32,31):
-    ///   PowerPlant  at (32,29)
-    ///   Road        at (32,30) and (32,31)
-    ///   Residential at (31,30), (33,30), (31,31), (33,31)
+    /// Layout centred around (16,14)–(16,15) on a 32×32 grid:
+    ///   PowerPlant  at (16,13)
+    ///   Road        at (16,14) and (16,15)
+    ///   Residential at (15,14), (17,14), (15,15), (17,15)
     /// </summary>
     private static void SeedStarterCity(CityGrid grid)
     {
-        grid.SetZone(32, 29, ZoneType.PowerPlant);
-        grid.SetZone(32, 30, ZoneType.Road);
-        grid.SetZone(32, 31, ZoneType.Road);
-        grid.SetZone(31, 30, ZoneType.Residential);
-        grid.SetZone(33, 30, ZoneType.Residential);
-        grid.SetZone(31, 31, ZoneType.Residential);
-        grid.SetZone(33, 31, ZoneType.Residential);
+        var cx = grid.Width / 2;
+        var cy = grid.Height / 2;
+        grid.SetZone(cx,     cy - 2, ZoneType.PowerPlant);
+        grid.SetZone(cx,     cy - 1, ZoneType.Road);
+        grid.SetZone(cx,     cy,     ZoneType.Road);
+        grid.SetZone(cx - 1, cy - 1, ZoneType.Residential);
+        grid.SetZone(cx + 1, cy - 1, ZoneType.Residential);
+        grid.SetZone(cx - 1, cy,     ZoneType.Residential);
+        grid.SetZone(cx + 1, cy,     ZoneType.Residential);
     }
 
     private static void GenerateTerrain(CityGrid grid, int seed)
@@ -268,8 +270,8 @@ public partial class World : Node2D
         var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
 
         var grid = _viewerMode ? _reader?.LastGrid : _grid;
-        var gridW = grid?.Width ?? 64;
-        var gridH = grid?.Height ?? 64;
+        var gridW = grid?.Width ?? 32;
+        var gridH = grid?.Height ?? 32;
         if (grid == null || tileX < 0 || tileX >= gridW || tileY < 0 || tileY >= gridH)
         {
             _tooltip.Hide();
@@ -326,7 +328,10 @@ public partial class World : Node2D
         _lastCoverageHoverX = tileX;
         _lastCoverageHoverY = tileY;
 
-        if (tileX < 0 || tileX >= 64 || tileY < 0 || tileY >= 64)
+        var coverageGrid = _viewerMode ? _reader?.LastGrid : _grid;
+        var cgW = coverageGrid?.Width ?? 32;
+        var cgH = coverageGrid?.Height ?? 32;
+        if (tileX < 0 || tileX >= cgW || tileY < 0 || tileY >= cgH)
         {
             _renderer.ClearCoverageHighlight();
             return;
@@ -339,7 +344,7 @@ public partial class World : Node2D
         {
             var cx = tileX + dx;
             var cy = tileY + dy;
-            if (cx >= 0 && cx < 64 && cy >= 0 && cy < 64)
+            if (cx >= 0 && cx < cgW && cy >= 0 && cy < cgH)
                 tiles.Add((cx, cy));
         }
 
@@ -773,7 +778,7 @@ public partial class World : Node2D
             if (save == null) { _eventLog.AddEntry("Save file corrupted."); return; }
 
             // Rebuild the city from the save
-            _grid        = new CityGrid(64, 64);
+            _grid        = new CityGrid(32, 32);
             _terrainSeed = save.TerrainSeed;
             GenerateTerrain(_grid, _terrainSeed);
             SaveSystem.RestoreGrid(_grid, save);
