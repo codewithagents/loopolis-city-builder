@@ -37,23 +37,31 @@ Output is JSON — designed for agent analysis.
 ## Core Systems (all done)
 
 1. ✅ CityGrid — tile grid, zone placement, adjacency, terrain (Water blocks placement). Each tile has optional `BuildingId`.
-2. ✅ TerrainType — Flat/Hill/Forest/Water. Forest +$75, Hill +$50 placement surcharge
-3. ✅ BudgetSystem — tax income, costs, balance, deficit. Default start: $4,000
+2. ✅ TerrainType — height levels (0=water, 1=flat, 2+=elevated). Forest flag per tile. Surcharges: forest +$75, height≥2 +$50.
+3. ✅ BudgetSystem — tax income, costs, balance, deficit. Land-value tax multiplier. Default start: $4,000
 4. ✅ PopulationSystem — road-edge only (no interior spawns). Growth gated on `tile.BuildingId != null`.
 5. ✅ PowerNetwork — BFS flood-fill from power plants; services (Fire/Police/School) are conductors
 6. ✅ RoadNetwork — direct adjacency validation
-7. ✅ DemandSystem — commercial adjacency boosts residential growth (1.5×)
+7. ✅ DemandSystem — commercial adjacency boosts residential growth (1.5×, Chebyshev-3 radius)
 8. ✅ PollutionSystem — industrial tiles emit pollution, reduces happiness of nearby residential
-9. ✅ HappinessSystem — service coverage, neglect decay, tax modifier, event penalty, unemployment
-10. ✅ MilestoneSystem — thresholds Town(500)/City(5k)/Metropolis(25k)/Loopolis(100k), bankruptcy, abandonment
+9. ✅ HappinessSystem — service coverage (road-graph reachability), neglect decay (cap 0.20), tax modifier, commute penalty, unemployment
+10. ✅ MilestoneSystem — thresholds Town(500)/City(5k)/Metropolis(25k)/Loopolis(100k), bankruptcy, abandonment (threshold 0.25, 50-tick window)
 11. ✅ EventSystem — 4 events (FireBreak/CrimeWave/PowerOutage/DemandSlump), 2%/tick trigger, 60-tick honeymoon
 12. ✅ EmploymentSystem — industrial activity → jobs (0.4/unit, 20 jobs/full tile), residential growth throttled above pop 100
 13. ✅ SimulationEngine — orchestrates all systems per tick
 14. ✅ SaveSystem (Persistence) v2 — Capture/Serialize/Deserialize/RestoreGrid; terrain seed saves exact map; buildings persisted
 15. ✅ BuildingGrowthSystem — road-adjacent zone tiles → 1×1 base buildings; ≥80% capacity → tries to grow to next tier
-16. ✅ BuildingCatalog — 13 building types across R/C/I (see below)
+16. ✅ BuildingCatalog — 13 building types across R/C/I + hillside villa (see below)
+17. ✅ RoadTrafficSystem — real worker-flow edge traffic (not heuristic). Road capacity 80 workers, Avenue 200.
+18. ✅ PowerCapacitySystem — MW supply vs demand; brownout penalty when supply < demand
+19. ✅ LandValueSystem — per-tile float: plateau +0.35, forest +0.08, low pollution, high happiness, power
+20. ✅ **RoadGraph (G1)** — weighted Dijkstra graph built from road tiles. `GetDistance`, `IsReachable`, `GetConnectedComponent`, `ShortestPathSourceMap`. Road=1.0 weight, Avenue=0.5.
+21. ✅ **Service Coverage (G2)** — coverage uses road-graph distance, not Manhattan. Radii: Fire/Police=8.0, School=10.0, Hospital=12.0. No road = no coverage.
+22. ✅ **Worker Flows (G3)** — R→I worker routing via road graph. Edge traffic accumulates per tick. Chokepoints see real congestion. `WorkerFlowSystem` exposes workersRouted, averageCommuteDistance, unroutedWorkers, overloadedEdges.
+23. ✅ **Service Capacity (G4)** — School=200 seats, Police=300, Fire=400 bldgs, Hospital=80 beds. Closest-first drain. Capacity shown in HUD.
+24. ✅ HeightMapGenerator — diamond-square, dynamic canvas (33→129 for 128×128 maps). Scenarios: 32×32 (default), 64×64 (generated_map), 128×128 (generated_128).
 
-**195 tests · 0 failures**
+**443 tests · 0 failures**
 
 ## Building Catalog
 
