@@ -61,8 +61,8 @@ public class SimulationEngine
     public string? LatestEventBanner { get; private set; }
 
     private int _lowHappinessTicks = 0;
-    private const int LowHappinessLimit = 30;
-    private const double AbandonThreshold = 0.30;
+    private const int LowHappinessLimit = 50;   // give player time to react before abandonment
+    private const double AbandonThreshold = 0.25; // lowered from 0.30 — no-service cities shouldn't auto-abandon
 
     public SimulationEngine(CityGrid grid, BudgetSystem budget, PopulationSystem population,
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,

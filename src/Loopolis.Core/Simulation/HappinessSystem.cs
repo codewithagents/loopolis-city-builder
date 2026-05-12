@@ -209,7 +209,7 @@ public class HappinessSystem
             if (hasCoverage)
                 neglect = Math.Max(0.0, neglect - 0.002); // recover 0.002/tick
             else
-                neglect = Math.Min(0.3, neglect + 0.001); // accumulate 0.001/tick
+                neglect = Math.Min(0.20, neglect + 0.001); // accumulate 0.001/tick, cap at 0.20 (floors happiness at ~0.40)
             _neglect[key] = neglect;
 
             // Apply neglect penalty after all other calculations

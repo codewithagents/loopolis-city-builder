@@ -1257,9 +1257,31 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             grid.SetZone(16, 16, ZoneType.Industrial);
 
             // Services
-            grid.SetZone(8,  16, ZoneType.FireStation);    // covers west residential cluster (y=15 road adjacent)
-            grid.SetZone(14, 16, ZoneType.PoliceStation);  // covers center + east residential (y=15 road adjacent)
-            grid.SetZone(16, 10, ZoneType.School);         // covers east column + center row (x=16 spur adjacent at (16,11))
+            grid.SetZone(8,  16, ZoneType.FireStation);    // covers west residential cluster (road-adjacent to spine)
+            grid.SetZone(14, 16, ZoneType.PoliceStation);  // covers center + east residential (road-adjacent to spine)
+            // School at (13,16): road-adjacent to (13,15). Graph distance to west residential (7,14) ≈ 7.
+            // Graph distance to east residential (17,14) ≈ 5. Both well within School radius 10.0.
+            grid.SetZone(13, 16, ZoneType.School);
+            break;
+
+        case "powered_start":
+            // Like default but pre-built with fire+police coverage — tests mid-game growth without neglect cascade.
+            grid.SetFlatTerrain();
+            grid.SetZone(5, 12, ZoneType.CoalPlant);
+            for (var x = 6; x <= 16; x++) grid.SetZone(x, 12, ZoneType.Road);
+            // Residential north of road — wider strip
+            for (var x = 9; x <= 14; x++) grid.SetZone(x, 11, ZoneType.Residential);
+            // Commercial south of road
+            grid.SetZone(9,  13, ZoneType.Commercial);
+            grid.SetZone(10, 13, ZoneType.Commercial);
+            grid.SetZone(11, 13, ZoneType.Commercial);
+            // Industrial far west, south of road (away from residential)
+            grid.SetZone(6,  13, ZoneType.Industrial);
+            grid.SetZone(7,  13, ZoneType.Industrial);
+            // Services — pre-built so players see what covered growth looks like
+            grid.SetZone(8,  13, ZoneType.FireStation);
+            grid.SetZone(13, 13, ZoneType.PoliceStation);
+            grid.SetZone(15, 11, ZoneType.School);
             break;
 
         default:

@@ -288,22 +288,22 @@ public class HappinessSystemTests
     }
 
     [Test]
-    public void ServiceNeglect_CappedAt0Point3()
+    public void ServiceNeglect_CappedAt0Point20()
     {
-        // After 400+ ticks with no coverage, neglect shouldn't exceed 0.3
-        // Minimum final happiness should still be >= 0.3 (0.6 base - 0.3 max neglect)
+        // After 400+ ticks with no coverage, neglect shouldn't exceed 0.20 (lowered from 0.30
+        // to prevent guaranteed abandonment in no-service scenarios — floors happiness at ~0.40).
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Residential);
         MakeReady(grid, 5, 5);
 
-        // Run 400 ticks — far past the 300-tick threshold to max neglect
+        // Run 400 ticks — far past the 200-tick threshold to max neglect
         for (var i = 0; i < 400; i++)
             _happiness.Propagate(grid);
 
-        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.3).Within(0.001),
-            "Service neglect should be capped at 0.3");
-        Assert.That(grid.GetTile(5, 5).Happiness, Is.GreaterThanOrEqualTo(0.3),
-            "Final happiness should be >= 0.3 even at max neglect (0.6 base - 0.3 cap)");
+        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.20).Within(0.001),
+            "Service neglect should be capped at 0.20");
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.GreaterThanOrEqualTo(0.39).Within(0.001),
+            "Final happiness should be ~0.40 even at max neglect (0.6 base - 0.20 cap)");
     }
 
     // --- Tax modifier tests ---
