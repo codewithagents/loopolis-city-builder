@@ -1068,28 +1068,63 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
 
     switch (scenario)
     {
+        case "generated_128":
+        {
+            // Procedurally generated 128×128 terrain using diamond-square.
+            var seed = terrainSeed != 0 ? terrainSeed : 42;
+            var g128 = new CityGrid(128, 128);
+            var heightMap128 = Loopolis.Core.Grid.HeightMapGenerator.Generate(128, 128, seed);
+            var forestMap128 = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(128, 128, seed);
+            g128.ApplyHeightMap(heightMap128);
+            g128.ApplyForestMap(forestMap128);
+            // Place starter infrastructure near center on a flat tile
+            var cx = 64; var cy = 64;
+            // Search for a flat tile near center if exact center is water
+            var placed = false;
+            for (var dy = -10; dy <= 10 && !placed; dy++)
+            for (var dx = -10; dx <= 10 && !placed; dx++)
+            {
+                var px = cx + dx; var py = cy + dy;
+                if (g128.IsInBounds(px, py) && g128.GetHeightLevel(px, py) == 1)
+                {
+                    g128.SetZone(px - 2, py, ZoneType.CoalPlant);
+                    g128.SetZone(px - 1, py, ZoneType.Road);
+                    g128.SetZone(px,     py, ZoneType.Road);
+                    g128.SetZone(px + 1, py, ZoneType.Road);
+                    Console.WriteLine($"[generated_128] Placed starter at ({px},{py}), seed={seed}");
+                    placed = true;
+                }
+            }
+            var engine128 = new SimulationEngine(g128, budget, population, power, roads, demand);
+            engine128.SeedRoadGraphFromGrid();
+            return (g128, engine128);
+        }
+
         case "generated_map":
         {
-            // Procedurally generated terrain using diamond-square. Seed from CLI --seed arg.
+            // Procedurally generated 64×64 terrain using diamond-square. Seed from CLI --seed arg.
             // All zone placements come from the player — this scenario starts empty with terrain.
             var seed = terrainSeed != 0 ? terrainSeed : 42;
-            var heightMap = Loopolis.Core.Grid.HeightMapGenerator.Generate(32, 32, seed);
-            var forestMap = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(32, 32, seed);
-            grid.ApplyHeightMap(heightMap);
-            grid.ApplyForestMap(forestMap);
+            var g64 = new CityGrid(64, 64);
+            var heightMap = Loopolis.Core.Grid.HeightMapGenerator.Generate(64, 64, seed);
+            var forestMap = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed);
+            g64.ApplyHeightMap(heightMap);
+            g64.ApplyForestMap(forestMap);
             // Place a starter coal plant on the first flat non-water tile we find
-            for (var sy = 0; sy < 32; sy++)
-            for (var sx = 0; sx < 32; sx++)
+            for (var sy = 0; sy < 64; sy++)
+            for (var sx = 0; sx < 64; sx++)
             {
-                if (grid.GetHeightLevel(sx, sy) == 1)
+                if (g64.GetHeightLevel(sx, sy) == 1)
                 {
-                    grid.SetZone(sx, sy, ZoneType.CoalPlant);
+                    g64.SetZone(sx, sy, ZoneType.CoalPlant);
                     Console.WriteLine($"[generated_map] Placed starter CoalPlant at ({sx},{sy}), seed={seed}");
                     goto doneStarter;
                 }
             }
             doneStarter:
-            break;
+            var engine64 = new SimulationEngine(g64, budget, population, power, roads, demand);
+            engine64.SeedRoadGraphFromGrid();
+            return (g64, engine64);
         }
 
         case "no_power":

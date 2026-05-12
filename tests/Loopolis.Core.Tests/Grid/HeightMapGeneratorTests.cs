@@ -1,4 +1,5 @@
 using Loopolis.Core.Grid;
+using Loopolis.Core.Simulation;
 
 namespace Loopolis.Core.Tests.Grid;
 
@@ -157,6 +158,51 @@ public class HeightMapGeneratorTests
             $"Forest percentage {forestPct:P1} should be in reasonable range.");
     }
 
+    // ── Dynamic canvas sizing ────────────────────────────────────────────────
+
+    [Test]
+    public void SmallestPowerOf2Plus1_Examples()
+    {
+        Assert.That(HeightMapGenerator.SmallestPowerOf2Plus1(32),  Is.EqualTo(33),  "32 → 33 (2^5+1)");
+        Assert.That(HeightMapGenerator.SmallestPowerOf2Plus1(64),  Is.EqualTo(65),  "64 → 65 (2^6+1)");
+        Assert.That(HeightMapGenerator.SmallestPowerOf2Plus1(128), Is.EqualTo(129), "128 → 129 (2^7+1)");
+        Assert.That(HeightMapGenerator.SmallestPowerOf2Plus1(100), Is.EqualTo(129), "100 → 129 (2^7+1, smallest covering 100)");
+    }
+
+    [Test]
+    public void Generate_128x128_ProducesCorrectDimensions()
+    {
+        var map = HeightMapGenerator.Generate(128, 128, seed: 42);
+        Assert.That(map.GetLength(0), Is.EqualTo(128));
+        Assert.That(map.GetLength(1), Is.EqualTo(128));
+    }
+
+    [Test]
+    public void Generate_64x64_ProducesCorrectDimensions()
+    {
+        var map = HeightMapGenerator.Generate(64, 64, seed: 42);
+        Assert.That(map.GetLength(0), Is.EqualTo(64));
+        Assert.That(map.GetLength(1), Is.EqualTo(64));
+    }
+
+    [Test]
+    public void Generate_128x128_AllValues_InRange_0_To_10()
+    {
+        var map = HeightMapGenerator.Generate(128, 128, seed: 1234);
+        for (var x = 0; x < 128; x++)
+        for (var y = 0; y < 128; y++)
+            Assert.That(map[x, y], Is.InRange(0, 10),
+                $"Height at ({x},{y}) = {map[x,y]} is outside [0, 10].");
+    }
+
+    [Test]
+    public void GenerateForest_128x128_ProducesCorrectDimensions()
+    {
+        var forest = HeightMapGenerator.GenerateForest(128, 128, seed: 42);
+        Assert.That(forest.GetLength(0), Is.EqualTo(128));
+        Assert.That(forest.GetLength(1), Is.EqualTo(128));
+    }
+
     // ── CityGrid integration ──────────────────────────────────────────────────
 
     [Test]
@@ -209,5 +255,44 @@ public class HeightMapGeneratorTests
                 $"SetFlatTerrain should clear all forests at ({x},{y}).");
         }
         Assert.That(grid.AverageHeight, Is.EqualTo(1.0f).Within(0.001f));
+    }
+
+    // ── 128×128 scenario integration ─────────────────────────────────────────
+
+    [Test]
+    public void Generated128Scenario_SetupWithoutCrash_GridIs128x128()
+    {
+        // Verify that a 128×128 grid with applied terrain can be created and a
+        // simulation engine seeded from it without errors.
+        const int seed = 42;
+        var g = new CityGrid(128, 128);
+        var heightMap = HeightMapGenerator.Generate(128, 128, seed);
+        var forestMap = HeightMapGenerator.GenerateForest(128, 128, seed);
+        g.ApplyHeightMap(heightMap);
+        g.ApplyForestMap(forestMap);
+
+        Assert.That(g.Width,  Is.EqualTo(128), "Grid width should be 128.");
+        Assert.That(g.Height, Is.EqualTo(128), "Grid height should be 128.");
+
+        // Place a road near center on a flat tile so RoadGraph has at least one node
+        var placed = false;
+        for (var dy = -10; dy <= 10 && !placed; dy++)
+        for (var dx = -10; dx <= 10 && !placed; dx++)
+        {
+            var px = 64 + dx; var py = 64 + dy;
+            if (!g.IsInBounds(px, py) || g.GetHeightLevel(px, py) != 1) continue;
+            g.SetZone(px, py, ZoneType.CoalPlant);
+            if (g.IsInBounds(px + 1, py) && g.GetHeightLevel(px + 1, py) >= 1)
+                g.SetZone(px + 1, py, ZoneType.Road);
+            placed = true;
+        }
+
+        var engine = new SimulationEngine(g,
+            new BudgetSystem(), new PopulationSystem(),
+            new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+        engine.SeedRoadGraphFromGrid();
+
+        Assert.That(engine.RoadGraph.NodeCount, Is.GreaterThan(0),
+            "RoadGraph should have at least one node after seeding from a placed road.");
     }
 }

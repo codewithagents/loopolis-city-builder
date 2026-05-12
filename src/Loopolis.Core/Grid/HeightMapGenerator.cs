@@ -9,13 +9,24 @@ namespace Loopolis.Core.Grid;
 ///   2–4    → Elevated hills (buildable, ~20% of tiles)
 ///   5–10   → High peaks (buildable, ~5% of tiles)
 ///
-/// Grid sizes: works on any W×H grid by generating on a 33×33 (2^5+1)
-/// canvas and trimming to the requested dimensions.
+/// Grid sizes: works on any W×H grid by generating on a canvas of size
+/// SmallestPowerOf2Plus1(max(W,H)) and trimming to the requested dimensions.
+/// Examples: 32×32 → 33×33 canvas, 128×128 → 129×129 canvas.
 /// </summary>
 public static class HeightMapGenerator
 {
-    // Diamond-square canvas size (must be 2^n+1)
-    private const int CanvasSize = 33;
+    /// <summary>
+    /// Returns the smallest value 2^k+1 that is >= n+1.
+    /// Examples: n=32 → 33 (2^5+1), n=64 → 65 (2^6+1), n=128 → 129 (2^7+1), n=100 → 129 (2^7+1).
+    /// </summary>
+    public static int SmallestPowerOf2Plus1(int n)
+    {
+        // We need 2^k + 1 >= n + 1, i.e. 2^k >= n
+        var power = 1;
+        while (power < n)
+            power *= 2;
+        return power + 1;
+    }
 
     /// <summary>
     /// Generate a W×H height map using the diamond-square algorithm.
@@ -24,25 +35,26 @@ public static class HeightMapGenerator
     /// </summary>
     public static int[,] Generate(int width, int height, int seed, float roughness = 0.5f)
     {
+        var canvasSize = SmallestPowerOf2Plus1(Math.Max(width, height));
         var rng = new Random(seed);
-        var canvas = new float[CanvasSize, CanvasSize];
+        var canvas = new float[canvasSize, canvasSize];
 
         // Initialise the four corners with random values in [0, 1]
-        canvas[0, 0]                             = (float)rng.NextDouble();
-        canvas[CanvasSize - 1, 0]               = (float)rng.NextDouble();
-        canvas[0, CanvasSize - 1]               = (float)rng.NextDouble();
-        canvas[CanvasSize - 1, CanvasSize - 1]  = (float)rng.NextDouble();
+        canvas[0, 0]                              = (float)rng.NextDouble();
+        canvas[canvasSize - 1, 0]                = (float)rng.NextDouble();
+        canvas[0, canvasSize - 1]                = (float)rng.NextDouble();
+        canvas[canvasSize - 1, canvasSize - 1]   = (float)rng.NextDouble();
 
         // Diamond-square steps
-        var stepSize = CanvasSize - 1; // starts at 32
+        var stepSize = canvasSize - 1; // starts at power-of-2
         var scale = 1.0f;
         while (stepSize > 1)
         {
             var half = stepSize / 2;
 
             // Diamond step: for each square, set the centre from its four corners
-            for (var y = 0; y < CanvasSize - 1; y += stepSize)
-            for (var x = 0; x < CanvasSize - 1; x += stepSize)
+            for (var y = 0; y < canvasSize - 1; y += stepSize)
+            for (var x = 0; x < canvasSize - 1; x += stepSize)
             {
                 var avg = (canvas[x,           y] +
                            canvas[x + stepSize, y] +
@@ -52,15 +64,15 @@ public static class HeightMapGenerator
             }
 
             // Square step: for each diamond midpoint, set it from up to 4 neighbours
-            for (var y = 0; y < CanvasSize; y += half)
-            for (var x = (y + half) % stepSize; x < CanvasSize; x += stepSize)
+            for (var y = 0; y < canvasSize; y += half)
+            for (var x = (y + half) % stepSize; x < canvasSize; x += stepSize)
             {
                 var sum = 0.0f;
                 var count = 0;
-                if (x - half >= 0)           { sum += canvas[x - half, y]; count++; }
-                if (x + half < CanvasSize)   { sum += canvas[x + half, y]; count++; }
-                if (y - half >= 0)           { sum += canvas[x, y - half]; count++; }
-                if (y + half < CanvasSize)   { sum += canvas[x, y + half]; count++; }
+                if (x - half >= 0)            { sum += canvas[x - half, y]; count++; }
+                if (x + half < canvasSize)    { sum += canvas[x + half, y]; count++; }
+                if (y - half >= 0)            { sum += canvas[x, y - half]; count++; }
+                if (y + half < canvasSize)    { sum += canvas[x, y + half]; count++; }
                 canvas[x, y] = sum / count + ((float)rng.NextDouble() * 2 - 1) * scale;
             }
 
@@ -71,8 +83,8 @@ public static class HeightMapGenerator
         // Normalise the canvas to [0, 1]
         var minVal = float.MaxValue;
         var maxVal = float.MinValue;
-        for (var x = 0; x < CanvasSize; x++)
-        for (var y = 0; y < CanvasSize; y++)
+        for (var x = 0; x < canvasSize; x++)
+        for (var y = 0; y < canvasSize; y++)
         {
             if (canvas[x, y] < minVal) minVal = canvas[x, y];
             if (canvas[x, y] > maxVal) maxVal = canvas[x, y];
@@ -80,8 +92,8 @@ public static class HeightMapGenerator
         var range = maxVal - minVal;
         if (range < 0.0001f) range = 0.0001f;
 
-        for (var x = 0; x < CanvasSize; x++)
-        for (var y = 0; y < CanvasSize; y++)
+        for (var x = 0; x < canvasSize; x++)
+        for (var y = 0; y < canvasSize; y++)
             canvas[x, y] = (canvas[x, y] - minVal) / range;
 
         // Map to int height levels using distribution thresholds:
@@ -93,7 +105,7 @@ public static class HeightMapGenerator
         for (var x = 0; x < width; x++)
         for (var y = 0; y < height; y++)
         {
-            var v = canvas[x, y]; // canvas is at least 33×33; width/height ≤ 32
+            var v = canvas[x, y]; // trimmed to [width, height] from the larger canvas
             result[x, y] = NormalizedToHeight(v);
         }
         return result;
