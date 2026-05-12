@@ -186,6 +186,7 @@ public partial class TileTooltip : CanvasLayer
                 AddLine("Fire Station", 15, new Color(1f, 0.5f, 0.2f));
                 AddLine("Coverage radius: 4 tiles", 13, new Color(0.8f, 0.6f, 0.4f));
                 AddLine("Maint: $3.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
+                AddServiceCapacityLines(ZoneType.FireStation, state);
                 break;
 
             case ZoneType.FireHQ:
@@ -198,6 +199,7 @@ public partial class TileTooltip : CanvasLayer
                 AddLine("Police Station", 15, new Color(0.4f, 0.6f, 1f));
                 AddLine("Coverage radius: 4 tiles", 13, new Color(0.5f, 0.6f, 0.9f));
                 AddLine("Maint: $3.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
+                AddServiceCapacityLines(ZoneType.PoliceStation, state);
                 break;
 
             case ZoneType.PoliceHQ:
@@ -210,12 +212,14 @@ public partial class TileTooltip : CanvasLayer
                 AddLine("School", 15, new Color(0.8f, 0.4f, 1f));
                 AddLine("Coverage radius: 5 tiles", 13, new Color(0.75f, 0.5f, 0.9f));
                 AddLine("Maint: $5.00/tick", 12, new Color(0.65f, 0.65f, 0.65f));
+                AddServiceCapacityLines(ZoneType.School, state);
                 break;
 
             case ZoneType.Hospital:
                 AddLine("Hospital", 15, new Color(0.55f, 0.9f, 0.6f));
                 AddLine("Coverage radius: 8 tiles — reduces event damage", 13, new Color(0.5f, 0.85f, 0.55f));
                 AddLine("Maint: $35.00/tick  |  Unlock: City (5,000 pop)", 12, new Color(0.65f, 0.65f, 0.65f));
+                AddServiceCapacityLines(ZoneType.Hospital, state);
                 break;
 
             default:
@@ -494,6 +498,39 @@ public partial class TileTooltip : CanvasLayer
             "ind_warehouse_2x2"  => Loopolis.Core.Buildings.BuildingCatalog.Find("ind_park_4x2"),
             _ => null  // max tier or unknown
         };
+    }
+
+    /// <summary>
+    /// Appends capacity and coverage lines to a service building tooltip.
+    /// Uses the city-wide coverage summary from SharedState — capacity numbers are per building type
+    /// totalled across all buildings of that type, which is the best data available without
+    /// per-tile service records.
+    /// </summary>
+    private void AddServiceCapacityLines(ZoneType serviceType, SharedState? state)
+    {
+        var cov = state?.CoverageSummary;
+        if (cov == null) return;
+
+        var (used, total, unit, coveragePct) = serviceType switch
+        {
+            ZoneType.School        => (cov.SchoolSeatsUsed,      cov.SchoolSeatsTotal,      "seats",    cov.SchoolCoveragePercent),
+            ZoneType.PoliceStation => (cov.PoliceCapacityUsed,   cov.PoliceCapacityTotal,   "capacity", cov.PoliceCoveragePercent),
+            ZoneType.FireStation   => (cov.FireCapacityUsed,     cov.FireCapacityTotal,     "bldgs",    cov.FireCoveragePercent),
+            ZoneType.Hospital      => (cov.HospitalBedsUsed,     cov.HospitalBedsTotal,     "beds",     cov.HospitalCoveragePercent),
+            _                      => (0, 0, "", 0.0),
+        };
+
+        if (total == 0) return;
+
+        var capRatio  = (double)used / total;
+        var capColor  = capRatio >= 0.9 ? new Color(1f, 0.3f, 0.3f)
+                       : capRatio >= 0.7 ? new Color(1f, 0.85f, 0.15f)
+                                         : new Color(0.3f, 1f, 0.3f);
+        var covPct    = (int)(coveragePct * 100);
+
+        AddSeparator();
+        AddLine($"Capacity: {used}/{total} {unit}", 13, capColor);
+        AddLine($"Coverage: {covPct}% of residential", 13, new Color(0.75f, 0.75f, 0.9f));
     }
 
     private void AddSeparator()

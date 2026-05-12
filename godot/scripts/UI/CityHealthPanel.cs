@@ -29,6 +29,11 @@ public partial class CityHealthPanel : CanvasLayer
         FireCoverage,
         PoliceCoverage,
         NoRoadAccess,
+        SchoolCapacity,
+        PoliceCapacity,
+        HospitalCapacity,
+        UnroutedWorkers,
+        OverloadedRoads,
     }
 
     private static readonly Color WarnRed    = new(1f,  0.3f, 0.3f);
@@ -187,6 +192,62 @@ public partial class CityHealthPanel : CanvasLayer
                 $"⚠ {noRoadCount} zones have no road access — wasting ${wasteCost}/tick");
         }
 
+        // Service capacity warnings (G4)
+        if (state.CoverageSummary != null)
+        {
+            var cov = state.CoverageSummary;
+
+            // School over 90% capacity
+            if (cov.SchoolSeatsTotal > 0 &&
+                (double)cov.SchoolSeatsUsed / cov.SchoolSeatsTotal >= 0.9)
+            {
+                result.Add(WarningId.SchoolCapacity);
+                UpdateLabel(WarningId.SchoolCapacity,
+                    $"⚠ Schools near capacity ({cov.SchoolSeatsUsed}/{cov.SchoolSeatsTotal} seats) — build more");
+            }
+
+            // Police over 90% capacity
+            if (cov.PoliceCapacityTotal > 0 &&
+                (double)cov.PoliceCapacityUsed / cov.PoliceCapacityTotal >= 0.9)
+            {
+                result.Add(WarningId.PoliceCapacity);
+                UpdateLabel(WarningId.PoliceCapacity,
+                    "⚠ Police near capacity — crime risk rising");
+            }
+
+            // Hospital over 90% capacity
+            if (cov.HospitalBedsTotal > 0 &&
+                (double)cov.HospitalBedsUsed / cov.HospitalBedsTotal >= 0.9)
+            {
+                result.Add(WarningId.HospitalCapacity);
+                UpdateLabel(WarningId.HospitalCapacity,
+                    $"⚠ Hospital near capacity ({cov.HospitalBedsUsed}/{cov.HospitalBedsTotal} beds) — needs expansion");
+            }
+        }
+
+        // Worker routing warnings (G4)
+        if (state.WorkerFlow != null)
+        {
+            var wf = state.WorkerFlow;
+            var total = wf.WorkersRouted + wf.UnroutedWorkers;
+
+            // Unrouted workers > 10% of total
+            if (total > 0 && wf.UnroutedWorkers > total * 0.1)
+            {
+                result.Add(WarningId.UnroutedWorkers);
+                UpdateLabel(WarningId.UnroutedWorkers,
+                    $"⚠ {wf.UnroutedWorkers} workers have no road to jobs");
+            }
+
+            // Overloaded road edges
+            if (wf.OverloadedEdges > 0)
+            {
+                result.Add(WarningId.OverloadedRoads);
+                UpdateLabel(WarningId.OverloadedRoads,
+                    $"⚠ {wf.OverloadedEdges} road segments jammed — add avenues");
+            }
+        }
+
         return result;
     }
 
@@ -245,6 +306,11 @@ public partial class CityHealthPanel : CanvasLayer
         AddWarningLabel(WarningId.FireCoverage,    "🔥 Fire coverage low",             WarnYellow);
         AddWarningLabel(WarningId.PoliceCoverage,  "👮 Police coverage low",           WarnCyan);
         AddWarningLabel(WarningId.NoRoadAccess,    "⚠ Zones with no road access",     WarnOrange);
+        AddWarningLabel(WarningId.SchoolCapacity,  "⚠ Schools near capacity",         WarnYellow);
+        AddWarningLabel(WarningId.PoliceCapacity,  "⚠ Police near capacity",          WarnYellow);
+        AddWarningLabel(WarningId.HospitalCapacity,"⚠ Hospital near capacity",        WarnOrange);
+        AddWarningLabel(WarningId.UnroutedWorkers, "⚠ Workers have no road to jobs",  WarnOrange);
+        AddWarningLabel(WarningId.OverloadedRoads, "⚠ Road segments jammed",         WarnYellow);
     }
 
     private void AddWarningLabel(WarningId id, string defaultText, Color color)

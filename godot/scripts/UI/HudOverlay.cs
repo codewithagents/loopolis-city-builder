@@ -21,6 +21,11 @@ public partial class HudOverlay : CanvasLayer
     private Label _jobsLabel      = null!;
     private Label _commerceLabel  = null!;
     private Label _industryLabel  = null!;
+    private Label _schoolLabel    = null!;
+    private Label _policeLabel    = null!;
+    private Label _fireLabel      = null!;
+    private Label _hospitalLabel  = null!;
+    private Label _commuteLabel   = null!;
     private Label _powerLabel     = null!;
     private Label _eventLabel     = null!;
     private Label _selectedLabel  = null!;
@@ -71,6 +76,12 @@ public partial class HudOverlay : CanvasLayer
         _commerceLabel = MakeLabel("Commerce: 0 zones | $0/tick | Demand: ░░░░░░░░░░ 0%");
         _industryLabel = MakeLabel("Industry: 0 zones | 0 jobs | Utilization: ░░░░░░░░░░ 0%");
 
+        _schoolLabel   = MakeServiceLabel();
+        _policeLabel   = MakeServiceLabel();
+        _fireLabel     = MakeServiceLabel();
+        _hospitalLabel = MakeServiceLabel();
+        _commuteLabel  = MakeServiceLabel();
+
         _powerLabel = new Label();
         _powerLabel.Text = "";
         _powerLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
@@ -96,6 +107,11 @@ public partial class HudOverlay : CanvasLayer
         vbox.AddChild(_jobsLabel);
         vbox.AddChild(_commerceLabel);
         vbox.AddChild(_industryLabel);
+        vbox.AddChild(_schoolLabel);
+        vbox.AddChild(_policeLabel);
+        vbox.AddChild(_fireLabel);
+        vbox.AddChild(_hospitalLabel);
+        vbox.AddChild(_commuteLabel);
         vbox.AddChild(_powerLabel);
         vbox.AddChild(_eventLabel);
         vbox.AddChild(_selectedLabel);
@@ -243,6 +259,107 @@ public partial class HudOverlay : CanvasLayer
             }
         }
 
+        // Service capacity rows (G4)
+        if (state.CoverageSummary != null)
+        {
+            var cov = state.CoverageSummary;
+
+            // School
+            if (cov.SchoolSeatsTotal == 0)
+            {
+                _schoolLabel.Text = "🏫 School: — (none built)";
+                _schoolLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            }
+            else
+            {
+                var pct    = (int)(cov.SchoolCoveragePercent * 100);
+                var bar    = MakeBar(pct);
+                _schoolLabel.Text = $"🏫 School:   {cov.SchoolSeatsUsed}/{cov.SchoolSeatsTotal} seats  {bar}  {pct}%";
+                _schoolLabel.AddThemeColorOverride("font_color", CapacityColor(cov.SchoolSeatsUsed, cov.SchoolSeatsTotal));
+            }
+            _schoolLabel.Visible = true;
+
+            // Police
+            if (cov.PoliceCapacityTotal == 0)
+            {
+                _policeLabel.Text = "👮 Police: — (none built)";
+                _policeLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            }
+            else
+            {
+                var pct    = (int)(cov.PoliceCoveragePercent * 100);
+                var bar    = MakeBar(pct);
+                _policeLabel.Text = $"👮 Police:   {cov.PoliceCapacityUsed}/{cov.PoliceCapacityTotal}        {bar}  {pct}%";
+                _policeLabel.AddThemeColorOverride("font_color", CapacityColor(cov.PoliceCapacityUsed, cov.PoliceCapacityTotal));
+            }
+            _policeLabel.Visible = true;
+
+            // Fire
+            if (cov.FireCapacityTotal == 0)
+            {
+                _fireLabel.Text = "🚒 Fire: — (none built)";
+                _fireLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            }
+            else
+            {
+                var pct    = (int)(cov.FireCoveragePercent * 100);
+                var bar    = MakeBar(pct);
+                _fireLabel.Text = $"🚒 Fire:     {cov.FireCapacityUsed}/{cov.FireCapacityTotal}        {bar}  {pct}%";
+                _fireLabel.AddThemeColorOverride("font_color", CapacityColor(cov.FireCapacityUsed, cov.FireCapacityTotal));
+            }
+            _fireLabel.Visible = true;
+
+            // Hospital
+            if (cov.HospitalBedsTotal == 0)
+            {
+                _hospitalLabel.Text = "🏥 Hospital: — (none built)";
+                _hospitalLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            }
+            else
+            {
+                var pct    = (int)(cov.HospitalCoveragePercent * 100);
+                var bar    = MakeBar(pct);
+                _hospitalLabel.Text = $"🏥 Hospital: {cov.HospitalBedsUsed}/{cov.HospitalBedsTotal} beds   {bar}  {pct}%";
+                _hospitalLabel.AddThemeColorOverride("font_color", CapacityColor(cov.HospitalBedsUsed, cov.HospitalBedsTotal));
+            }
+            _hospitalLabel.Visible = true;
+        }
+        else
+        {
+            _schoolLabel.Visible   = false;
+            _policeLabel.Visible   = false;
+            _fireLabel.Visible     = false;
+            _hospitalLabel.Visible = false;
+        }
+
+        // Commute row (G4)
+        if (state.WorkerFlow != null)
+        {
+            var wf = state.WorkerFlow;
+            if (wf.WorkersRouted == 0 && wf.UnroutedWorkers == 0)
+            {
+                _commuteLabel.Text = "🚗 Commute: no workers yet";
+                _commuteLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            }
+            else
+            {
+                var jamStr     = wf.OverloadedEdges > 0  ? $" | {wf.OverloadedEdges} jammed roads" : "";
+                var unrStr     = wf.UnroutedWorkers > 0  ? $" | {wf.UnroutedWorkers} unrouted" : "";
+                _commuteLabel.Text = $"🚗 Commute: avg {wf.AverageCommuteDistance:F1} tiles{unrStr}{jamStr}";
+                var commuteColor = wf.OverloadedEdges > 0  ? new Color(1f, 0.5f, 0.15f)
+                                 : wf.UnroutedWorkers > 10 ? new Color(1f, 0.8f, 0.2f)
+                                                           : new Color(0.75f, 0.9f, 0.75f);
+                _commuteLabel.AddThemeColorOverride("font_color", commuteColor);
+            }
+            _commuteLabel.Visible = true;
+        }
+        else
+        {
+            _commuteLabel.Text = "🚗 Commute: no workers yet";
+            _commuteLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+            _commuteLabel.Visible = true;
+        }
+
         // Power row
         if (state.Power != null)
         {
@@ -325,6 +442,30 @@ public partial class HudOverlay : CanvasLayer
     {
         var filled = Math.Clamp(percent, 0, 100) / 10;
         return new string('█', filled) + new string('░', 10 - filled);
+    }
+
+    /// <summary>Creates a hidden, monospace-friendly service-capacity label.</summary>
+    private static Label MakeServiceLabel()
+    {
+        var label = new Label();
+        label.Text = "";
+        label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        label.AddThemeFontSizeOverride("font_size", 14);
+        label.Visible = false;
+        return label;
+    }
+
+    /// <summary>
+    /// Returns green/yellow/red based on how full a service capacity is.
+    /// ≥90% → red (near capacity), ≥70% → yellow, else green.
+    /// </summary>
+    private static Color CapacityColor(int used, int total)
+    {
+        if (total == 0) return new Color(0.6f, 0.6f, 0.6f);
+        var ratio = (double)used / total;
+        return ratio >= 0.9 ? new Color(1f, 0.3f, 0.3f)
+             : ratio >= 0.7 ? new Color(1f, 0.85f, 0.15f)
+                            : new Color(0.3f, 1f, 0.3f);
     }
 
     private static Label MakeLabel(string text)

@@ -310,7 +310,8 @@ public record SharedState(
     EmploymentDto? Employment = null,
     CoverageSummaryDto? CoverageSummary = null,
     string? PauseReason = null,
-    PowerStateDto? Power = null             // power supply/demand from PowerCapacitySystem
+    PowerStateDto? Power = null,            // power supply/demand from PowerCapacitySystem
+    WorkerFlowDto? WorkerFlow = null        // commute routing stats (G4)
 );
 
 /// <summary>Power supply vs. demand snapshot from PowerCapacitySystem.</summary>
@@ -346,7 +347,24 @@ public record CoverageSummaryDto(
     double SchoolCoveragePercent,
     double HospitalCoveragePercent,
     double AvgPollution,
-    double AvgHappiness
+    double AvgHappiness,
+    // Capacity fields (G4)
+    int SchoolSeatsUsed = 0,
+    int SchoolSeatsTotal = 0,
+    int PoliceCapacityUsed = 0,
+    int PoliceCapacityTotal = 0,
+    int FireCapacityUsed = 0,
+    int FireCapacityTotal = 0,
+    int HospitalBedsUsed = 0,
+    int HospitalBedsTotal = 0
+);
+
+/// <summary>Worker routing stats from the commute/road-flow system (G4).</summary>
+public record WorkerFlowDto(
+    int WorkersRouted,
+    double AverageCommuteDistance,
+    int UnroutedWorkers,
+    int OverloadedEdges
 );
 
 public record SharedTile(
