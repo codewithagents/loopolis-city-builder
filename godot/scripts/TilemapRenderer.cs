@@ -601,6 +601,33 @@ public partial class TilemapRenderer : Node2D
                         }
                     }
 
+                    // Border connection tile: yellow downward triangle + yellow border outline
+                    if (tile.IsBorderConnection)
+                    {
+                        var borderYellow = new Color(1f, 0.85f, 0f, 1f);
+
+                        // Thin yellow 2px border around the tile edges
+                        DrawRect(new Rect2(px,                  py, TileSize, 2),           borderYellow); // top
+                        DrawRect(new Rect2(px,                  py + TileSize - 2, TileSize, 2), borderYellow); // bottom
+                        DrawRect(new Rect2(px,                  py, 2, TileSize),           borderYellow); // left
+                        DrawRect(new Rect2(px + TileSize - 2,   py, 2, TileSize),           borderYellow); // right
+
+                        // Downward-pointing triangle centered on tile, ~40% of tile size
+                        const float triSize = TileSize * 0.40f;
+                        var cx = px + TileSize * 0.5f;
+                        var cy = py + TileSize * 0.5f;
+                        var triTop    = cy - triSize * 0.5f;
+                        var triBottom = cy + triSize * 0.5f;
+                        var triLeft   = cx - triSize * 0.5f;
+                        var triRight  = cx + triSize * 0.5f;
+                        // Triangle: top-left, top-right, bottom-center (points downward)
+                        DrawTriangle(
+                            new Vector2(triLeft,  triTop),
+                            new Vector2(triRight, triTop),
+                            new Vector2(cx,       triBottom),
+                            borderYellow);
+                    }
+
                     // Traffic load dots: show congestion level on road/avenue tiles
                     DrawTrafficDots(tile.TrafficLoad, px, py);
 

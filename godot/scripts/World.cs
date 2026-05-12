@@ -144,7 +144,7 @@ public partial class World : Node2D
         SetupStandaloneSimulation();
     }
 
-    private const int StandaloneMapSize = 64; // standalone default — 64×64 grid
+    private const int StandaloneMapSize = 32; // standalone default — 32×32 grid (matches "default" scenario)
 
     private void SetupStandaloneSimulation()
     {
@@ -623,6 +623,21 @@ public partial class World : Node2D
         var tileY = tilePos.Y;
 
         var selectedZone = _toolbar.SelectedZone;
+
+        // Border connection guard: never allow painting or erasing a border connection tile.
+        // The Core also enforces this, but checking here prevents sending useless commands (better UX).
+        if (_viewerMode)
+        {
+            var stateTile = _reader?.LastState?.GetTile(tileX, tileY);
+            if (stateTile?.IsBorderConnection == true) return;
+        }
+        else
+        {
+            if (tileX >= 0 && tileX < _grid.Width && tileY >= 0 && tileY < _grid.Height)
+            {
+                if (_grid.GetTile(tileX, tileY).IsBorderConnection) return;
+            }
+        }
 
         if (_viewerMode)
         {

@@ -138,6 +138,13 @@ public partial class TileTooltip : CanvasLayer
                 AddBareTileChecklist(tile, state);
                 break;
 
+            case ZoneType.Road when tile.IsBorderConnection:
+                AddLine("Regional Highway", 15, new Color(1f, 0.85f, 0f));
+                AddLine("Connects your city to the outside world.", 13, new Color(0.9f, 0.85f, 0.7f));
+                AddLine("Residents near this road grow 1.2x faster.", 12, new Color(0.85f, 0.8f, 0.6f));
+                AddLine("Cannot be removed.", 12, new Color(0.7f, 0.5f, 0.2f));
+                break;
+
             case ZoneType.Road:
                 AddLine("Road", 15, new Color(0.8f, 0.8f, 0.8f));
                 if (tile.TrafficLoad > 0)

@@ -37,6 +37,10 @@ public partial class HudOverlay : CanvasLayer
     private const double MilestoneDuration = 3.0; // seconds
     private const double BalanceWarningDuration = 0.8; // seconds
 
+    // Tutorial banner — shown until a power plant is placed
+    private Label _tutorialBanner = null!;
+    private bool _tutorialDismissed = false;
+
     public override void _Ready()
     {
         Layer = 10;
@@ -129,6 +133,36 @@ public partial class HudOverlay : CanvasLayer
         _milestoneLabel.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.2f));
         _milestoneLabel.AddThemeFontSizeOverride("font_size", 22);
         AddChild(_milestoneLabel);
+
+        // Tutorial banner — top-center, semi-transparent dark background
+        var tutorialPanel = new PanelContainer();
+        tutorialPanel.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+        tutorialPanel.Position = new Vector2(0, 40);
+        tutorialPanel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        var tutorialStyle = new StyleBoxFlat();
+        tutorialStyle.BgColor = new Color(0f, 0f, 0f, 0.60f);
+        tutorialStyle.ContentMarginLeft   = 12;
+        tutorialStyle.ContentMarginRight  = 12;
+        tutorialStyle.ContentMarginTop    = 5;
+        tutorialStyle.ContentMarginBottom = 5;
+        tutorialStyle.CornerRadiusTopLeft     = 4;
+        tutorialStyle.CornerRadiusTopRight    = 4;
+        tutorialStyle.CornerRadiusBottomLeft  = 4;
+        tutorialStyle.CornerRadiusBottomRight = 4;
+        tutorialPanel.AddThemeStyleboxOverride("panel", tutorialStyle);
+
+        _tutorialBanner = new Label();
+        _tutorialBanner.Text = "Place a power plant — your city needs power to grow";
+        _tutorialBanner.HorizontalAlignment = HorizontalAlignment.Center;
+        _tutorialBanner.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f, 1f));
+        _tutorialBanner.AddThemeFontSizeOverride("font_size", 16);
+        _tutorialBanner.MouseFilter = Control.MouseFilterEnum.Ignore;
+        tutorialPanel.AddChild(_tutorialBanner);
+        tutorialPanel.Visible = false;
+        AddChild(tutorialPanel);
+
+        // Keep a reference to the panel so we can show/hide it via the label's parent
+        _tutorialBanner.SetMeta("panel", tutorialPanel);
     }
 
     public override void _Process(double delta)
@@ -405,6 +439,41 @@ public partial class HudOverlay : CanvasLayer
             _lastShownMilestone = state.MilestoneReached;
             ShowMilestone(state.MilestoneReached);
         }
+
+        // Tutorial banner: show when tick > 5 and no power plant exists yet; hide once placed
+        UpdateTutorialBanner(state);
+    }
+
+    /// <summary>
+    /// Shows the tutorial banner when tick > 5 and no power plant is on the map.
+    /// Permanently dismisses it once a power plant is detected.
+    /// </summary>
+    private void UpdateTutorialBanner(SharedState state)
+    {
+        if (_tutorialDismissed) return;
+
+        var panel = (Control)_tutorialBanner.GetMeta("panel").As<GodotObject>();
+
+        // Check if a power plant exists on the map
+        var hasPowerPlant = false;
+        foreach (var t in state.Tiles)
+        {
+            if (t.Zone == "CoalPlant" || t.Zone == "NuclearPlant" || t.Zone == "PowerPlant")
+            {
+                hasPowerPlant = true;
+                break;
+            }
+        }
+
+        if (hasPowerPlant)
+        {
+            _tutorialDismissed = true;
+            panel.Visible = false;
+            return;
+        }
+
+        // Only show after tick 5 so the very first few frames don't clutter the screen
+        panel.Visible = state.Tick > 5;
     }
 
     /// <summary>Called by World.cs (standalone mode) to update the next milestone display directly.</summary>

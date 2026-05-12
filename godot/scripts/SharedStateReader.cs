@@ -258,7 +258,9 @@ public partial class SharedStateReader : Node
             }
 
             var zoneType = Enum.Parse<ZoneType>(tile.Zone);
-            if (zoneType != ZoneType.Empty)
+            if (tile.IsBorderConnection)
+                grid.PlaceBorderConnection(tile.X, tile.Y); // sets Road + IsBorderConnection
+            else if (zoneType != ZoneType.Empty)
                 grid.SetZone(tile.X, tile.Y, zoneType);
             if (tile.HasPower) grid.SetPower(tile.X, tile.Y, true);
             if (tile.HasRoadAccess) grid.SetRoadAccess(tile.X, tile.Y, true);
@@ -343,7 +345,19 @@ public record SharedState(
     string? PauseReason = null,
     PowerStateDto? Power = null,            // power supply/demand from PowerCapacitySystem
     WorkerFlowDto? WorkerFlow = null        // commute routing stats (G4)
-);
+)
+{
+    /// <summary>
+    /// Looks up the SharedTile at (x, y) from the Tiles array.
+    /// Returns null if no tile exists at those coordinates.
+    /// </summary>
+    public SharedTile? GetTile(int x, int y)
+    {
+        foreach (var t in Tiles)
+            if (t.X == x && t.Y == y) return t;
+        return null;
+    }
+}
 
 /// <summary>Power supply vs. demand snapshot from PowerCapacitySystem.</summary>
 public record PowerStateDto(
@@ -413,5 +427,6 @@ public record SharedTile(
     int TrafficLoad = 0,    // RoadTrafficSystem load — only set for Road/Avenue tiles
     string? Terrain = null, // TerrainType as string ("Flat", "Hill", "Forest", "Water") — null means Flat
     int Height = 1,         // height level: ≤0 = water, 1 = lowland, 2 = midland, 3+ = highland/peak
-    bool HasForest = false  // forest overlay (vegetation on top of elevation)
+    bool HasForest = false, // forest overlay (vegetation on top of elevation)
+    bool IsBorderConnection = false // border road tile — cannot be erased or overwritten
 );
