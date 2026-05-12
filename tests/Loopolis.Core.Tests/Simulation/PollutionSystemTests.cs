@@ -30,6 +30,7 @@ public class PollutionSystemTests
     {
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Industrial);
+        grid.SetPower(5, 5, true); // powered industrial emits pollution
 
         _pollution.Propagate(grid);
 
@@ -42,6 +43,7 @@ public class PollutionSystemTests
     {
         var grid = new CityGrid(15, 15);
         grid.SetZone(7, 7, ZoneType.Industrial);
+        grid.SetPower(7, 7, true); // powered industrial emits pollution
 
         _pollution.Propagate(grid);
 
@@ -61,6 +63,7 @@ public class PollutionSystemTests
     {
         var grid = new CityGrid(15, 15);
         grid.SetZone(7, 7, ZoneType.Industrial);
+        grid.SetPower(7, 7, true); // powered industrial emits pollution
 
         _pollution.Propagate(grid);
 
@@ -76,16 +79,19 @@ public class PollutionSystemTests
     [Test]
     public void MultipleSources_Accumulate()
     {
-        // Single industrial source
+        // Single industrial source (powered)
         var gridSingle = new CityGrid(15, 15);
         gridSingle.SetZone(5, 5, ZoneType.Industrial);
+        gridSingle.SetPower(5, 5, true);
         _pollution.Propagate(gridSingle);
         var singlePollution = gridSingle.GetTile(5, 6).PollutionLevel;
 
         // Two industrial sources, both reach tile (5, 6)
         var gridDouble = new CityGrid(15, 15);
         gridDouble.SetZone(5, 5, ZoneType.Industrial);
+        gridDouble.SetPower(5, 5, true);
         gridDouble.SetZone(5, 7, ZoneType.Industrial); // also covers (5, 6)
+        gridDouble.SetPower(5, 7, true);
         _pollution.Propagate(gridDouble);
         var doublePollution = gridDouble.GetTile(5, 6).PollutionLevel;
 
@@ -98,6 +104,7 @@ public class PollutionSystemTests
     {
         var grid = new CityGrid(15, 15);
         grid.SetZone(7, 7, ZoneType.Industrial);
+        grid.SetPower(7, 7, true); // powered industrial emits pollution
 
         // First propagate — tiles get pollution
         _pollution.Propagate(grid);
@@ -130,6 +137,7 @@ public class PollutionSystemTests
     {
         var grid = new CityGrid(15, 15);
         grid.SetZone(7, 7, ZoneType.Industrial);
+        grid.SetPower(7, 7, true); // powered industrial emits pollution
         grid.SetZone(7, 9, ZoneType.Residential); // within radius
 
         _pollution.Propagate(grid);

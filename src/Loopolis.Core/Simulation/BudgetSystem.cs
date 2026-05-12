@@ -150,6 +150,9 @@ public class BudgetSystem
     ///   LandValue 0.4–0.7 → ×1.0 (normal)
     ///   LandValue &lt; 0.4  → ×0.8 (cheap district)
     ///
+    /// Power-as-density modifier (applied on top of land value):
+    ///   res_house_1x1 without power → ×0.7 (unpowered cottage, lower tax yield)
+    ///
     /// Non-residential population (if any) is taxed at the flat rate.
     /// </summary>
     public double CalculateTaxIncome(CityGrid grid)
@@ -158,8 +161,14 @@ public class BudgetSystem
         if (residentialTiles.Count == 0)
             return Population * TaxRate;
 
-        // Total capacity so we can prorate population to individual tiles
-        var totalCapacity = residentialTiles.Count * 50;
+        // Total capacity so we can prorate population to individual tiles.
+        // Use effective capacity (unpowered cottage = 25, otherwise 50).
+        double totalCapacity = residentialTiles.Sum(t =>
+        {
+            if (t.BuildingId != null && grid.Buildings.TryGetValue(t.BuildingId, out var b))
+                return Buildings.BuildingGrowthSystem.GetEffectiveCapacity(b.TypeId, t.HasPower);
+            return 50.0;
+        });
         if (totalCapacity == 0)
             return Population * TaxRate;
 
@@ -167,12 +176,24 @@ public class BudgetSystem
         double income = 0.0;
         foreach (var tile in residentialTiles)
         {
-            // Each tile contributes Population * (tileCapacity / totalCapacity) people
-            var tilePop = Population * (50.0 / totalCapacity);
-            var modifier = tile.LandValue >= 0.7 ? 1.5
-                : tile.LandValue >= 0.4           ? 1.0
-                                                  : 0.8;
-            income += tilePop * TaxRate * modifier;
+            // Effective capacity for this tile
+            double tileCapacity = 50.0;
+            if (tile.BuildingId != null && grid.Buildings.TryGetValue(tile.BuildingId, out var bldg))
+                tileCapacity = Buildings.BuildingGrowthSystem.GetEffectiveCapacity(bldg.TypeId, tile.HasPower);
+
+            // Each tile contributes Population × (tileCapacity / totalCapacity) people
+            var tilePop = Population * (tileCapacity / totalCapacity);
+
+            var landValueModifier = tile.LandValue >= 0.7 ? 1.5
+                : tile.LandValue >= 0.4                   ? 1.0
+                                                          : 0.8;
+
+            // Unpowered res_house_1x1 (cottage): 0.7× tax yield
+            var buildingTypeId = tile.BuildingId != null && grid.Buildings.TryGetValue(tile.BuildingId, out var b2)
+                ? b2.TypeId : null;
+            var powerModifier = (buildingTypeId == "res_house_1x1" && !tile.HasPower) ? 0.7 : 1.0;
+
+            income += tilePop * TaxRate * landValueModifier * powerModifier;
         }
         return income;
     }

@@ -349,4 +349,165 @@ public class BuildingGrowthSystemTests
         Assert.That(b.TileCount, Is.EqualTo(1),
             "Building at corner with no adjacent residential should stay 1x1");
     }
+
+    // ── P1: Power-as-Density Unlock tests ─────────────────────────────────────
+
+    [Test]
+    public void ResHouse1x1_GrowsWithRoadOnly_NoPowerNeeded()
+    {
+        // res_house_1x1 should be initialized from road access alone — no power required.
+        // This is the P1 design: basic cottage can form without power.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetRoadAccess(5, 5, true);
+        // Intentionally NO SetPower — should still initialize as res_house_1x1
+
+        _system.Initialize(grid);
+
+        Assert.That(grid.GetTile(5, 5).BuildingId, Is.Not.Null,
+            "Residential tile with road access (no power) should get a building ID");
+        Assert.That(grid.Buildings.Count, Is.EqualTo(1));
+        Assert.That(grid.Buildings.Values.First().TypeId, Is.EqualTo("res_house_1x1"),
+            "Should be initialized as res_house_1x1 even without power");
+    }
+
+    [Test]
+    public void ResHouse1x1_Capacity25_WhenUnpowered()
+    {
+        // Unpowered cottage: effective capacity = 25 (half of normal 50).
+        Assert.That(BuildingGrowthSystem.GetEffectiveCapacity("res_house_1x1", hasPower: false), Is.EqualTo(25),
+            "Unpowered res_house_1x1 should have capacity 25");
+    }
+
+    [Test]
+    public void ResHouse1x1_Capacity50_WhenPowered()
+    {
+        // Powered cottage: full capacity = 50.
+        Assert.That(BuildingGrowthSystem.GetEffectiveCapacity("res_house_1x1", hasPower: true), Is.EqualTo(50),
+            "Powered res_house_1x1 should have capacity 50");
+    }
+
+    [Test]
+    public void ResTownhouse_RequiresPower_NoGrowthWithoutIt()
+    {
+        // 2×2 townhouse requires ALL tiles powered. Without power, TryGrow should refuse to create it.
+        var grid = new CityGrid(10, 10);
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
+            // Road access but NO power — cottage can form, townhouse cannot
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+        }
+
+        _system.Initialize(grid);
+        Assert.That(grid.Buildings.Count, Is.EqualTo(4), "Should have 4 unpowered cottages");
+
+        // Fill all cottages to capacity to trigger growth attempt
+        foreach (var b in grid.Buildings.Values)
+            foreach (var (tx, ty) in b.Tiles())
+                grid.SetPopulation(tx, ty, 50);
+
+        _system.TryGrow(grid, GameState.Active);
+
+        // No townhouse should have formed — all tiles lack power
+        var townhouses = grid.Buildings.Values.Where(b => b.TypeId == "res_townhouse_2x2").ToList();
+        Assert.That(townhouses.Count, Is.EqualTo(0),
+            "Townhouse (2×2) requires all tiles powered — should not form without power");
+
+        // All buildings should still be 1×1 cottages
+        Assert.That(grid.Buildings.Values.All(b => b.TileCount == 1), Is.True,
+            "All buildings should remain 1×1 cottages when tiles are unpowered");
+    }
+
+    [Test]
+    public void GetEffectiveCapacity_OtherBuildings_UseStandardFormula()
+    {
+        // All buildings other than res_house_1x1 use the standard formula (tiles × 50),
+        // regardless of power status (they require power to form in the first place).
+        Assert.That(BuildingGrowthSystem.GetEffectiveCapacity("res_townhouse_2x2", hasPower: false), Is.EqualTo(200),
+            "2×2 townhouse should always have capacity 200 (4 tiles × 50)");
+        Assert.That(BuildingGrowthSystem.GetEffectiveCapacity("res_townhouse_2x2", hasPower: true), Is.EqualTo(200),
+            "Powered 2×2 townhouse should also have capacity 200");
+        Assert.That(BuildingGrowthSystem.GetEffectiveCapacity("com_shop_1x1", hasPower: false), Is.EqualTo(50),
+            "Commercial 1×1 should have capacity 50 regardless of power");
+        Assert.That(BuildingGrowthSystem.GetEffectiveCapacity("ind_factory_1x1", hasPower: true), Is.EqualTo(50),
+            "Industrial 1×1 should have capacity 50 regardless of power");
+    }
+}
+
+/// <summary>
+/// Tests for unpowered industrial and pollution behaviour (Part 5 / Part 5 design).
+/// </summary>
+[TestFixture]
+public class UnpoweredSystemsTests
+{
+    [Test]
+    public void UnpoweredIndustrial_Has2Jobs()
+    {
+        // Unpowered industrial tile with road access provides exactly UnpoweredIndustrialJobs (2) jobs.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Industrial);
+        grid.SetRoadAccess(5, 5, true);
+        // HasPower = false (default)
+        grid.SetPopulation(5, 5, 50); // full activity, but power gated
+
+        var employment = new EmploymentSystem();
+        employment.Propagate(grid, totalPopulation: 0);
+
+        Assert.That(employment.AvailableJobs, Is.EqualTo(EmploymentSystem.UnpoweredIndustrialJobs),
+            "Unpowered industrial should provide exactly 2 placeholder jobs");
+    }
+
+    [Test]
+    public void UnpoweredIndustrial_HasZeroPollution()
+    {
+        // Unpowered industrial: no production, no smoke.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Industrial);
+        // HasPower = false (default)
+
+        var pollution = new PollutionSystem();
+        pollution.Propagate(grid);
+
+        Assert.That(grid.GetTile(5, 5).PollutionLevel, Is.EqualTo(0.0),
+            "Unpowered industrial tile should emit zero pollution (no production = no smoke)");
+
+        // Neighboring tiles should also be clean
+        Assert.That(grid.GetTile(5, 6).PollutionLevel, Is.EqualTo(0.0),
+            "Neighbor of unpowered industrial should also have zero pollution");
+    }
+
+    [Test]
+    public void PoweredIndustrial_StillEmitsPollution()
+    {
+        // Powered industrial still emits at full strength 1.0.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Industrial);
+        grid.SetPower(5, 5, true); // powered
+
+        var pollution = new PollutionSystem();
+        pollution.Propagate(grid);
+
+        Assert.That(grid.GetTile(5, 5).PollutionLevel, Is.EqualTo(1.0).Within(0.001),
+            "Powered industrial should emit full pollution");
+    }
+
+    [Test]
+    public void UnpoweredIndustrial_WithRoad_Provides2Jobs_NotActivityBased()
+    {
+        // Even with very high activity on the tile, unpowered = only 2 jobs (not activity-scaled).
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Industrial);
+        grid.SetRoadAccess(5, 5, true);
+        grid.SetPopulation(5, 5, 50); // if activity-scaled: 50 × 0.4 = 20 jobs; but unpowered = 2
+
+        var employment = new EmploymentSystem();
+        employment.Propagate(grid, totalPopulation: 0);
+
+        Assert.That(employment.AvailableJobs, Is.EqualTo(2),
+            "Unpowered industrial jobs should be 2 regardless of activity level");
+        Assert.That(employment.AvailableJobs, Is.Not.EqualTo(20),
+            "Should NOT scale by activity when unpowered");
+    }
 }

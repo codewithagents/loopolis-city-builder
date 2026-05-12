@@ -24,15 +24,30 @@ public class EmploymentSystem
     public double EmploymentRatio { get; private set; }
 
     /// <summary>
+    /// Jobs provided by an unpowered industrial tile (placeholder, no production).
+    /// 2 jobs = minimal staffing (security, maintenance) but no real factory output.
+    /// </summary>
+    public const int UnpoweredIndustrialJobs = 2;
+
+    /// <summary>
     /// Recalculates employment from current grid + population.
     /// Returns the growth multiplier [MinGrowthMultiplier, 1.0] to pass to PopulationSystem.Tick().
     /// Call once per tick, before Population.Tick().
+    ///
+    /// Powered industrial: activity × 0.4 jobs (up to 20 per full tile).
+    /// Unpowered industrial: 2 fixed jobs (placeholder — no production, no smoke).
     /// </summary>
     public double Propagate(CityGrid grid, int totalPopulation)
     {
-        AvailableJobs = (int)grid.TilesOfType(ZoneType.Industrial)
-            .Where(t => t.HasPower && t.HasRoadAccess)
-            .Sum(t => t.Population * JobsPerActivityUnit);
+        AvailableJobs = 0;
+        foreach (var t in grid.TilesOfType(ZoneType.Industrial))
+        {
+            if (!t.HasRoadAccess) continue;
+            if (t.HasPower)
+                AvailableJobs += (int)(t.Population * JobsPerActivityUnit);
+            else
+                AvailableJobs += UnpoweredIndustrialJobs;
+        }
 
         RequiredJobs = Math.Max(0, totalPopulation - FreeJobsThreshold);
 

@@ -64,4 +64,19 @@ public static class BuildingCatalog
         ZoneType.Industrial  => "ind_factory_1x1",
         _ => throw new ArgumentException($"No base building for zone {zone}")
     };
+
+    /// <summary>
+    /// Returns the zone type for a given building type ID.
+    /// Derived from the type ID prefix: res_* → Residential, com_* → Commercial, ind_* → Industrial.
+    /// Used by BuildingDegradationSystem when demolishing back to bare zone tiles.
+    /// </summary>
+    public static ZoneType GetZoneForBuilding(string typeId)
+    {
+        if (typeId.StartsWith("res_")) return ZoneType.Residential;
+        if (typeId.StartsWith("com_")) return ZoneType.Commercial;
+        if (typeId.StartsWith("ind_")) return ZoneType.Industrial;
+        var found = Find(typeId);
+        if (found != null) return found.Zone;
+        throw new ArgumentException($"Cannot determine zone for building type '{typeId}'");
+    }
 }

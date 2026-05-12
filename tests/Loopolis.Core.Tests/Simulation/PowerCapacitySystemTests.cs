@@ -350,7 +350,8 @@ public class PowerCapacitySystemTests
     [Test]
     public void CoalPlantPollution_LessThanIndustrial()
     {
-        // CoalPlant strength 0.4 vs Industrial strength 1.0 — same distance
+        // CoalPlant strength 0.4 vs Industrial strength 1.0 — same distance.
+        // Industrial must be powered to emit (unpowered = no production = no smoke).
         var gridCoal = new CityGrid(10, 10);
         gridCoal.SetZone(5, 5, ZoneType.CoalPlant);
         var pollutionCoal = new PollutionSystem();
@@ -359,6 +360,7 @@ public class PowerCapacitySystemTests
 
         var gridIndustrial = new CityGrid(10, 10);
         gridIndustrial.SetZone(5, 5, ZoneType.Industrial);
+        gridIndustrial.SetPower(5, 5, true); // powered industrial emits at full strength 1.0
         var pollutionIndustrial = new PollutionSystem();
         pollutionIndustrial.Propagate(gridIndustrial);
         var industrialLevel = gridIndustrial.GetTile(5, 5).PollutionLevel;

@@ -372,7 +372,8 @@ public class LandValueSystemTests
     [Test]
     public void HillsideVilla_Grows_WhenAllConditionsMet()
     {
-        // Arrange: 3×3 Residential footprint with elevated terrain and high LandValue, road access at Town milestone
+        // Arrange: 3×3 Residential footprint with elevated terrain and high LandValue, road access at Town milestone.
+        // All tiles must be powered — 2×2+ buildings require power to grow (P1 design).
         var grid = new CityGrid(15, 15);
         for (var dx = 0; dx < 3; dx++)
         for (var dy = 0; dy < 3; dy++)
@@ -380,6 +381,7 @@ public class LandValueSystemTests
             grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
             grid.SetHeightLevel(5 + dx, 5 + dy, 3); // elevated (≥2 → HasHillTerrain passes)
             grid.SetLandValue(5 + dx, 5 + dy, 0.8); // ≥ 0.7 threshold
+            grid.SetPower(5 + dx, 5 + dy, true);    // power required for 2×2+ upgrades
         }
         // Road tiles along left side so all three rows get road access
         grid.SetZone(4, 5, ZoneType.Road);

@@ -27,7 +27,11 @@ public class PollutionSystem
         {
             double emissionStrength;
             if (tile.Zone == ZoneType.Industrial)
+            {
+                // Unpowered industrial: no production → no smoke, no pollution.
+                if (!tile.HasPower) continue;
                 emissionStrength = IndustrialStrength;
+            }
             else if (tile.Zone == ZoneType.CoalPlant || tile.Zone == ZoneType.PowerPlant)
                 emissionStrength = CoalPlantStrength;
             else

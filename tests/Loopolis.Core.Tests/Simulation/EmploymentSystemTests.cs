@@ -88,20 +88,23 @@ public class EmploymentSystemTests
         Assert.That(multiplier, Is.EqualTo(EmploymentSystem.MinGrowthMultiplier));
     }
 
-    // ── Test 5: industrial without power contributes no jobs ──────────────
+    // ── Test 5: industrial without power contributes only placeholder jobs ────
 
     [Test]
-    public void IndustrialWithoutPower_NoJobs()
+    public void IndustrialWithoutPower_OnlyPlaceholderJobs()
     {
+        // Unpowered industrial = no production, no smoke.
+        // Provides UnpoweredIndustrialJobs (2) placeholder jobs (security/maintenance),
+        // not activity-based (0.4 × activity) jobs.
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Industrial);
         grid.SetRoadAccess(5, 5, true);
-        // HasPower = false (default) — should not count
+        // HasPower = false (default)
         grid.SetPopulation(5, 5, 50);
 
         _employment.Propagate(grid, totalPopulation: 200);
 
-        Assert.That(_employment.AvailableJobs, Is.EqualTo(0));
+        Assert.That(_employment.AvailableJobs, Is.EqualTo(EmploymentSystem.UnpoweredIndustrialJobs));
     }
 
     // ── Test 6: industrial without road contributes no jobs ───────────────

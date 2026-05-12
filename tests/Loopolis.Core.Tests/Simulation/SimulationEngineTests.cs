@@ -60,19 +60,22 @@ public class SimulationEngineTests
     }
 
     [Test]
-    public void Tick_NoPower_NoPopulationGrowth()
+    public void Tick_NoPower_ResidentialGrowsAsCottageOnly()
     {
-        // Zones with road but no power
+        // Residential with road but no power: forms as res_house_1x1 cottage, capped at 25.
+        // Full capacity (50) requires power. This is the P1 power-as-density-unlock design.
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Road);
         grid.SetZone(6, 5, ZoneType.Residential);
 
         var engine = BuildEngine(grid);
 
-        for (var i = 0; i < 50; i++) engine.Tick();
+        for (var i = 0; i < 200; i++) engine.Tick();
 
-        Assert.That(engine.Population.Population, Is.EqualTo(0),
-            "Residential zones without power should not grow");
+        Assert.That(engine.Population.Population, Is.GreaterThan(0),
+            "Residential with road access should grow even without power (cottage-level)");
+        Assert.That(engine.Population.Population, Is.LessThanOrEqualTo(25),
+            "Unpowered residential (cottage) must cap at 25, not 50");
     }
 
     [Test]
@@ -203,8 +206,10 @@ public class SimulationEngineTests
         grid.SetZone(5, 5, ZoneType.PowerPlant);
         grid.SetZone(5, 6, ZoneType.Road);
         grid.SetZone(4, 6, ZoneType.Residential);
-        // Place industrial right next to residential so pollution crushes happiness
+        // Place industrial right next to residential so pollution crushes happiness.
+        // Industrial must be powered to emit pollution (P1 design: unpowered = no production = no smoke).
         grid.SetZone(3, 6, ZoneType.Industrial);
+        grid.SetPower(3, 6, true); // manually power so it emits pollution
         grid.SetZone(3, 5, ZoneType.Road);
 
         var engine = BuildEngine(grid);

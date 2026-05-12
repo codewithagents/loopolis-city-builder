@@ -1,3 +1,4 @@
+using Loopolis.Core.Buildings;
 using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
 
@@ -65,10 +66,26 @@ public class PopulationSystem
             // Road-adjacent tiles get initialized as buildings; interior tiles don't develop standalone.
             bool canDevelop = tile.BuildingId != null;
 
+            // Resolve the building type for this tile (if any)
+            var buildingTypeId = tile.BuildingId != null && grid.Buildings.TryGetValue(tile.BuildingId, out var bldgRecord)
+                ? bldgRecord.TypeId
+                : tile.BuildingId; // fallback: tile.BuildingId itself (e.g. "test" in unit tests)
+
+            // Effective capacity: res_house_1x1 without power caps at 25 (cottage-level).
+            // All other residential buildings have standard capacity (power required to form them at all).
+            var tileCapacity = canDevelop
+                ? BuildingGrowthSystem.GetEffectiveCapacity(buildingTypeId ?? "res_house_1x1", tile.HasPower)
+                : ResidentsPerZone;
+
+            // res_house_1x1 can grow without power (road access is sufficient to form the building).
+            // All other residential buildings require power to grow (they could never form without it).
+            bool isCottage = buildingTypeId == "res_house_1x1";
+            bool canGrow = canDevelop && (tile.HasPower || isCottage);
+
             int newPop;
-            if (canDevelop && tile.HasPower)
+            if (canGrow)
             {
-                // Grow toward capacity, modified by demand factor, happiness, employment, traffic, and brownout.
+                // Grow toward effective capacity, modified by demand factor, happiness, employment, traffic, and brownout.
                 // Guarantee at least 1 unit of growth only when employment is adequate (≥40%).
                 // With severe unemployment (<40%) growth CAN stall — a real signal to build industrial.
                 var trafficMultiplier = trafficSystem?.GetGrowthMultiplier(grid, tile.X, tile.Y) ?? 1.0;
@@ -94,10 +111,10 @@ public class PopulationSystem
                 }
 
                 var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier * trafficMultiplier * brownoutGrowthMultiplier * borderMultiplier;
-                var rawGrowth = GrowthRate * ResidentsPerZone * growthMultiplier;
+                var rawGrowth = GrowthRate * tileCapacity * growthMultiplier;
                 var minGrowth = employmentMultiplier >= 0.4 ? 1 : 0;
-                var growth = current < ResidentsPerZone ? Math.Max(minGrowth, (int)rawGrowth) : 0;
-                newPop = Math.Min(ResidentsPerZone, current + growth);
+                var growth = current < tileCapacity ? Math.Max(minGrowth, (int)rawGrowth) : 0;
+                newPop = Math.Min(tileCapacity, current + growth);
             }
             else if (current > 0)
             {

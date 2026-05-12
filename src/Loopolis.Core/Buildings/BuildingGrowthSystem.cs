@@ -11,6 +11,11 @@ public class BuildingGrowthSystem
     /// <summary>
     /// Initialize road-adjacent unbuilt zone tiles as 1x1 base buildings.
     /// Call at start of each tick BEFORE PopulationSystem.
+    ///
+    /// res_house_1x1 (residential base): road access alone is sufficient — no power required.
+    /// All other 1x1 bases (com_shop_1x1, ind_factory_1x1): require road access only too,
+    /// since commercial/industrial need power to actually generate activity (handled by PopulationSystem).
+    /// Power is required for all upgrades (2×2+) — enforced in TryUpgrade.
     /// </summary>
     public void Initialize(CityGrid grid)
     {
@@ -22,7 +27,10 @@ public class BuildingGrowthSystem
                 if (tile.BuildingId != null) continue; // already a building
                 if (!GrowableZones.Contains(tile.Zone)) continue; // not a zone tile
                 if (!tile.HasRoadAccess) continue; // not road-adjacent
-                // Create 1x1 base building
+
+                // res_house_1x1 only needs road access (power unlocks full capacity, not existence).
+                // com_shop_1x1 and ind_factory_1x1 also only need road access here;
+                // power is needed for activity to grow (enforced in PopulationSystem).
                 CreateBuilding(grid, x, y, BuildingCatalog.BaseTypeIdFor(tile.Zone));
             }
         }
@@ -119,6 +127,11 @@ public class BuildingGrowthSystem
                     if (otherBuilding != null && otherBuilding.TileCount >= target.TilesCount)
                         return false; // Can't absorb a building same size or larger
                 }
+
+                // Power required for all upgrades beyond 1×1.
+                // res_house_1x1 can exist without power, but growing to 2×2+ requires all tiles powered.
+                if (target.TilesCount > 1 && !tile.HasPower)
+                    return false;
 
                 if (tile.HasRoadAccess) hasRoadAccess = true;
                 if (current.ContainsTile(tx, ty)) containsCurrentBuilding = true;
@@ -261,4 +274,22 @@ public class BuildingGrowthSystem
 
     private static bool MilestoneReached(GameState current, GameState required) =>
         required == GameState.Active || (int)current >= (int)required;
+
+    /// <summary>
+    /// Returns the effective population capacity for a tile, taking into account
+    /// the power-as-density-unlock rule for res_house_1x1.
+    ///
+    /// res_house_1x1 unpowered → capacity 25 (cottage-level).
+    /// res_house_1x1 powered   → capacity 50 (normal).
+    /// All other buildings     → standard formula: tileCount × 50.
+    /// </summary>
+    public static int GetEffectiveCapacity(string buildingTypeId, bool hasPower)
+    {
+        if (buildingTypeId == "res_house_1x1")
+            return hasPower ? 50 : 25;
+
+        // All other buildings use the standard formula from the catalog
+        var type = BuildingCatalog.Find(buildingTypeId);
+        return type != null ? type.TilesCount * 50 : 50;
+    }
 }

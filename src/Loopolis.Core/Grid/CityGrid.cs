@@ -80,6 +80,18 @@ public record Tile(int X, int Y)
         ZoneType.Empty => false,
         _ => true  // infrastructure tiles (roads, power, services) don't need access to themselves
     };
+
+    /// <summary>
+    /// A zone is ready to develop using road access alone (power not required).
+    /// Used by BuildingGrowthSystem for res_house_1x1: unpowered cottages can still form
+    /// with road access only. Power is required for all upgrades (2×2+).
+    /// </summary>
+    public bool IsReadyToDevelopUnpowered => Zone switch
+    {
+        ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial => HasRoadAccess,
+        ZoneType.Empty => false,
+        _ => true
+    };
 }
 
 public class CityGrid

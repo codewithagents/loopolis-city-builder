@@ -43,10 +43,17 @@ public class SimulationEngine
     public EventSystem EventSystem { get; }
     public EmploymentSystem EmploymentSystem { get; }
     public BuildingGrowthSystem BuildingGrowthSystem { get; } = new();
+    public BuildingDegradationSystem BuildingDegradationSystem { get; } = new();
     public LandValueSystem LandValueSystem { get; } = new();
     public RoadGraph RoadGraph { get; } = new();
     public WorkerFlowSystem WorkerFlowSystem { get; } = new();
     public int TickCount { get; private set; }
+
+    /// <summary>
+    /// Building type IDs demolished during the last tick by BuildingDegradationSystem.
+    /// Empty list if nothing degraded.
+    /// </summary>
+    public List<string> LastDegradedBuildings { get; private set; } = new();
 
     /// <summary>Result of the most recent WorkerFlowSystem.Route call. Null before first tick.</summary>
     public WorkerFlowResult? LastWorkerFlow { get; private set; }
@@ -192,6 +199,7 @@ public class SimulationEngine
 
         BuildingGrowthSystem.Initialize(Grid);
         BuildingGrowthSystem.TryGrow(Grid, MilestoneSystem.CurrentState);
+        LastDegradedBuildings = BuildingDegradationSystem.Propagate(Grid);
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph);
         Budget.SetPopulation(Population.Population);
