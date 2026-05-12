@@ -46,6 +46,8 @@ public partial class TilemapRenderer : Node2D
     // Plateau highlight
     private static readonly Color PlateauShimmer    = new Color(1f, 1f, 1f, 0.25f); // white 25% alpha
     private static readonly Color ColorResidential  = new Color(0.2f,  0.7f,  0.2f);
+    // Unpowered cottage (res_house_1x1 without power) — muted grey-green signals "limited capacity"
+    private static readonly Color ColorCottageUnpowered = new Color(0.6f, 0.7f, 0.6f);
     private static readonly Color ColorCommercial   = new Color(0.2f,  0.4f,  0.9f);
     private static readonly Color ColorIndustrial   = new Color(0.9f,  0.8f,  0.1f);
     private static readonly Color ColorRoad         = new Color(0.5f,  0.5f,  0.5f);
@@ -491,8 +493,16 @@ public partial class TilemapRenderer : Node2D
                 case ZoneType.Industrial:
                 {
                     // Scale brightness with population fill level
+                    // Special case: unpowered res_house_1x1 gets a muted grey-green tint
+                    // to distinguish "functional but limited capacity" from powered full-capacity.
+                    var isCottageUnpowered = !tile.HasPower
+                        && tile.Zone == ZoneType.Residential
+                        && tile.BuildingId != null
+                        && _grid.Buildings.TryGetValue(tile.BuildingId, out var _thisBldg)
+                        && _thisBldg.TypeId == "res_house_1x1";
                     var baseColor = tile.Zone switch
                     {
+                        ZoneType.Residential when isCottageUnpowered => ColorCottageUnpowered,
                         ZoneType.Residential => ColorResidential,
                         ZoneType.Commercial  => ColorCommercial,
                         _                    => ColorIndustrial,
@@ -535,8 +545,10 @@ public partial class TilemapRenderer : Node2D
                         DrawRect(buildingRect, buildingColor);
                     }
 
-                    // Dark overlay on zones that are zoned but not powered
-                    if (!tile.HasPower)
+                    // Dark overlay on zones that are zoned but not powered.
+                    // Exception: unpowered res_house_1x1 uses a dedicated fill color (ColorCottageUnpowered)
+                    // so we skip the generic dark overlay — it would make the muted tint unreadable.
+                    if (!tile.HasPower && !isCottageUnpowered)
                         DrawRect(fullRect, UnpoweredTint);
 
                     // Dashed amber border on zones with no road access — these cost

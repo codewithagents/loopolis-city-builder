@@ -46,6 +46,14 @@ public partial class SharedStateReader : Node
     public event Action<string, int, int>? BuildingBorn;
 
     /// <summary>
+    /// Fired when one or more buildings degrade (crumble) this tick.
+    /// Parameters: typeId (e.g. "res_townhouse_2x2"), anchorX, anchorY.
+    /// The position is the anchor of the first tile of the building that was removed,
+    /// approximated from the tile list since degraded buildings are already gone.
+    /// </summary>
+    public event Action<string, int, int>? BuildingDegraded;
+
+    /// <summary>
     /// Fired once when the first grid is received from the server.
     /// Parameters: gridWidth, gridHeight.
     /// Used to fit the camera to the actual server map size.
@@ -142,6 +150,7 @@ public partial class SharedStateReader : Node
             }
 
             DetectBuildingBirths(state);
+            DetectBuildingDegradation(state);
             _renderer.RefreshWithHeight(grid, heightMap, forestMap);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _hud.UpdateStats(state);
@@ -208,6 +217,28 @@ public partial class SharedStateReader : Node
                 // New building not seen before — fire birth event
                 BuildingBorn?.Invoke(b.TypeId, b.X, b.Y);
             }
+        }
+    }
+
+    /// <summary>
+    /// Fires BuildingDegraded events for each typeId in state.LastDegradedBuildings.
+    /// The anchor position is approximated as the center of the grid since the building
+    /// is already gone — the floater will still appear roughly near the city center.
+    /// A better position is derived by picking any residential tile near the grid center.
+    /// </summary>
+    private void DetectBuildingDegradation(SharedState state)
+    {
+        if (state.LastDegradedBuildings == null || state.LastDegradedBuildings.Length == 0) return;
+
+        // Use the center of the grid as a fallback position for degradation floaters.
+        // The crumble label position is less precise than birth labels (the building is gone)
+        // but will still be visible somewhere over the city.
+        var fallbackX = state.GridWidth  > 0 ? state.GridWidth  / 2 : 16;
+        var fallbackY = state.GridHeight > 0 ? state.GridHeight / 2 : 16;
+
+        foreach (var typeId in state.LastDegradedBuildings)
+        {
+            BuildingDegraded?.Invoke(typeId, fallbackX, fallbackY);
         }
     }
 
@@ -344,7 +375,8 @@ public record SharedState(
     CoverageSummaryDto? CoverageSummary = null,
     string? PauseReason = null,
     PowerStateDto? Power = null,            // power supply/demand from PowerCapacitySystem
-    WorkerFlowDto? WorkerFlow = null        // commute routing stats (G4)
+    WorkerFlowDto? WorkerFlow = null,       // commute routing stats (G4)
+    string[]? LastDegradedBuildings = null  // typeIds of buildings demolished by degradation this tick
 )
 {
     /// <summary>

@@ -152,7 +152,7 @@ public partial class HudOverlay : CanvasLayer
         tutorialPanel.AddThemeStyleboxOverride("panel", tutorialStyle);
 
         _tutorialBanner = new Label();
-        _tutorialBanner.Text = "Place a power plant — your city needs power to grow";
+        _tutorialBanner.Text = "💡 Zone homes along the road to attract residents. Build a power plant to unlock larger buildings.";
         _tutorialBanner.HorizontalAlignment = HorizontalAlignment.Center;
         _tutorialBanner.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f, 1f));
         _tutorialBanner.AddThemeFontSizeOverride("font_size", 16);

@@ -34,6 +34,7 @@ public partial class CityHealthPanel : CanvasLayer
         HospitalCapacity,
         UnroutedWorkers,
         OverloadedRoads,
+        BuildingsDegrading,  // buildings crumbling due to missing power/road
     }
 
     private static readonly Color WarnRed    = new(1f,  0.3f, 0.3f);
@@ -62,6 +63,11 @@ public partial class CityHealthPanel : CanvasLayer
     private double _pulseTimer = 0;
     private const double PulsePeriod = 1.4; // seconds for one full pulse
 
+    // Degradation warning: tracks ticks since last degradation event.
+    // Warning shows while counter < 10, resets to 0 on new degradation.
+    private int _ticksSinceLastDegradation = 99; // start above threshold so warning is hidden
+    private const int DegradationWarningTicks = 10;
+
     public override void _Ready()
     {
         Layer = 10;
@@ -77,8 +83,23 @@ public partial class CityHealthPanel : CanvasLayer
     /// Called each tick (standalone) or each poll (viewer mode) with the
     /// latest simulation state. Recomputes all warnings and updates visibility.
     /// </summary>
+    /// <summary>
+    /// Called by standalone mode when it detects that buildings degraded this tick.
+    /// Resets the degradation warning counter so the warning stays visible for 10 more ticks.
+    /// </summary>
+    public void NotifyDegradation()
+    {
+        _ticksSinceLastDegradation = 0;
+    }
+
     public void UpdateWarnings(SharedState state)
     {
+        // Check for degradation via state.json field (viewer mode) or via NotifyDegradation() (standalone)
+        if (state.LastDegradedBuildings != null && state.LastDegradedBuildings.Length > 0)
+            _ticksSinceLastDegradation = 0;
+        else if (_ticksSinceLastDegradation < DegradationWarningTicks)
+            _ticksSinceLastDegradation++;
+
         var newActive = ComputeActiveWarnings(state);
 
         foreach (var id in _warningLabels.Keys)
@@ -248,6 +269,10 @@ public partial class CityHealthPanel : CanvasLayer
             }
         }
 
+        // Buildings crumbling: show warning for 10 ticks after last degradation event
+        if (_ticksSinceLastDegradation < DegradationWarningTicks)
+            result.Add(WarningId.BuildingsDegrading);
+
         return result;
     }
 
@@ -309,8 +334,9 @@ public partial class CityHealthPanel : CanvasLayer
         AddWarningLabel(WarningId.SchoolCapacity,  "⚠ Schools near capacity",         WarnYellow);
         AddWarningLabel(WarningId.PoliceCapacity,  "⚠ Police near capacity",          WarnYellow);
         AddWarningLabel(WarningId.HospitalCapacity,"⚠ Hospital near capacity",        WarnOrange);
-        AddWarningLabel(WarningId.UnroutedWorkers, "⚠ Workers have no road to jobs",  WarnOrange);
-        AddWarningLabel(WarningId.OverloadedRoads, "⚠ Road segments jammed",         WarnYellow);
+        AddWarningLabel(WarningId.UnroutedWorkers,    "⚠ Workers have no road to jobs",                        WarnOrange);
+        AddWarningLabel(WarningId.OverloadedRoads,    "⚠ Road segments jammed",                                WarnYellow);
+        AddWarningLabel(WarningId.BuildingsDegrading, "⚠ Buildings crumbling — check power and road connections", WarnOrange);
     }
 
     private void AddWarningLabel(WarningId id, string defaultText, Color color)

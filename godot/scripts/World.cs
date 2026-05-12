@@ -132,8 +132,9 @@ public partial class World : Node2D
         {
             GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
             _reader = new SharedStateReader();
-            _reader.BuildingBorn  += (typeId, ax, ay) => SpawnBuildingBirthLabel(typeId, ax, ay);
-            _reader.FirstGridReady += (w, h) => _camera.FitToMap(w, h);
+            _reader.BuildingBorn      += (typeId, ax, ay) => SpawnBuildingBirthLabel(typeId, ax, ay);
+            _reader.BuildingDegraded  += (typeId, ax, ay) => SpawnBuildingCrumbleLabel(typeId, ax, ay);
+            _reader.FirstGridReady    += (w, h) => _camera.FitToMap(w, h);
             AddChild(_reader);
             _viewerMode = true;
             return;
@@ -231,8 +232,11 @@ public partial class World : Node2D
         {
             _tickTimer = 0;
 
-            // Snapshot building IDs before tick so we can detect births
+            // Snapshot building IDs and typeIds before tick so we can detect births and degradation
             var priorBuildingIds = new System.Collections.Generic.HashSet<string>(_grid.Buildings.Keys);
+            var priorBuildingTypes = new System.Collections.Generic.Dictionary<string, (string TypeId, int AnchorX, int AnchorY)>();
+            foreach (var kvp in _grid.Buildings)
+                priorBuildingTypes[kvp.Key] = (kvp.Value.TypeId, kvp.Value.AnchorX, kvp.Value.AnchorY);
 
             _engine.Tick();
             _standaloneTick++;
@@ -243,6 +247,22 @@ public partial class World : Node2D
                 if (!priorBuildingIds.Contains(kvp.Key) && _standaloneKnownBuildingIds.Add(kvp.Key))
                     SpawnBuildingBirthLabel(kvp.Value.TypeId, kvp.Value.AnchorX, kvp.Value.AnchorY);
             }
+
+            // Detect buildings demolished by degradation this tick.
+            // Any building that existed before the tick but is now gone was degraded.
+            var hadDegradation = false;
+            foreach (var removedId in priorBuildingIds)
+            {
+                if (!_grid.Buildings.ContainsKey(removedId))
+                {
+                    hadDegradation = true;
+                    _standaloneKnownBuildingIds.Remove(removedId);
+                    if (priorBuildingTypes.TryGetValue(removedId, out var info))
+                        SpawnBuildingCrumbleLabel(info.TypeId, info.AnchorX, info.AnchorY);
+                }
+            }
+            if (hadDegradation)
+                _cityHealth.NotifyDegradation();
 
             _renderer.Refresh(_grid);
             PushStandaloneHudUpdate();
@@ -746,6 +766,51 @@ public partial class World : Node2D
             (anchorX + 0.5f) * TilemapRenderer.TileSize,
             (anchorY + 0.5f) * TilemapRenderer.TileSize);
         label.Start(center, FormatBirthText(typeId));
+    }
+
+    /// <summary>
+    /// Spawns a BuildingCrumbleLabel floating above the given anchor tile.
+    /// </summary>
+    private void SpawnBuildingCrumbleLabel(string typeId, int anchorX, int anchorY)
+    {
+        var label = new BuildingCrumbleLabel();
+        _renderer.AddChild(label);
+        var center = new Vector2(
+            (anchorX + 0.5f) * TilemapRenderer.TileSize,
+            (anchorY + 0.5f) * TilemapRenderer.TileSize);
+        label.Start(center, FormatCrumbleText(typeId));
+    }
+
+    /// <summary>
+    /// Converts a building TypeId to a degradation announcement string.
+    /// e.g. "res_townhouse_2x2" → "⚠ Townhouse crumbled"
+    /// </summary>
+    private static string FormatCrumbleText(string typeId)
+    {
+        if (string.IsNullOrEmpty(typeId)) return "⚠ Building crumbled";
+
+        // Strip zone prefix
+        var s = typeId;
+        foreach (var prefix in new[] { "res_", "com_", "ind_" })
+        {
+            if (s.StartsWith(prefix)) { s = s[prefix.Length..]; break; }
+        }
+
+        // Strip trailing _WxH
+        var parts = s.Split('_');
+        var nameParts = parts;
+        if (parts.Length > 1)
+        {
+            var last = parts[^1];
+            if (last.Contains('x') && last.Length <= 5)
+                nameParts = parts[..^1];
+        }
+
+        // Title-case
+        var name = string.Join(" ", System.Array.ConvertAll(nameParts,
+            p => p.Length == 0 ? p : char.ToUpper(p[0]) + p[1..]));
+
+        return $"⚠ {name} crumbled";
     }
 
     /// <summary>

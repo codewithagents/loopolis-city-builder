@@ -62,6 +62,15 @@ public partial class TileTooltip : CanvasLayer
         AddLine(zoneLabel, 12, zoneColor * 0.85f);
 
         var capacity = building.MaxPopulation;
+
+        // Special tooltip for unpowered/powered cottage (res_house_1x1)
+        if (building.TypeId == "res_house_1x1")
+        {
+            AddCottageLines(totalPop, anchorTile.HasPower);
+            PositionAndShow(screenPos);
+            return;
+        }
+
         if (building.Zone == ZoneType.Residential)
             AddLine($"Pop: {totalPop} / {capacity}", 13, new Color(0.8f, 0.8f, 0.8f));
 
@@ -384,6 +393,34 @@ public partial class TileTooltip : CanvasLayer
             AddLine("✓ Commercial demand boost", 12, new Color(0.3f, 1f, 0.3f));
         else if (tile.Happiness > 0.9f)
             AddLine("★ High happiness", 12, new Color(1f, 0.9f, 0.3f));
+    }
+
+    // ── Cottage tooltip ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Renders the power-aware cottage tooltip.
+    /// Unpowered: shows limited capacity and a prompt to connect power.
+    /// Powered: shows full capacity and the upgrade hint.
+    /// </summary>
+    private void AddCottageLines(int totalPop, bool hasPower)
+    {
+        if (!hasPower)
+        {
+            // Unpowered variant
+            AddLine("Cottage (unpowered)", 15, new Color(0.6f, 0.8f, 0.6f));
+            AddLine($"Capacity: {totalPop}/25  |  Tax: 70%", 13, new Color(0.75f, 0.75f, 0.75f));
+            AddSeparator();
+            AddLine("⚡ Connect power to unlock full capacity (50)", 12, new Color(1f, 0.85f, 0.2f));
+            AddLine("   and enable upgrades to Townhouse.", 12, new Color(0.8f, 0.75f, 0.5f));
+        }
+        else
+        {
+            // Powered variant
+            AddLine("Cottage", 15, new Color(0.3f, 1f, 0.4f));
+            AddLine($"Capacity: {totalPop}/50  |  Tax: 100%", 13, new Color(0.8f, 0.8f, 0.8f));
+            AddSeparator();
+            AddLine("✓ Ready to upgrade when 80% full + road access", 12, new Color(0.3f, 1f, 0.3f));
+        }
     }
 
     // ── Growth checklist ─────────────────────────────────────────────────────
