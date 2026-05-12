@@ -1,3 +1,4 @@
+using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Simulation;
 
@@ -371,5 +372,173 @@ public class HappinessSystemTests
 
         Assert.That(grid.GetTile(5, 5).Happiness, Is.GreaterThanOrEqualTo(0.1),
             "Happiness with tax modifier should be clamped to 0.1 minimum");
+    }
+
+    // ── Road-graph coverage tests ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Helper: build a RoadGraph and add Road nodes for every Road tile in the grid.
+    /// </summary>
+    private static RoadGraph BuildRoadGraph(CityGrid grid)
+    {
+        var roadGraph = new RoadGraph();
+        foreach (var tile in grid.AllTiles())
+        {
+            if (tile.Zone == ZoneType.Road)    roadGraph.AddNode(tile.X, tile.Y, 1.0f);
+            if (tile.Zone == ZoneType.Avenue)  roadGraph.AddNode(tile.X, tile.Y, 0.5f);
+        }
+        return roadGraph;
+    }
+
+    [Test]
+    public void RoadGraph_ServiceWithNoRoadNeighbour_CoversNothing()
+    {
+        // Service placed with no adjacent road tile — even 1 tile away, coverage = 0
+        var grid = new CityGrid(15, 15);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        // Road adjacent to residential so it has road access, but NOT adjacent to fire station
+        grid.SetZone(5, 6, ZoneType.Road);
+        // Fire station at (5, 3) — no road adjacent to it
+        grid.SetZone(5, 3, ZoneType.FireStation);
+
+        var roadGraph = BuildRoadGraph(grid);
+        _happiness.Propagate(grid, roadGraph: roadGraph);
+
+        // FireStation has no road neighbor → GetDistanceViaRoads returns MaxValue → no coverage
+        // happiness = 0.6 only (minus first-tick neglect 0.001)
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.6).Within(0.002),
+            "Fire station with no road access should provide no coverage bonus");
+    }
+
+    [Test]
+    public void RoadGraph_ResidentialWithNoRoadNeighbour_CoveredByNothing()
+    {
+        // Residential tile with no road adjacent — even service 1 tile away cannot cover it
+        var grid = new CityGrid(15, 15);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        // Fire station at (5, 6) with a road at (5, 7) — service has road access but residential doesn't
+        grid.SetZone(5, 6, ZoneType.FireStation);
+        grid.SetZone(5, 7, ZoneType.Road);
+
+        var roadGraph = BuildRoadGraph(grid);
+        _happiness.Propagate(grid, roadGraph: roadGraph);
+
+        // Residential at (5,5) has no road neighbor (road is at (5,7) — not adjacent to (5,5))
+        // → GetDistanceViaRoads returns MaxValue → no coverage
+        Assert.That(grid.GetTile(5, 5).Happiness, Is.EqualTo(0.6).Within(0.002),
+            "Residential with no road access should receive no service coverage via road graph");
+    }
+
+    [Test]
+    public void RoadGraph_ServiceReachableViaLongRoad_IsCoveredWithinRadius()
+    {
+        // Residential at (0,5), Fire station at (9,5), 8 road tiles connecting them
+        // road neighbor of (0,5) = (1,5); road neighbor of (9,5) = (8,5)
+        // graph distance (1,5)→(8,5) = 7 edges × 1.0 = 7.0 ≤ 8.0 (FireStation radius) → COVERED
+        var grid = new CityGrid(15, 15);
+        grid.SetFlatTerrain();
+        grid.SetZone(0, 5, ZoneType.Residential);
+        MakeReady(grid, 0, 5);
+        for (var x = 1; x <= 8; x++)
+            grid.SetZone(x, 5, ZoneType.Road);
+        grid.SetZone(9, 5, ZoneType.FireStation);
+
+        var roadGraph = BuildRoadGraph(grid);
+        _happiness.Propagate(grid, roadGraph: roadGraph);
+
+        // base 0.6 + 0.15 fire coverage = 0.75 (covered → no neglect)
+        Assert.That(grid.GetTile(0, 5).Happiness, Is.EqualTo(0.75).Within(0.001),
+            "Fire station reachable within road-graph radius should provide coverage bonus");
+    }
+
+    [Test]
+    public void RoadGraph_ServiceTooFarViaRoad_NotCovered()
+    {
+        // Residential at (0,5), Fire station at (11,5) — 10 road tiles between them
+        // road neighbor of (0,5) = (1,5); road neighbor of (11,5) = (10,5)
+        // graph distance (1,5)→(10,5) = 9 edges = 9.0 > 8.0 (FireStation radius) → NOT covered
+        var grid = new CityGrid(15, 15);
+        grid.SetFlatTerrain();
+        grid.SetZone(0, 5, ZoneType.Residential);
+        MakeReady(grid, 0, 5);
+        for (var x = 1; x <= 10; x++)
+            grid.SetZone(x, 5, ZoneType.Road);
+        grid.SetZone(11, 5, ZoneType.FireStation);
+
+        var roadGraph = BuildRoadGraph(grid);
+        _happiness.Propagate(grid, roadGraph: roadGraph);
+
+        // base 0.6 only — service too far via road (minus first-tick neglect 0.001)
+        Assert.That(grid.GetTile(0, 5).Happiness, Is.EqualTo(0.6).Within(0.002),
+            "Fire station beyond road-graph radius should not provide coverage bonus");
+    }
+
+    [Test]
+    public void RoadGraph_AvenueShortcut_AllowsCoverageWithinRadius()
+    {
+        // 8 avenue tiles (weight 0.5 each) between residential and fire station
+        // road neighbor of (0,5) = (1,5); road neighbor of (9,5) = (8,5)
+        // graph distance: 7 avenue edges × 0.5 = 3.5 ≤ 8.0 → COVERED
+        // Even though Manhattan distance is 9 > old radius 4, road graph shows it's close
+        var grid = new CityGrid(15, 15);
+        grid.SetFlatTerrain();
+        grid.SetZone(0, 5, ZoneType.Residential);
+        MakeReady(grid, 0, 5);
+        for (var x = 1; x <= 8; x++)
+            grid.SetZone(x, 5, ZoneType.Avenue);
+        grid.SetZone(9, 5, ZoneType.FireStation);
+
+        var roadGraph = BuildRoadGraph(grid);
+        _happiness.Propagate(grid, roadGraph: roadGraph);
+
+        // base 0.6 + 0.15 fire coverage = 0.75
+        Assert.That(grid.GetTile(0, 5).Happiness, Is.EqualTo(0.75).Within(0.001),
+            "Avenue shortcut should allow service coverage within road-graph radius");
+    }
+
+    [Test]
+    public void RoadGraph_CommutePenalty_DisconnectedIndustrial_ReturnsMaxValue()
+    {
+        // Road-graph distance between residential and industrial when industrial has no road neighbor
+        // should return float.MaxValue, triggering the -0.25 penalty.
+        var grid = new CityGrid(15, 15);
+        grid.SetFlatTerrain();
+        grid.SetZone(2, 5, ZoneType.Residential);
+        grid.SetZone(2, 4, ZoneType.Road);
+        grid.SetZone(9, 9, ZoneType.Industrial);
+
+        var roadGraph = new RoadGraph();
+        roadGraph.AddNode(2, 4, 1.0f); // only road near residential — industrial (9,9) has no road neighbor
+
+        var dist = roadGraph.GetDistanceViaRoads(grid, 2, 5, 9, 9);
+
+        Assert.That(dist, Is.EqualTo(float.MaxValue),
+            "Disconnected industrial (no road neighbor) should return MaxValue distance");
+    }
+
+    [Test]
+    public void RoadGraph_CommutePenalty_NearbyIndustrialViaRoad_NoPenalty()
+    {
+        // Residential and industrial connected via short road (distance ≤ 10.0) — no commute penalty
+        var grid = new CityGrid(15, 15);
+        grid.SetFlatTerrain();
+        grid.SetZone(2, 5, ZoneType.Residential);
+        for (var x = 3; x <= 7; x++)
+            grid.SetZone(x, 5, ZoneType.Road);
+        grid.SetZone(8, 5, ZoneType.Industrial);
+        MakeReady(grid, 2, 5);
+        grid.SetPower(8, 5, true);
+
+        var roadGraph = BuildRoadGraph(grid);
+
+        // road neighbor of (2,5) = (3,5); road neighbor of (8,5) = (7,5)
+        // graph distance (3,5)→(7,5) = 4 edges = 4.0 ≤ 10.0 → no penalty
+        var dist = roadGraph.GetDistanceViaRoads(grid, 2, 5, 8, 5);
+
+        Assert.That(dist, Is.EqualTo(4.0f).Within(0.001f));
+        Assert.That(dist, Is.LessThanOrEqualTo(10.0f),
+            "Short road commute distance should not trigger commute penalty");
     }
 }

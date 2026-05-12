@@ -208,6 +208,8 @@ public class SimulationEngineTests
         grid.SetZone(3, 5, ZoneType.Road);
 
         var engine = BuildEngine(grid);
+        // Seed the road graph from roads placed directly on the grid before engine creation
+        engine.SeedRoadGraphFromGrid();
 
         // Run until Abandoned (LowHappinessLimit = 30 ticks below threshold 0.30)
         for (var i = 0; i < 200; i++)
@@ -217,12 +219,17 @@ public class SimulationEngineTests
             "City should have been abandoned after sustained low happiness");
 
         // Step 2: remove all industrial zones (simulate player improving city conditions)
-        grid.SetZone(3, 6, ZoneType.Empty);
-        grid.SetZone(3, 5, ZoneType.Empty);
-        // Add services to push happiness above recovery threshold (0.30 + 0.15 = 0.45)
-        grid.SetZone(4, 5, ZoneType.FireStation);
-        grid.SetZone(4, 4, ZoneType.PoliceStation);
-        grid.SetZone(4, 3, ZoneType.School);
+        engine.EraseTile(3, 6);
+        engine.EraseTile(3, 5);
+        // Add a road spine so services can reach the residential tile via road graph.
+        // Road column at x=5 connects all service tiles back to road at (5,6).
+        engine.PlaceTile(5, 5, ZoneType.Road);
+        engine.PlaceTile(5, 4, ZoneType.Road);
+        engine.PlaceTile(5, 3, ZoneType.Road);
+        // Add services adjacent to road spine so they have road-graph coverage
+        grid.SetZone(4, 5, ZoneType.FireStation);   // (5,5) road neighbor
+        grid.SetZone(4, 4, ZoneType.PoliceStation); // (5,4) road neighbor
+        grid.SetZone(4, 3, ZoneType.School);        // (5,3) road neighbor
 
         // Run enough ticks for happiness to recover above AbandonThreshold + 0.15 = 0.45
         for (var i = 0; i < 100; i++)

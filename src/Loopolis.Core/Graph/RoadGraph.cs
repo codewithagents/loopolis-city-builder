@@ -1,3 +1,5 @@
+using Loopolis.Core.Grid;
+
 namespace Loopolis.Core.Graph;
 
 /// <summary>
@@ -165,6 +167,49 @@ public class RoadGraph
             }
         }
         return visited;
+    }
+
+    /// <summary>
+    /// Returns the road-graph distance between two non-road tiles via their nearest road neighbours.
+    ///
+    /// A non-road tile's "nearest road tile" is any of its 4 cardinal neighbours that is a node
+    /// in this graph (i.e. a Road or Avenue tile). The first such neighbour found is used.
+    ///
+    /// Returns <c>float.MaxValue</c> if:
+    ///   - either tile has no adjacent road node, OR
+    ///   - no path exists between the two road neighbours.
+    ///
+    /// This is the primary entry-point for service coverage and commute penalty calculations
+    /// once G2 road-based coverage is active.
+    /// </summary>
+    public float GetDistanceViaRoads(CityGrid grid, int x1, int y1, int x2, int y2)
+    {
+        var road1 = FindNearestRoadNeighbour(grid, x1, y1);
+        if (road1 == null) return float.MaxValue;
+
+        var road2 = FindNearestRoadNeighbour(grid, x2, y2);
+        if (road2 == null) return float.MaxValue;
+
+        return GetDistance(road1.Value.x, road1.Value.y, road2.Value.x, road2.Value.y);
+    }
+
+    /// <summary>
+    /// Returns the first cardinal neighbour of (x, y) that is a node in this graph,
+    /// or null if none exists. Checks North, South, West, East in that order.
+    /// </summary>
+    private (int x, int y)? FindNearestRoadNeighbour(CityGrid grid, int x, int y)
+    {
+        // If the tile itself is a road node, use it directly
+        if (_nodes.ContainsKey((x, y))) return (x, y);
+
+        foreach (var (dx, dy) in Directions)
+        {
+            var nx = x + dx;
+            var ny = y + dy;
+            if (!grid.IsInBounds(nx, ny)) continue;
+            if (_nodes.ContainsKey((nx, ny))) return (nx, ny);
+        }
+        return null;
     }
 
     /// <summary>

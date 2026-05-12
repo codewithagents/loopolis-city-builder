@@ -1,4 +1,5 @@
 using Loopolis.Core.Graph;
+using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Tests.Graph;
 
@@ -417,5 +418,202 @@ public class RoadGraphTests
         _graph.AddNode(1, 1);
 
         Assert.That(_graph.EdgeCount, Is.EqualTo(4));
+    }
+
+    // ── GetDistanceViaRoads ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Minimal grid helper: 10x10 flat grid with flat terrain (height=1 everywhere).
+    /// </summary>
+    private static CityGrid MakeGrid()
+    {
+        var g = new CityGrid(10, 10);
+        g.SetFlatTerrain();
+        return g;
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_NeitherTileHasRoadNeighbour_ReturnsMaxValue()
+    {
+        // Two residential tiles with no road tiles anywhere on the grid
+        var grid = MakeGrid();
+        grid.SetZone(2, 2, ZoneType.Residential);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        // No road tiles → no nodes in graph → unreachable
+
+        var dist = _graph.GetDistanceViaRoads(grid, 2, 2, 5, 5);
+
+        Assert.That(dist, Is.EqualTo(float.MaxValue));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_OneTileHasRoadNeighbour_OtherDoesNot_ReturnsMaxValue()
+    {
+        // Residential at (2,2) has road at (2,3). Residential at (7,7) has no road nearby.
+        var grid = MakeGrid();
+        grid.SetZone(2, 2, ZoneType.Residential);
+        grid.SetZone(2, 3, ZoneType.Road);
+        _graph.AddNode(2, 3, 1.0f);
+        grid.SetZone(7, 7, ZoneType.Residential);
+        // No road near (7,7)
+
+        var dist = _graph.GetDistanceViaRoads(grid, 2, 2, 7, 7);
+
+        Assert.That(dist, Is.EqualTo(float.MaxValue));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_BothTilesShareAdjacentRoadTile_ReturnsZero()
+    {
+        // Residential at (2,2) and service at (2,4) — both adjacent to road at (2,3).
+        // Road neighbor of (2,2) = (2,3); road neighbor of (2,4) = (2,3). Same node → distance 0.
+        var grid = MakeGrid();
+        grid.SetZone(2, 2, ZoneType.Residential);
+        grid.SetZone(2, 3, ZoneType.Road);
+        grid.SetZone(2, 4, ZoneType.FireStation);
+        _graph.AddNode(2, 3, 1.0f);
+
+        var dist = _graph.GetDistanceViaRoads(grid, 2, 2, 2, 4);
+
+        Assert.That(dist, Is.EqualTo(0f));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_StraightRoadPath_ReturnsCorrectDistance()
+    {
+        // Layout: Residential-(2,5) | Road-(3,5)-(4,5)-(5,5)-(6,5) | FireStation-(7,5)
+        // Road neighbor of (2,5) = (3,5); road neighbor of (7,5) = (6,5).
+        // Graph distance (3,5)→(6,5) = 3 road edges × 1.0 = 3.0
+        var grid = MakeGrid();
+        grid.SetZone(2, 5, ZoneType.Residential);
+        for (var x = 3; x <= 6; x++)
+        {
+            grid.SetZone(x, 5, ZoneType.Road);
+            _graph.AddNode(x, 5, 1.0f);
+        }
+        grid.SetZone(7, 5, ZoneType.FireStation);
+
+        var dist = _graph.GetDistanceViaRoads(grid, 2, 5, 7, 5);
+
+        Assert.That(dist, Is.EqualTo(3.0f).Within(0.001f));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_AvenuePathIsFaster_ThanEquivalentRoadPath()
+    {
+        // Two paths: road path 4 edges vs avenue path 4 edges (shorter due to 0.5 weight)
+        // Layout (two separate roads sharing the same grid — simpler: just avenue path)
+        // Avenue: (3,5)-(4,5)-(5,5)-(6,5) weight 0.5 each → edge (3,5)↔(4,5) = 0.5, total 3 edges = 1.5
+        var grid = MakeGrid();
+        grid.SetZone(2, 5, ZoneType.Residential);
+        for (var x = 3; x <= 6; x++)
+        {
+            grid.SetZone(x, 5, ZoneType.Avenue);
+            _graph.AddNode(x, 5, 0.5f);
+        }
+        grid.SetZone(7, 5, ZoneType.FireStation);
+
+        var dist = _graph.GetDistanceViaRoads(grid, 2, 5, 7, 5);
+
+        // (3,5)→(4,5)→(5,5)→(6,5): edges each = (0.5+0.5)/2 = 0.5; 3 edges = 1.5
+        Assert.That(dist, Is.EqualTo(1.5f).Within(0.001f));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_DisconnectedRoadNetwork_ReturnsMaxValue()
+    {
+        // Two separate road islands — no path between them
+        var grid = MakeGrid();
+        grid.SetZone(2, 5, ZoneType.Residential);
+        grid.SetZone(2, 4, ZoneType.Road);    // island A
+        _graph.AddNode(2, 4, 1.0f);
+
+        grid.SetZone(8, 5, ZoneType.FireStation);
+        grid.SetZone(8, 4, ZoneType.Road);    // island B (no connection to island A)
+        _graph.AddNode(8, 4, 1.0f);
+
+        var dist = _graph.GetDistanceViaRoads(grid, 2, 5, 8, 5);
+
+        Assert.That(dist, Is.EqualTo(float.MaxValue));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_TileIsItself_AdjacentToRoad_ReturnsZero()
+    {
+        // When both tiles are the same position — trivially distance 0
+        var grid = MakeGrid();
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetZone(5, 6, ZoneType.Road);
+        _graph.AddNode(5, 6, 1.0f);
+
+        var dist = _graph.GetDistanceViaRoads(grid, 5, 5, 5, 5);
+
+        // FindNearestRoadNeighbour(5,5) = (5,6); same neighbor used for both → distance 0
+        Assert.That(dist, Is.EqualTo(0f));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_RoadTileItself_UsedDirectly()
+    {
+        // A road tile itself is a node in the graph — FindNearestRoadNeighbour returns itself
+        var grid = MakeGrid();
+        grid.SetZone(3, 5, ZoneType.Road);
+        grid.SetZone(4, 5, ZoneType.Road);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        _graph.AddNode(3, 5, 1.0f);
+        _graph.AddNode(4, 5, 1.0f);
+
+        // (3,5) is itself a road node; (5,5) has (4,5) as road neighbor
+        var dist = _graph.GetDistanceViaRoads(grid, 3, 5, 5, 5);
+
+        // (3,5)→(4,5): single edge = 1.0
+        Assert.That(dist, Is.EqualTo(1.0f).Within(0.001f));
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_LongRoadPath_WithinServiceRadius_IsCovered()
+    {
+        // 8 road tiles between residential and fire station — distance = 7 road edges = 7.0
+        // FireStation radius = 8.0, so this IS covered.
+        var grid = MakeGrid();
+        grid.SetZone(0, 5, ZoneType.Residential);
+        for (var x = 1; x <= 8; x++)
+        {
+            grid.SetZone(x, 5, ZoneType.Road);
+            _graph.AddNode(x, 5, 1.0f);
+        }
+        grid.SetZone(9, 5, ZoneType.FireStation);
+        // road neighbor of (0,5) = (1,5); road neighbor of (9,5) = (8,5)
+        // distance (1,5)→(8,5) = 7 road edges = 7.0 ≤ 8.0 → covered
+
+        var dist = _graph.GetDistanceViaRoads(grid, 0, 5, 9, 5);
+
+        Assert.That(dist, Is.EqualTo(7.0f).Within(0.001f));
+        Assert.That(dist, Is.LessThanOrEqualTo(8.0f), "Should be within FireStation road-graph radius");
+    }
+
+    [Test]
+    public void GetDistanceViaRoads_TooFarViaRoad_NotCoveredByFireStation()
+    {
+        // 9 road tiles between residential and fire station — distance = 8.0 road edges
+        // Neighbors: (1,5) to (9,5) = 8 edges = 8.0.
+        // FireStation radius = 8.0 so exactly at boundary — IS covered (≤ 8.0).
+        // Place 10 road tiles so distance = 9.0 > 8.0 → NOT covered.
+        var grid = new CityGrid(15, 15);
+        grid.SetFlatTerrain();
+        grid.SetZone(0, 5, ZoneType.Residential);
+        for (var x = 1; x <= 10; x++)
+        {
+            grid.SetZone(x, 5, ZoneType.Road);
+            _graph.AddNode(x, 5, 1.0f);
+        }
+        grid.SetZone(11, 5, ZoneType.FireStation);
+        // road neighbor of (0,5) = (1,5); road neighbor of (11,5) = (10,5)
+        // distance (1,5)→(10,5) = 9 road edges = 9.0 > 8.0 → NOT covered
+
+        var dist = _graph.GetDistanceViaRoads(grid, 0, 5, 11, 5);
+
+        Assert.That(dist, Is.EqualTo(9.0f).Within(0.001f));
+        Assert.That(dist, Is.GreaterThan(8.0f), "Should exceed FireStation road-graph radius");
     }
 }

@@ -77,6 +77,28 @@ public class SimulationEngine
     // ── Tile placement helpers ──────────────────────────────────────────────────
 
     /// <summary>
+    /// Scan the current grid and add nodes to the RoadGraph for every Road or Avenue tile.
+    /// Call this once after constructing an engine with a pre-populated grid (e.g. scenario setup
+    /// or loading a saved game) so that road-graph-based coverage is correct from tick 1.
+    /// Safe to call multiple times — adding an existing node is a no-op.
+    /// </summary>
+    public void SeedRoadGraphFromGrid()
+    {
+        foreach (var tile in Grid.AllTiles())
+        {
+            switch (tile.Zone)
+            {
+                case ZoneType.Road:
+                    RoadGraph.AddNode(tile.X, tile.Y, 1.0f);
+                    break;
+                case ZoneType.Avenue:
+                    RoadGraph.AddNode(tile.X, tile.Y, 0.5f);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
     /// Place a zone tile and keep the RoadGraph in sync.
     /// Road tiles are added as nodes (weight 1.0) and Avenue tiles as nodes (weight 0.5).
     /// </summary>
@@ -119,7 +141,7 @@ public class SimulationEngine
         DemandSystem.Propagate(Grid);      // demand before happiness
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
-        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute (road-graph distance)
         LandValueSystem.Propagate(Grid);   // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition

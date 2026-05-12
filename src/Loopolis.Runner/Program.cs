@@ -282,15 +282,15 @@ static void WriteOverlay(
     var height = grid.Height;
     var tick   = engine.TickCount;
 
-    // Pre-compute service tile list + radii (same logic as WriteState / HappinessSystem)
-    var serviceRadii = new Dictionary<ZoneType, int>
+    // Pre-compute service tile list + radii (road-graph distance units)
+    var serviceRadii = new Dictionary<ZoneType, float>
     {
-        { ZoneType.FireStation,   4 },
-        { ZoneType.PoliceStation, 4 },
-        { ZoneType.School,        5 },
-        { ZoneType.PoliceHQ,     10 },
-        { ZoneType.FireHQ,       10 },
-        { ZoneType.Hospital,      8 },
+        { ZoneType.FireStation,    8.0f },
+        { ZoneType.PoliceStation,  8.0f },
+        { ZoneType.School,        10.0f },
+        { ZoneType.PoliceHQ,       8.0f },
+        { ZoneType.FireHQ,         8.0f },
+        { ZoneType.Hospital,      12.0f },
     };
     var services = grid.AllTiles()
         .Where(t => serviceRadii.ContainsKey(t.Zone))
@@ -312,20 +312,20 @@ static void WriteOverlay(
 
             case "police":
             {
-                // PoliceStation (radius 4) or PoliceHQ (radius 10) both count as police coverage
+                // PoliceStation or PoliceHQ — road-graph distance coverage
                 var covered = services.Any(s =>
                     (s.Zone == ZoneType.PoliceStation || s.Zone == ZoneType.PoliceHQ) &&
-                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[s.Zone]);
+                    engine.RoadGraph.GetDistanceViaRoads(grid, x, y, s.X, s.Y) <= serviceRadii[s.Zone]);
                 value = covered ? 1.0 : 0.0;
                 break;
             }
 
             case "fire":
             {
-                // FireStation (radius 4) or FireHQ (radius 10) both count as fire coverage
+                // FireStation or FireHQ — road-graph distance coverage
                 var covered = services.Any(s =>
                     (s.Zone == ZoneType.FireStation || s.Zone == ZoneType.FireHQ) &&
-                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[s.Zone]);
+                    engine.RoadGraph.GetDistanceViaRoads(grid, x, y, s.X, s.Y) <= serviceRadii[s.Zone]);
                 value = covered ? 1.0 : 0.0;
                 break;
             }
@@ -334,7 +334,7 @@ static void WriteOverlay(
             {
                 var covered = services.Any(s =>
                     s.Zone == ZoneType.School &&
-                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.School]);
+                    engine.RoadGraph.GetDistanceViaRoads(grid, x, y, s.X, s.Y) <= serviceRadii[ZoneType.School]);
                 value = covered ? 1.0 : 0.0;
                 break;
             }
@@ -343,7 +343,7 @@ static void WriteOverlay(
             {
                 var covered = services.Any(s =>
                     s.Zone == ZoneType.Hospital &&
-                    Math.Abs(s.X - x) + Math.Abs(s.Y - y) <= serviceRadii[ZoneType.Hospital]);
+                    engine.RoadGraph.GetDistanceViaRoads(grid, x, y, s.X, s.Y) <= serviceRadii[ZoneType.Hospital]);
                 value = covered ? 1.0 : 0.0;
                 break;
             }
@@ -520,7 +520,7 @@ static void ProcessCommand(
                             }
                         }
                         engine.Budget.Charge(placementCost);
-                        grid.SetZone(x, y, zoneType);
+                        engine.PlaceTile(x, y, zoneType);
                         Console.WriteLine($"[place_zone] ({x},{y}) => {zoneType} (cost: ${placementCost:N0})");
                     }
                     else
@@ -543,7 +543,7 @@ static void ProcessCommand(
                         WriteStateWithError(tmpPath, statePath, engine, grid, paused, sessionId, errMsg, recentEvents);
                         break;
                     }
-                    grid.SetZone(x, y, ZoneType.Empty);
+                    engine.EraseTile(x, y);
                     Console.WriteLine($"[erase] ({x},{y}) => Empty");
                 }
                 break;
@@ -601,7 +601,7 @@ static void ProcessCommand(
                         if (!engine.Budget.CanAfford(placementCost)) { skippedFunds++; continue; }
 
                         engine.Budget.Charge(placementCost);
-                        grid.SetZone(rx, ry, rZoneType);
+                        engine.PlaceTile(rx, ry, rZoneType);
                         placedCount++;
                     }
 
@@ -639,7 +639,7 @@ static void ProcessCommand(
                     for (var erx = erx1; erx <= erx2; erx++)
                     {
                         if (!grid.IsInBounds(erx, ery)) { erSkippedOob++; continue; }
-                        grid.SetZone(erx, ery, ZoneType.Empty);
+                        engine.EraseTile(erx, ery);
                         erasedCount++;
                     }
 
@@ -820,14 +820,14 @@ static void WriteState(
             .Where(t => t.Zone is ZoneType.FireStation or ZoneType.PoliceStation or ZoneType.School
                              or ZoneType.PoliceHQ or ZoneType.FireHQ or ZoneType.Hospital)
             .ToList();
-        var serviceRadii = new Dictionary<ZoneType, int>
+        var serviceRadii = new Dictionary<ZoneType, float>
         {
-            { ZoneType.FireStation,   4 },
-            { ZoneType.PoliceStation, 4 },
-            { ZoneType.School,        5 },
-            { ZoneType.PoliceHQ,     10 },
-            { ZoneType.FireHQ,       10 },
-            { ZoneType.Hospital,      8 },
+            { ZoneType.FireStation,    8.0f },
+            { ZoneType.PoliceStation,  8.0f },
+            { ZoneType.School,        10.0f },
+            { ZoneType.PoliceHQ,       8.0f },
+            { ZoneType.FireHQ,         8.0f },
+            { ZoneType.Hospital,      12.0f },
         };
         static ZoneType ServiceCat(ZoneType z) => z switch
         {
@@ -841,7 +841,7 @@ static void WriteState(
             var coveredCategories = new HashSet<ZoneType>();
             foreach (var svc in services)
             {
-                var dist = Math.Abs(svc.X - tile.X) + Math.Abs(svc.Y - tile.Y);
+                var dist = engine.RoadGraph.GetDistanceViaRoads(grid, tile.X, tile.Y, svc.X, svc.Y);
                 if (serviceRadii.TryGetValue(svc.Zone, out var radius) && dist <= radius)
                     coveredCategories.Add(ServiceCat(svc.Zone));
             }
@@ -853,7 +853,7 @@ static void WriteState(
     }
 
     // Average commute penalty: sum of per-tile commute penalties / count of developed residential tiles
-    var avgCommutePenalty = engine.HappinessSystem.AverageCommutePenalty(grid, currentPop);
+    var avgCommutePenalty = engine.HappinessSystem.AverageCommutePenalty(grid, currentPop, engine.RoadGraph);
 
     var happinessBreakdown = new HappinessBreakdown(
         ServiceCoverage:     Math.Round(avgServiceCoverage, 4),
@@ -870,15 +870,16 @@ static void WriteState(
     var unpoweredZoned   = zonedTiles.Count - poweredZoned;
 
     // Pre-compute service tiles and radii for coverage percentage
-    // PoliceHQ (radius 10) counts as police coverage; FireHQ (radius 10) counts as fire coverage
-    var covServiceRadii = new Dictionary<ZoneType, int>
+    // PoliceHQ (radius 8) counts as police coverage; FireHQ (radius 8) counts as fire coverage
+    // Radii are in road-graph distance units (Road=1.0, Avenue=0.5 per edge)
+    var covServiceRadii = new Dictionary<ZoneType, float>
     {
-        { ZoneType.FireStation,   4 },
-        { ZoneType.PoliceStation, 4 },
-        { ZoneType.School,        5 },
-        { ZoneType.PoliceHQ,     10 },
-        { ZoneType.FireHQ,       10 },
-        { ZoneType.Hospital,      8 },
+        { ZoneType.FireStation,    8.0f },
+        { ZoneType.PoliceStation,  8.0f },
+        { ZoneType.School,        10.0f },
+        { ZoneType.PoliceHQ,       8.0f },
+        { ZoneType.FireHQ,         8.0f },
+        { ZoneType.Hospital,      12.0f },
     };
     var covServices = grid.AllTiles()
         .Where(t => covServiceRadii.ContainsKey(t.Zone))
@@ -889,16 +890,16 @@ static void WriteState(
     foreach (var zt in zonedTiles)
     {
         if (covServices.Any(s => (s.Zone == ZoneType.PoliceStation || s.Zone == ZoneType.PoliceHQ)
-                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[s.Zone]))
+                                 && engine.RoadGraph.GetDistanceViaRoads(grid, zt.X, zt.Y, s.X, s.Y) <= covServiceRadii[s.Zone]))
             policeCovered++;
         if (covServices.Any(s => (s.Zone == ZoneType.FireStation || s.Zone == ZoneType.FireHQ)
-                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[s.Zone]))
+                                 && engine.RoadGraph.GetDistanceViaRoads(grid, zt.X, zt.Y, s.X, s.Y) <= covServiceRadii[s.Zone]))
             fireCovered++;
         if (covServices.Any(s => s.Zone == ZoneType.School
-                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.School]))
+                                 && engine.RoadGraph.GetDistanceViaRoads(grid, zt.X, zt.Y, s.X, s.Y) <= covServiceRadii[ZoneType.School]))
             schoolCovered++;
         if (covServices.Any(s => s.Zone == ZoneType.Hospital
-                                 && Math.Abs(s.X - zt.X) + Math.Abs(s.Y - zt.Y) <= covServiceRadii[ZoneType.Hospital]))
+                                 && engine.RoadGraph.GetDistanceViaRoads(grid, zt.X, zt.Y, s.X, s.Y) <= covServiceRadii[ZoneType.Hospital]))
             hospitalCovered++;
         totalPollution  += zt.PollutionLevel;
         totalHappiness  += zt.Happiness;
@@ -1154,47 +1155,57 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             break;
 
         case "services":
-            // City with school and fire station — tests service coverage happiness bonus.
+            // City with school and fire station — tests road-graph service coverage bonus.
             //
-            // Layout:
-            //   Power plant, roads forming a grid
-            //   Residential blocks — some covered by services, some not
-            //   One school covering the north block
-            //   One fire station covering the east block
+            // Layout: compact road network with services placed on road-adjacent tiles
+            //   CoalPlant at (2,15) powers the whole grid via road adjacency
+            //   Main E-W road at y=15 (x=3..26)
+            //   North spur at x=15 (y=9..15)
+            //   Residential row north: (x=6..14, y=14) — adjacent to y=15 road
+            //   Residential row south: (x=6..14, y=16) — adjacent to y=15 road
+            //   School at (15,8): adjacent to north spur (15,9) — covers north residents
+            //   FireStation at (16,15): adjacent to main road at (15,15) — covers south residents
             //
-            // Expected: covered zones reach happiness ~0.75+, uncovered zones stay at 0.6
+            // Road-graph coverage:
+            //   North resident (x,14) road-neighbor = (x,15); school road-neighbor = (15,9)
+            //   graph distance (x,15)→(15,15)→...→(15,9) ≤ 10.0 (School radius) → covered
+            //   South resident (x,16) road-neighbor = (x,15); fire road-neighbor = (15,15)
+            //   graph distance (x,15)→(15,15) ≤ 8.0 (FireStation radius) → covered
+            //
+            // Expected: north residents covered by School, south by FireStation → happiness 0.75+
 
             grid.SetFlatTerrain();
             // Power
-            grid.SetZone(5, 5, ZoneType.PowerPlant);
-            for (var x = 6; x <= 20; x++) grid.SetZone(x, 5, ZoneType.PowerLine);
+            grid.SetZone(2, 15, ZoneType.CoalPlant);
 
-            // Roads: horizontal at y=10 and y=20, vertical at x=10 and x=20
-            for (var x = 5; x <= 26; x++) grid.SetZone(x, 10, ZoneType.Road);
-            for (var x = 5; x <= 26; x++) grid.SetZone(x, 20, ZoneType.Road);
-            for (var y = 10; y <= 20; y++) grid.SetZone(10, y, ZoneType.Road);
-            for (var y = 10; y <= 20; y++) grid.SetZone(20, y, ZoneType.Road);
+            // Roads
+            for (var x = 3; x <= 26; x++) grid.SetZone(x, 15, ZoneType.Road); // main E-W
+            for (var y = 9; y <= 14; y++) grid.SetZone(15, y, ZoneType.Road);  // north spur
 
-            // Residential: north block (y=6..9), south block (y=21..24)
-            for (var x = 11; x <= 19; x++)
-            for (var y = 6; y <= 9; y++)
-                if (grid.GetTile(x, y).Zone == ZoneType.Empty)
-                    grid.SetZone(x, y, ZoneType.Residential);
+            // Residential: single row north and south of main road (all road-adjacent)
+            for (var x = 6; x <= 14; x++) grid.SetZone(x, 14, ZoneType.Residential); // north of road, adj to road
+            for (var x = 6; x <= 14; x++) grid.SetZone(x, 16, ZoneType.Residential); // south of road, adj to road
 
-            for (var x = 11; x <= 19; x++)
-            for (var y = 21; y <= 24; y++)
-                if (grid.GetTile(x, y).Zone == ZoneType.Empty)
-                    grid.SetZone(x, y, ZoneType.Residential);
+            // School: adjacent to top of north spur (15,9), covers all north residents via road graph
+            // Road-graph: school road-neighbor=(15,9); north resident (x,14) road-neighbor=(x,15)
+            // distance (x,15)→(15,15): |x-15| road edges, then (15,15)→(15,9): 6 road edges
+            // max distance for (6,14): (6,15)→(15,15) = 9 + (15,9) = 6 → total 15.0 > 10.0 (School)
+            // so place school closer: use PoliceStation at (15,8) adjacent to north spur (15,9)
+            // but north residents at x=11..14 are within 0..4 + 6 = 6..10 → borderline
+            // Use only x=11..14 for north to ensure coverage:
+            for (var x = 6;  x <= 14; x++) grid.SetZone(x, 14, ZoneType.Empty); // clear previous
+            for (var x = 11; x <= 14; x++) grid.SetZone(x, 14, ZoneType.Residential); // near x=15 spur
+            grid.SetZone(15, 8, ZoneType.School);  // adj to (15,9); from (11,15): distance=4+(15,15→15,9)=4+6=10 ≤ 10
 
-            // School: covers north block (Manhattan radius 5 from center of north block ~(15,7))
-            grid.SetZone(15, 12, ZoneType.School); // within 5 of all north residential
+            // Fire station: on road at (16,15) (adjacent to (15,15)), covers south residents
+            // From (11,16) road-neighbor=(11,15): distance (11,15)→(16,15)=5 → adjacent to station→0 (same neighbor)
+            // Wait: fire station at (16,15) is itself a Road? No—place it ADJACENT to road.
+            // FireStation at (16,14): adj to (16,15) road. From south resident (11,16) road-neighbor=(11,15)
+            // dist (11,15)→(16,15)=5; then fire station neighbor=(16,15); total 5 ≤ 8 → covered
+            grid.SetZone(16, 14, ZoneType.FireStation); // adj to main road (16,15)
 
-            // Fire station: covers south block
-            grid.SetZone(15, 18, ZoneType.FireStation); // within 4 of south residential at y=21
-
-            // Commercial strip on the east road
-            for (var y = 11; y <= 19; y++)
-                grid.SetZone(21, y, ZoneType.Commercial);
+            // Commercial east of road junction for demand boost
+            for (var x = 17; x <= 22; x++) grid.SetZone(x, 16, ZoneType.Commercial);
 
             break;
 
@@ -1248,6 +1259,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
     }
 
     var engine = new SimulationEngine(grid, budget, population, power, roads, demand);
+    engine.SeedRoadGraphFromGrid();   // seed road graph from any roads placed during scenario setup
     return (grid, engine);
 }
 
