@@ -39,6 +39,9 @@ public partial class SharedStateReader : Node
     /// <summary>Last grid received from the server. World.cs uses this for optimistic tile placement.</summary>
     public CityGrid? LastGrid { get; private set; }
 
+    /// <summary>Last state received from the server. World.cs uses this for the growth tooltip.</summary>
+    public SharedState? LastState { get; private set; }
+
     /// <summary>Session ID resolved via SetSessionId or discovery. Used to stamp outgoing commands.</summary>
     public string? SessionId => _sessionId;
 
@@ -110,7 +113,8 @@ public partial class SharedStateReader : Node
 
             _lastTick = state.Tick;
             var grid = RebuildGrid(state);
-            LastGrid = grid;
+            LastGrid  = grid;
+            LastState = state;
             _renderer.Refresh(grid);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _hud.UpdateStats(state);
@@ -180,6 +184,7 @@ public partial class SharedStateReader : Node
             if (tile.PollutionLevel > 0f) grid.SetPollution(tile.X, tile.Y, tile.PollutionLevel);
             if (tile.Happiness < 1f) grid.SetHappiness(tile.X, tile.Y, tile.Happiness);
             if (tile.BuildingId != null) grid.SetBuildingId(tile.X, tile.Y, tile.BuildingId);
+            if (tile.TrafficLoad > 0) grid.SetTrafficLoad(tile.X, tile.Y, tile.TrafficLoad);
         }
         // Restore building entities from the buildings list if present
         if (state.Buildings != null)
@@ -287,5 +292,6 @@ public record SharedTile(
     float Happiness,        // 0.0-1.0 from HappinessSystem (per-tile)
     bool HasDemandBoost,    // commercial adjacency boost active for this tile
     string? BuildingId = null,
-    string? BuildingType = null
+    string? BuildingType = null,
+    int TrafficLoad = 0     // RoadTrafficSystem load — only set for Road/Avenue tiles
 );

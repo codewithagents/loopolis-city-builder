@@ -52,7 +52,6 @@ public partial class Toolbar : CanvasLayer
         ("I",       "Industrial",  new Color(0.9f,  0.8f,  0.1f),  "Industrial — Place: $75 · Maint: $0.25/tick",           0, 0),
         ("Road",    "Road",        new Color(0.5f,  0.5f,  0.5f),  "Road — Place: $25 · Maint: $1.00/tick",                 0, 0),
         ("Avenue",  "Avenue",      new Color(0.62f, 0.62f, 0.62f), "Avenue — Place: $60 · Maint: $2.00/tick\nHigher capacity road — Requires Town (500 pop)", 500, 0),
-        ("Line",    "PowerLine",   new Color(0.1f,  0.9f,  0.9f),  "Power Line — Place: $40 · Maint: $0.50/tick",           0, 0),
 
         // Tab 1 — Utilities
         ("Coal",    "CoalPlant",    new Color(0.259f,0.259f,0.259f),"Coal Plant — Place: $500 · Maint: $8.00/tick\n500 MW output — emits pollution",           0, 1),

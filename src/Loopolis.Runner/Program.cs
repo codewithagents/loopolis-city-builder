@@ -635,7 +635,8 @@ static void WriteState(
             Math.Round(t.Happiness, 3),
             t.HasDemandBoost,
             t.BuildingId,
-            t.BuildingId != null ? buildingTypeLookup.GetValueOrDefault(t.BuildingId) : null))
+            t.BuildingId != null ? buildingTypeLookup.GetValueOrDefault(t.BuildingId) : null,
+            t.TrafficLoad))
         .ToList();
 
     // --- Enriched building info ---
@@ -1018,6 +1019,55 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
 
             break;
 
+        case "city_path":
+            // Compact mixed-use foundation designed to reach City milestone (5,000 pop).
+            //
+            // Layout (32x32 grid):
+            //   CoalPlant at (5,15) — powers everything via road BFS conductivity (no power lines needed).
+            //   Main E-W road:  y=15, x=6..24 (19 tiles)
+            //   North spur:     x=16, y=11..14 (4 tiles, branches off main road)
+            //
+            //   Residential west row  (y=14, x=7..15):  9 tiles — adjacent to main road at y=15
+            //   Residential east col  (x=17, y=11..14): 4 tiles — adjacent to north spur at x=16
+            //   Total: 13 residential tiles, capacity 650 pop, all road-accessible and powered.
+            //
+            //   Commercial   (y=16, x=9..12):  4 tiles — south of road, boosts adjacent residential demand
+            //   Industrial   (y=16, x=18..21): 4 tiles — south of road, max commute to residential = 12 tiles (-0.10 penalty)
+            //
+            //   Services (all adjacent to main road at y=15, avoiding industrial conflict):
+            //     FireStation   at (8,16)   — radius 4: covers residential x=7..12, y=14
+            //     PoliceStation at (14,16)  — radius 4: covers residential x=10..18, y=12..14
+            //     School        at (16,10)  — adjacent to north spur at (16,11); radius 5: covers x=17,y=11..14 + x=11..16,y=14
+            //
+            //   Starting maintenance: ~$29.6/tick. Break-even: ~170 residents (~tick 70).
+            //   Max net/tick at full residential capacity (650 pop): ~+$60/tick.
+            //   Path to City (5,000 pop): player expands north from spur + east along main road.
+
+            // Power
+            grid.SetZone(5, 15, ZoneType.CoalPlant);
+
+            // Roads
+            for (var x = 6; x <= 24; x++) grid.SetZone(x, 15, ZoneType.Road);    // main E-W spine
+            for (var y = 11; y <= 14; y++) grid.SetZone(16, y, ZoneType.Road);    // north spur
+
+            // Residential — west row (road access via y=15 main road)
+            for (var x = 7; x <= 15; x++) grid.SetZone(x, 14, ZoneType.Residential);
+
+            // Residential — east column (road access via x=16 north spur)
+            for (var y = 11; y <= 14; y++) grid.SetZone(17, y, ZoneType.Residential);
+
+            // Commercial south of main road — positioned for residential demand boost
+            for (var x = 9; x <= 12; x++) grid.SetZone(x, 16, ZoneType.Commercial);
+
+            // Industrial south of main road — max commute from west residential ~12 tiles
+            for (var x = 18; x <= 21; x++) grid.SetZone(x, 16, ZoneType.Industrial);
+
+            // Services
+            grid.SetZone(8,  16, ZoneType.FireStation);    // covers west residential cluster (y=15 road adjacent)
+            grid.SetZone(14, 16, ZoneType.PoliceStation);  // covers center + east residential (y=15 road adjacent)
+            grid.SetZone(16, 10, ZoneType.School);         // covers east column + center row (x=16 spur adjacent at (16,11))
+            break;
+
         default:
             // Wired starter city: plant → road → zones (all connected)
             grid.SetZone(10, 10, ZoneType.PowerPlant);
@@ -1106,7 +1156,8 @@ record TileState(
     [property: JsonPropertyName("happiness")] double Happiness,
     [property: JsonPropertyName("hasDemandBoost")] bool HasDemandBoost,
     [property: JsonPropertyName("buildingId")] string? BuildingId = null,
-    [property: JsonPropertyName("buildingType")] string? BuildingType = null);
+    [property: JsonPropertyName("buildingType")] string? BuildingType = null,
+    [property: JsonPropertyName("trafficLoad")] int TrafficLoad = 0);
 
 record CoverageSummary(
     [property: JsonPropertyName("poweredZonedTilesCount")]   int    PoweredZonedTilesCount,

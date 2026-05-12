@@ -38,6 +38,9 @@ public partial class World : Node2D
     private string _taxLevel = "normal";
     private int _terrainSeed = 0;
 
+    // Last known SharedState (for passing city-wide stats to tooltip)
+    private SharedState? _lastState;
+
     // Event log tracking fields
     private int _lastLoggedPop = 0;
     private bool _wasNegative = false;
@@ -67,9 +70,10 @@ public partial class World : Node2D
     private int _lastCoverageHoverX = -1;
     private int _lastCoverageHoverY = -1;
 
-    // Drag-to-place (paint mode) state
-    private bool _isPlacing = false;
-    private Vector2I _lastPlacedTile = new(-1, -1);
+    // Rectangle zone painting state
+    private bool _isRectPainting = false;
+    private Vector2I _rectStart   = new(-1, -1);
+    private Vector2I _rectEnd     = new(-1, -1);
 
     public override void _Ready()
     {
@@ -297,6 +301,9 @@ public partial class World : Node2D
             return;
         }
 
+        // Resolve the most recent state for the tooltip growth checklist
+        var currentState = _viewerMode ? _reader?.LastState : _lastState;
+
         // Multi-tile building: show one unified tooltip, no road-connectivity warning
         if (tile.BuildingId != null && grid.Buildings.TryGetValue(tile.BuildingId, out var building))
         {
@@ -310,11 +317,11 @@ public partial class World : Node2D
 
             // Use the anchor tile for power/happiness context
             var anchorTile = grid.GetTile(building.AnchorX, building.AnchorY);
-            _tooltip.ShowForBuilding(building, totalPop, anchorTile, GetViewport().GetMousePosition());
+            _tooltip.ShowForBuilding(building, totalPop, anchorTile, GetViewport().GetMousePosition(), currentState);
             return;
         }
 
-        _tooltip.ShowFor(tile, GetViewport().GetMousePosition());
+        _tooltip.ShowFor(tile, GetViewport().GetMousePosition(), currentState);
     }
 
     private void UpdateCoverageHighlight()
@@ -352,30 +359,45 @@ public partial class World : Node2D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
+        if (@event is InputEventMouseButton mb)
         {
-            if (mb.Pressed)
+            if (mb.ButtonIndex == MouseButton.Left)
             {
-                _isPlacing = true;
-                var tilePos = GetTileUnderMouse();
-                HandlePlaceTile(tilePos);
-                _lastPlacedTile = tilePos;
+                if (mb.Pressed)
+                {
+                    // Start rectangle selection
+                    _rectStart      = GetTileUnderMouse();
+                    _rectEnd        = _rectStart;
+                    _isRectPainting = true;
+                    _renderer.SetRectPreview(_rectStart, _rectEnd, GetZonePreviewColor());
+                }
+                else if (_isRectPainting)
+                {
+                    // Commit: fill all tiles in the selected rectangle
+                    _isRectPainting = false;
+                    _renderer.ClearRectPreview();
+
+                    var minX = System.Math.Min(_rectStart.X, _rectEnd.X);
+                    var maxX = System.Math.Max(_rectStart.X, _rectEnd.X);
+                    var minY = System.Math.Min(_rectStart.Y, _rectEnd.Y);
+                    var maxY = System.Math.Max(_rectStart.Y, _rectEnd.Y);
+
+                    for (var ty = minY; ty <= maxY; ty++)
+                    for (var tx = minX; tx <= maxX; tx++)
+                        HandlePlaceTile(new Vector2I(tx, ty));
+                }
             }
-            else
+            else if (mb.ButtonIndex == MouseButton.Right && mb.Pressed)
             {
-                _isPlacing = false;
-                _lastPlacedTile = new(-1, -1);
+                // Right-click cancels in-progress rectangle
+                CancelRectPainting();
             }
         }
 
-        if (@event is InputEventMouseMotion && _isPlacing)
+        if (@event is InputEventMouseMotion && _isRectPainting)
         {
-            var tilePos = GetTileUnderMouse();
-            if (tilePos != _lastPlacedTile)
-            {
-                HandlePlaceTile(tilePos);
-                _lastPlacedTile = tilePos;
-            }
+            _rectEnd = GetTileUnderMouse();
+            _renderer.SetRectPreview(_rectStart, _rectEnd, GetZonePreviewColor());
         }
 
         if (@event is InputEventKey key && key.Pressed && !key.Echo)
@@ -408,7 +430,7 @@ public partial class World : Node2D
                 Key.Key2 => "Commercial",
                 Key.Key3 => "Industrial",
                 Key.Key4 => "Road",
-                Key.Key5 => "PowerLine",
+                Key.Key5 => "Avenue",
                 Key.Key6 => "PowerPlant",
                 Key.Key7 => "FireStation",
                 Key.Key8 => "PoliceStation",
@@ -424,6 +446,13 @@ public partial class World : Node2D
             {
                 _toolbar.SwitchToTabForZone(zone);
                 _toolbar.SelectZone(zone);
+            }
+
+            // Escape cancels in-progress rectangle painting
+            if (key.Keycode == Key.Escape)
+            {
+                CancelRectPainting();
+                return;
             }
 
             if (key.Keycode == Key.Space)
@@ -528,6 +557,39 @@ public partial class World : Node2D
             (int)(localPos.X / TilemapRenderer.TileSize),
             (int)(localPos.Y / TilemapRenderer.TileSize)
         );
+    }
+
+    /// <summary>
+    /// Cancels an in-progress rectangle painting and clears the preview overlay.
+    /// Called on right-click or Escape.
+    /// </summary>
+    private void CancelRectPainting()
+    {
+        _isRectPainting = false;
+        _rectStart      = new(-1, -1);
+        _rectEnd        = new(-1, -1);
+        _renderer.ClearRectPreview();
+    }
+
+    /// <summary>Returns the semi-transparent preview color for the currently selected zone.</summary>
+    private Color GetZonePreviewColor()
+    {
+        return _toolbar.SelectedZone switch
+        {
+            "Residential" => new Color(0.2f,  0.7f,  0.2f,  0.40f),
+            "Commercial"  => new Color(0.2f,  0.4f,  0.9f,  0.40f),
+            "Industrial"  => new Color(0.9f,  0.8f,  0.1f,  0.40f),
+            "Road"        => new Color(0.5f,  0.5f,  0.5f,  0.40f),
+            "Avenue"      => new Color(0.62f, 0.62f, 0.62f, 0.40f),
+            "PowerPlant"  => new Color(0.9f,  0.3f,  0.1f,  0.40f),
+            "CoalPlant"   => new Color(0.26f, 0.26f, 0.26f, 0.40f),
+            "NuclearPlant"=> new Color(0.98f, 0.66f, 0.15f, 0.40f),
+            "FireStation" => new Color(1.0f,  0.4f,  0.1f,  0.40f),
+            "PoliceStation"=> new Color(0.2f, 0.4f,  1.0f,  0.40f),
+            "School"      => new Color(0.7f,  0.3f,  0.9f,  0.40f),
+            "Erase"       => new Color(0.6f,  0.15f, 0.15f, 0.40f),
+            _             => new Color(1f,    1f,    1f,    0.25f),
+        };
     }
 
     private void HandlePlaceTile(Vector2I tilePos)
@@ -848,6 +910,7 @@ public partial class World : Node2D
             PauseReason:               pauseReason,
             Power:                     powerState
         );
+        _lastState = state;
         _hud.UpdateStats(state);
         _hintOverlay.UpdateHints(state);
         _cityHealth.UpdateWarnings(state);

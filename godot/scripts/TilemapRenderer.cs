@@ -21,6 +21,7 @@ public partial class TilemapRenderer : Node2D
     private static readonly Color ColorCommercial   = new Color(0.2f,  0.4f,  0.9f);
     private static readonly Color ColorIndustrial   = new Color(0.9f,  0.8f,  0.1f);
     private static readonly Color ColorRoad         = new Color(0.5f,  0.5f,  0.5f);
+    private static readonly Color ColorAvenue       = new Color(0.62f, 0.62f, 0.62f);
     private static readonly Color ColorPowerPlant   = new Color(0.9f,  0.3f,  0.1f);
     private static readonly Color ColorPowerLine    = new Color(0.1f,  0.9f,  0.9f);
     private static readonly Color ColorFireStation  = new Color(1.0f,  0.4f,  0.1f);
@@ -40,6 +41,12 @@ public partial class TilemapRenderer : Node2D
     private static readonly Color IdleBorderColor   = new Color(1f, 0.561f, 0f, 0.85f); // #FF8F00
 
     private bool _isBrownout = false;
+
+    // Rectangle paint preview
+    private bool _hasRectPreview = false;
+    private Vector2I _rectPreviewStart;
+    private Vector2I _rectPreviewEnd;
+    private Color _rectPreviewColor = Colors.Transparent;
 
     /// <summary>Set brownout state so the renderer can apply the amber tint on next redraw.</summary>
     public void SetBrownout(bool brownout)
@@ -66,6 +73,23 @@ public partial class TilemapRenderer : Node2D
     {
         _coverageHighlight.Clear();
         _coverageColor = Colors.Transparent;
+        QueueRedraw();
+    }
+
+    /// <summary>Shows a semi-transparent rectangle preview for drag-to-place zone painting.</summary>
+    public void SetRectPreview(Vector2I start, Vector2I end, Color color)
+    {
+        _hasRectPreview    = true;
+        _rectPreviewStart  = start;
+        _rectPreviewEnd    = end;
+        _rectPreviewColor  = color;
+        QueueRedraw();
+    }
+
+    /// <summary>Removes the rectangle paint preview overlay.</summary>
+    public void ClearRectPreview()
+    {
+        _hasRectPreview = false;
         QueueRedraw();
     }
 
@@ -132,6 +156,38 @@ public partial class TilemapRenderer : Node2D
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Draws 1–5 small filled circles in the centre of a road tile based on traffic congestion.
+    /// load / threshold: &lt;20% → 0 dots, 20-40% → 1 white, 40-60% → 2 white, 60-80% → 3 yellow,
+    /// 80-100% → 4 orange, &gt;100% → 5 red.
+    /// </summary>
+    private void DrawTrafficDots(int load, int threshold, float px, float py)
+    {
+        if (threshold <= 0) return;
+        var ratio = (double)load / threshold;
+
+        int dots;
+        Color dotColor;
+        if (ratio < 0.2)      { dots = 0; dotColor = Colors.White; }
+        else if (ratio < 0.4) { dots = 1; dotColor = Colors.White; }
+        else if (ratio < 0.6) { dots = 2; dotColor = Colors.White; }
+        else if (ratio < 0.8) { dots = 3; dotColor = new Color(1f, 0.95f, 0.2f); }
+        else if (ratio < 1.0) { dots = 4; dotColor = new Color(1f, 0.55f, 0.1f); }
+        else                   { dots = 5; dotColor = new Color(1f, 0.2f,  0.2f); }
+
+        if (dots == 0) return;
+
+        const float radius = 2.5f;
+        const float spacing = 6f;
+        // Centre all dots horizontally in the tile
+        float totalWidth = (dots - 1) * spacing;
+        float startX = px + TileSize * 0.5f - totalWidth * 0.5f;
+        float centreY = py + TileSize * 0.5f;
+
+        for (var i = 0; i < dots; i++)
+            DrawCircle(new Vector2(startX + i * spacing, centreY), radius, dotColor);
     }
 
     private bool IsSameZone(ZoneType zone, int x, int y)
@@ -226,21 +282,45 @@ public partial class TilemapRenderer : Node2D
                     continue;
                 }
                 case ZoneType.Road:
+                case ZoneType.Avenue:
                 {
+                    var roadColor = tile.Zone == ZoneType.Avenue ? ColorAvenue : ColorRoad;
                     var roadFull = new Rect2(px, py, TileSize, TileSize);
-                    DrawRect(roadFull, ColorRoad);
+                    DrawRect(roadFull, roadColor);
 
-                    // Darker border only on non-road edges
-                    bool rLeft  = IsSameZone(ZoneType.Road, tile.X - 1, tile.Y);
-                    bool rRight = IsSameZone(ZoneType.Road, tile.X + 1, tile.Y);
-                    bool rUp    = IsSameZone(ZoneType.Road, tile.X,     tile.Y - 1);
-                    bool rDown  = IsSameZone(ZoneType.Road, tile.X,     tile.Y + 1);
-                    var roadEdge = ColorRoad * 0.55f;
+                    // Darker border only on non-road/avenue edges
+                    bool rLeft  = IsSameZone(ZoneType.Road, tile.X - 1, tile.Y) || IsSameZone(ZoneType.Avenue, tile.X - 1, tile.Y);
+                    bool rRight = IsSameZone(ZoneType.Road, tile.X + 1, tile.Y) || IsSameZone(ZoneType.Avenue, tile.X + 1, tile.Y);
+                    bool rUp    = IsSameZone(ZoneType.Road, tile.X,     tile.Y - 1) || IsSameZone(ZoneType.Avenue, tile.X, tile.Y - 1);
+                    bool rDown  = IsSameZone(ZoneType.Road, tile.X,     tile.Y + 1) || IsSameZone(ZoneType.Avenue, tile.X, tile.Y + 1);
+                    var roadEdge = roadColor * 0.55f;
 
                     if (!rLeft)  DrawRect(new Rect2(px,                  py, 2, TileSize), roadEdge);
                     if (!rRight) DrawRect(new Rect2(px + TileSize - 2,   py, 2, TileSize), roadEdge);
                     if (!rUp)    DrawRect(new Rect2(px, py,               TileSize, 2),    roadEdge);
                     if (!rDown)  DrawRect(new Rect2(px, py + TileSize - 2, TileSize, 2),   roadEdge);
+
+                    // Avenue: draw a white center stripe to distinguish from Road
+                    if (tile.Zone == ZoneType.Avenue)
+                    {
+                        var stripeColor = new Color(1f, 1f, 1f, 0.25f);
+                        // Determine if mostly horizontal or vertical road
+                        bool hasHorizNeighbour = rLeft || rRight;
+                        bool hasVertNeighbour  = rUp   || rDown;
+                        if (hasHorizNeighbour && !hasVertNeighbour)
+                            DrawRect(new Rect2(px, py + TileSize / 2 - 1, TileSize, 2), stripeColor);
+                        else if (hasVertNeighbour && !hasHorizNeighbour)
+                            DrawRect(new Rect2(px + TileSize / 2 - 1, py, 2, TileSize), stripeColor);
+                        else
+                        {
+                            // Intersection or isolated — draw both stripes
+                            DrawRect(new Rect2(px, py + TileSize / 2 - 1, TileSize, 2), stripeColor);
+                            DrawRect(new Rect2(px + TileSize / 2 - 1, py, 2, TileSize), stripeColor);
+                        }
+                    }
+
+                    // Traffic load dots: show congestion level on road/avenue tiles
+                    DrawTrafficDots(tile.TrafficLoad, tile.Zone == ZoneType.Avenue ? 16 : 8, px, py);
 
                     continue;
                 }
@@ -344,6 +424,41 @@ public partial class TilemapRenderer : Node2D
                 DrawRect(new Rect2(bx,                by + bh - outlineW, bw, outlineW), borderColor);     // bottom
                 DrawRect(new Rect2(bx,                by,                outlineW, bh), borderColor);      // left
                 DrawRect(new Rect2(bx + bw - outlineW, by,                outlineW, bh), borderColor);    // right
+            }
+        }
+
+        // Rectangle paint preview: semi-transparent fill + solid border
+        if (_hasRectPreview)
+        {
+            var minX = Mathf.Min(_rectPreviewStart.X, _rectPreviewEnd.X);
+            var maxX = Mathf.Max(_rectPreviewStart.X, _rectPreviewEnd.X);
+            var minY = Mathf.Min(_rectPreviewStart.Y, _rectPreviewEnd.Y);
+            var maxY = Mathf.Max(_rectPreviewStart.Y, _rectPreviewEnd.Y);
+
+            var rx = minX * TileSize;
+            var ry = minY * TileSize;
+            var rw = (maxX - minX + 1) * TileSize;
+            var rh = (maxY - minY + 1) * TileSize;
+
+            // Semi-transparent fill
+            DrawRect(new Rect2(rx, ry, rw, rh), _rectPreviewColor);
+
+            // Solid border (same color, full opacity)
+            var borderC = new Color(_rectPreviewColor.R, _rectPreviewColor.G, _rectPreviewColor.B, 0.9f);
+            const int previewBorderW = 2;
+            DrawRect(new Rect2(rx,            ry,            rw, previewBorderW), borderC); // top
+            DrawRect(new Rect2(rx,            ry + rh - previewBorderW, rw, previewBorderW), borderC); // bottom
+            DrawRect(new Rect2(rx,            ry,            previewBorderW, rh), borderC); // left
+            DrawRect(new Rect2(rx + rw - previewBorderW, ry, previewBorderW, rh), borderC); // right
+
+            // Size label in the top-left corner of the preview (e.g. "3×4")
+            var w = maxX - minX + 1;
+            var h = maxY - minY + 1;
+            if (w > 1 || h > 1)
+            {
+                var labelPos = new Vector2(rx + previewBorderW + 2, ry + previewBorderW + 1);
+                DrawString(ThemeDB.FallbackFont, labelPos, $"{w}×{h}", HorizontalAlignment.Left, -1, 11,
+                    new Color(1f, 1f, 1f, 0.9f));
             }
         }
     }
