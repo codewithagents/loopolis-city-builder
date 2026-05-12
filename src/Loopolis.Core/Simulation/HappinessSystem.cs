@@ -260,6 +260,20 @@ public class HappinessSystem
     public double GetNeglect(int x, int y) =>
         _neglect.TryGetValue((x, y), out var v) ? v : 0;
 
+    /// <summary>
+    /// Returns the average neglect level across all developed residential tiles (0.0 to 0.20).
+    /// Used by the Runner/HUD to warn the player when neglect is rising.
+    /// Returns 0.0 when there are no developed residential tiles.
+    /// </summary>
+    public double AverageNeglect(CityGrid grid)
+    {
+        var developed = grid.TilesOfType(ZoneType.Residential)
+            .Where(t => t.BuildingId != null)
+            .ToList();
+        if (developed.Count == 0) return 0.0;
+        return developed.Average(t => GetNeglect(t.X, t.Y));
+    }
+
     public double AverageHappiness(CityGrid grid)
     {
         var ready = grid.TilesOfType(ZoneType.Residential)

@@ -7,7 +7,7 @@ namespace Loopolis.Core.Simulation;
 public class PopulationSystem
 {
     private const int ResidentsPerZone = 50;
-    private const double GrowthRate    = 0.05;
+    private const double GrowthRate    = 0.07;
     private const double DeclineRate   = 0.10; // faster than growth — losing services hurts
     private const double BorderMigrationMultiplier = 1.2;  // R-tiles reachable from border connection get +20% growth
     private const float  BorderMigrationMaxDistance = 12.0f; // road-graph distance threshold
@@ -21,7 +21,7 @@ public class PopulationSystem
     private const double CommercialDeclineThreshold = 5.0;
 
     // Industrial constants
-    private const double IndustrialGrowthRate  = 0.025;
+    private const double IndustrialGrowthRate  = 0.05;
     private const double IndustrialDeclineRate = 0.05;
 
     /// <summary>Total population: sum of all residential tile populations only.

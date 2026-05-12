@@ -541,4 +541,74 @@ public class HappinessSystemTests
         Assert.That(dist, Is.LessThanOrEqualTo(10.0f),
             "Short road commute distance should not trigger commute penalty");
     }
+
+    // ── AverageNeglect tests ──────────────────────────────────────────────────
+
+    [Test]
+    public void AverageNeglect_NoDevelopedTiles_ReturnsZero()
+    {
+        var grid = new CityGrid(10, 10);
+        // No residential tiles at all
+
+        var result = _happiness.AverageNeglect(grid);
+
+        Assert.That(result, Is.EqualTo(0.0),
+            "AverageNeglect should be 0.0 when there are no developed residential tiles");
+    }
+
+    [Test]
+    public void AverageNeglect_NoBuildingId_ReturnsZero()
+    {
+        // Residential tile that is ready but has no BuildingId (not yet developed)
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        // No BuildingId set — tile is ready but not developed
+
+        _happiness.Propagate(grid); // accumulates neglect in _neglect dict but tile not BuildingId-gated
+
+        var result = _happiness.AverageNeglect(grid);
+
+        Assert.That(result, Is.EqualTo(0.0),
+            "AverageNeglect should be 0.0 when no tiles have a BuildingId");
+    }
+
+    [Test]
+    public void AverageNeglect_AfterTicks_ReflectsAccumulatedNeglect()
+    {
+        // Developed residential tile with no services → neglect accumulates 0.001/tick
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        grid.SetBuildingId(5, 5, "test_building");
+
+        for (var i = 0; i < 50; i++)
+            _happiness.Propagate(grid);
+
+        // After 50 ticks: neglect = 50 * 0.001 = 0.05
+        var result = _happiness.AverageNeglect(grid);
+
+        Assert.That(result, Is.EqualTo(0.05).Within(0.001),
+            "AverageNeglect should be 0.05 after 50 uncovered ticks at 0.001/tick");
+    }
+
+    [Test]
+    public void AverageNeglect_WithServiceCoverage_StaysLow()
+    {
+        // Developed tile covered by a service — neglect does not accumulate
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        grid.SetBuildingId(5, 5, "test_building");
+        // Fire station within Manhattan radius 4
+        grid.SetZone(5, 8, ZoneType.FireStation);
+
+        for (var i = 0; i < 50; i++)
+            _happiness.Propagate(grid);
+
+        var result = _happiness.AverageNeglect(grid);
+
+        Assert.That(result, Is.EqualTo(0.0).Within(0.001),
+            "AverageNeglect should stay at 0.0 when service coverage is maintained from the start");
+    }
 }

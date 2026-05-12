@@ -869,7 +869,8 @@ static void WriteState(
         UnemploymentPenalty: 0.0,   // employment affects growth rate, not happiness directly
         EventPenalty:        Math.Round(engine.EventSystem.HappinessPenalty, 4),
         NeglectDecay:        Math.Round(-avgNeglectDecay, 4),
-        CommutePenalty:      Math.Round(avgCommutePenalty, 4)
+        CommutePenalty:      Math.Round(avgCommutePenalty, 4),
+        AverageNeglect:      Math.Round(engine.HappinessSystem.AverageNeglect(grid), 4)
     );
 
     // --- Coverage summary (power + services + pollution + happiness across all zoned tiles) ---
@@ -1359,6 +1360,17 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             break;
         }
 
+        case "cottage_start":
+            // Tests P1: road-only cottage growth, then power upgrade payoff.
+            // NO power plant — residential grows as unpowered cottages (cap 25, 0.7× tax).
+            grid.SetFlatTerrain();
+            grid.PlaceBorderConnection(16, 31);
+            for (var x = 13; x <= 19; x++) grid.SetZone(x, 30, ZoneType.Road);   // E-W road
+            for (var x = 13; x <= 19; x++) grid.SetZone(x, 29, ZoneType.Residential); // R north of road
+            for (var x = 13; x <= 19; x++) grid.SetZone(x, 31, ZoneType.Commercial);  // C south of road
+            // No power plant — cottages should still appear
+            break;
+
         default:
             // Empty new-game start with a border connection road from the south edge.
             // Player must build their own infrastructure.
@@ -1425,7 +1437,8 @@ record HappinessBreakdown(
     [property: JsonPropertyName("unemploymentPenalty")] double UnemploymentPenalty,
     [property: JsonPropertyName("eventPenalty")]        double EventPenalty,
     [property: JsonPropertyName("neglectDecay")]        double NeglectDecay,
-    [property: JsonPropertyName("commutePenalty")]      double CommutePenalty = 0.0);
+    [property: JsonPropertyName("commutePenalty")]      double CommutePenalty = 0.0,
+    [property: JsonPropertyName("averageNeglect")]      double AverageNeglect = 0.0);
 
 record EmploymentState(
     [property: JsonPropertyName("jobs")]             int    Jobs,
