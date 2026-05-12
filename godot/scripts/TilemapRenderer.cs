@@ -403,22 +403,24 @@ public partial class TilemapRenderer : Node2D
 
     /// <summary>
     /// Draws 1–5 small filled circles in the centre of a road tile based on traffic congestion.
-    /// load / threshold: &lt;40% → 0 dots, 40-60% → 1 white, 60-75% → 2 white, 75-90% → 3 yellow,
-    /// 90-100% → 4 orange, &gt;100% → 5 red.
+    /// Uses absolute worker-count tiers (TrafficLoad = workers passing through node per tick):
+    ///   0        → no dots
+    ///   1–10     → 1 dot  (light,  white)
+    ///   11–30    → 2 dots (moderate, white)
+    ///   31–60    → 3 dots (busy,   yellow)
+    ///   61–100   → 4 dots (heavy,  orange)
+    ///   101+     → 5 dots (jammed, red)
     /// </summary>
-    private void DrawTrafficDots(int load, int threshold, float px, float py)
+    private void DrawTrafficDots(int load, float px, float py)
     {
-        if (threshold <= 0) return;
-        var ratio = (double)load / threshold;
-
         int dots;
         Color dotColor;
-        if (ratio < 0.4)      { dots = 0; dotColor = Colors.White; }
-        else if (ratio < 0.6) { dots = 1; dotColor = Colors.White; }
-        else if (ratio < 0.75){ dots = 2; dotColor = Colors.White; }
-        else if (ratio < 0.9) { dots = 3; dotColor = new Color(1f, 0.95f, 0.2f); }
-        else if (ratio < 1.0) { dots = 4; dotColor = new Color(1f, 0.55f, 0.1f); }
-        else                   { dots = 5; dotColor = new Color(1f, 0.2f,  0.2f); }
+        if      (load <= 0)   { return; }
+        else if (load <= 10)  { dots = 1; dotColor = Colors.White; }
+        else if (load <= 30)  { dots = 2; dotColor = Colors.White; }
+        else if (load <= 60)  { dots = 3; dotColor = new Color(1f, 0.95f, 0.2f); }
+        else if (load <= 100) { dots = 4; dotColor = new Color(1f, 0.55f, 0.1f); }
+        else                  { dots = 5; dotColor = new Color(1f, 0.2f,  0.2f); }
 
         if (dots == 0) return;
 
@@ -600,7 +602,7 @@ public partial class TilemapRenderer : Node2D
                     }
 
                     // Traffic load dots: show congestion level on road/avenue tiles
-                    DrawTrafficDots(tile.TrafficLoad, tile.Zone == ZoneType.Avenue ? 10 : 6, px, py);
+                    DrawTrafficDots(tile.TrafficLoad, px, py);
 
                     continue;
                 }
