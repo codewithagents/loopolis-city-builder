@@ -10,6 +10,13 @@ public partial class TilemapRenderer : Node2D
     private CityGrid? _grid;
     public const int TileSize = 32;
 
+    // Height and forest maps — parallel arrays updated with Refresh()
+    // These are separate from CityGrid because Core doesn't have HeightLevel on Tile yet.
+    // Viewer mode populates them from SharedTile.Height/HasForest.
+    // Standalone mode derives them from TerrainType until Core adds HeightLevel.
+    private int[,]? _heightMap;
+    private bool[,]? _forestMap;
+
     private HashSet<(int, int)> _coverageHighlight = new();
     private Color _coverageColor = Colors.Transparent;
 
@@ -19,6 +26,25 @@ public partial class TilemapRenderer : Node2D
     private static readonly Color ColorHill         = new Color(0.831f, 0.663f, 0.416f); // warm tan #D4A96A
     private static readonly Color ColorHillHatch    = new Color(0.627f, 0.471f, 0.353f); // darker hatch lines #A0785A
     private static readonly Color ColorHillShadow   = new Color(0.627f, 0.471f, 0.353f, 0.8f); // bottom/right edge shadow
+
+    // Height-based land colors
+    private static readonly Color ColorDeepWater    = new Color(0.082f, 0.396f, 0.753f); // #1565C0
+    private static readonly Color ColorShallowWater = new Color(0.098f, 0.463f, 0.824f); // #1976D2
+    private static readonly Color ColorLowland      = new Color(0.180f, 0.490f, 0.196f); // #2E7D32
+    private static readonly Color ColorMidland      = new Color(0.220f, 0.557f, 0.235f); // #388E3C
+    private static readonly Color ColorHighland     = new Color(0.831f, 0.663f, 0.416f); // #D4A96A (matches existing hill)
+    private static readonly Color ColorUpland       = new Color(0.553f, 0.431f, 0.388f); // #8D6E63
+    private static readonly Color ColorPeak         = new Color(0.620f, 0.620f, 0.620f); // #9E9E9E
+
+    // Forest overlay
+    private static readonly Color ColorForestOverlay = new Color(0.062f, 0.380f, 0.090f, 0.40f); // dark green 40% alpha
+    private static readonly Color ColorForestDot     = new Color(0.062f, 0.380f, 0.090f, 0.85f); // forest center dot
+
+    // Cliff edge indicator
+    private static readonly Color CliffEdgeColor    = new Color(0.3f, 0.2f, 0.1f, 0.9f); // dark brown
+
+    // Plateau highlight
+    private static readonly Color PlateauShimmer    = new Color(1f, 1f, 1f, 0.25f); // white 25% alpha
     private static readonly Color ColorResidential  = new Color(0.2f,  0.7f,  0.2f);
     private static readonly Color ColorCommercial   = new Color(0.2f,  0.4f,  0.9f);
     private static readonly Color ColorIndustrial   = new Color(0.9f,  0.8f,  0.1f);
@@ -61,7 +87,41 @@ public partial class TilemapRenderer : Node2D
     public void Refresh(CityGrid grid)
     {
         _grid = grid;
+        // Read HeightLevel and HasForest directly from the Core tile data.
+        var w = grid.Width;
+        var h = grid.Height;
+        _heightMap = new int[w, h];
+        _forestMap = new bool[w, h];
+        for (var x = 0; x < w; x++)
+        for (var y = 0; y < h; y++)
+        {
+            _heightMap[x, y] = grid.GetHeightLevel(x, y);
+            _forestMap[x, y] = grid.HasForestAt(x, y);
+        }
         QueueRedraw();
+    }
+
+    /// <summary>
+    /// Refresh with explicit height and forest maps (viewer mode, populated from SharedTile.Height / HasForest).
+    /// </summary>
+    public void RefreshWithHeight(CityGrid grid, int[,] heightMap, bool[,] forestMap)
+    {
+        _grid      = grid;
+        _heightMap = heightMap;
+        _forestMap = forestMap;
+        QueueRedraw();
+    }
+
+    /// <summary>Returns the height level for the given tile coordinate, or 1 if no height map is loaded.</summary>
+    public int GetTileHeight(int x, int y) => GetHeight(x, y);
+
+    /// <summary>Returns whether the given tile has a forest overlay, or false if no forest map is loaded.</summary>
+    public bool GetTileForest(int x, int y)
+    {
+        if (_forestMap == null) return false;
+        if (x < 0 || x >= _forestMap.GetLength(0)) return false;
+        if (y < 0 || y >= _forestMap.GetLength(1)) return false;
+        return _forestMap[x, y];
     }
 
     public void SetCoverageHighlight(IEnumerable<(int, int)> tiles, Color color)
@@ -93,6 +153,187 @@ public partial class TilemapRenderer : Node2D
     {
         _hasRectPreview = false;
         QueueRedraw();
+    }
+
+    // ── Height rendering helpers ────────────────────────────────────────────
+
+    /// <summary>Returns the base land color for a given height level.</summary>
+    private static Color HeightToColor(int height)
+    {
+        return height switch
+        {
+            <= 0 => ColorDeepWater,
+            1    => ColorLowland,
+            2    => ColorMidland,
+            3    => ColorHighland,
+            4    => ColorUpland,
+            _    => ColorPeak,
+        };
+    }
+
+    /// <summary>
+    /// Returns a subtle brightness multiplier for a zoned tile based on height.
+    /// Height 1 = no change, 2–3 = slightly brighter (+10% L), ≥4 = slightly darker, ≤0 = blue-tint error.
+    /// </summary>
+    private static Color ApplyHeightTintToZoneColor(Color baseColor, int height)
+    {
+        if (height <= 0)
+        {
+            // Water — should never be zoned, show blue-tinted error
+            return baseColor.Lerp(new Color(0.2f, 0.4f, 0.9f), 0.35f);
+        }
+        if (height >= 4)
+        {
+            // Upland/peak — slightly darker (more dramatic terrain)
+            return new Color(
+                Mathf.Clamp(baseColor.R * 0.92f, 0f, 1f),
+                Mathf.Clamp(baseColor.G * 0.92f, 0f, 1f),
+                Mathf.Clamp(baseColor.B * 0.92f, 0f, 1f),
+                baseColor.A);
+        }
+        if (height >= 2)
+        {
+            // Midland/highland — slightly brighter (+10% on each channel)
+            return new Color(
+                Mathf.Clamp(baseColor.R * 1.10f, 0f, 1f),
+                Mathf.Clamp(baseColor.G * 1.10f, 0f, 1f),
+                Mathf.Clamp(baseColor.B * 1.10f, 0f, 1f),
+                baseColor.A);
+        }
+        // height == 1: standard, no modification
+        return baseColor;
+    }
+
+    /// <summary>
+    /// Returns the height for a neighbour tile, defaulting to 1 if out of bounds.
+    /// </summary>
+    private int GetHeight(int x, int y)
+    {
+        if (_heightMap == null) return 1;
+        if (x < 0 || x >= _heightMap.GetLength(0)) return 1;
+        if (y < 0 || y >= _heightMap.GetLength(1)) return 1;
+        return _heightMap[x, y];
+    }
+
+    /// <summary>
+    /// Draws a height-based empty terrain tile with water depth, cliff edges, plateau highlight,
+    /// and forest overlay.
+    /// </summary>
+    private void DrawHeightTile(int tileX, int tileY, float px, float py)
+    {
+        var height = GetHeight(tileX, tileY);
+        var isForest = _forestMap != null
+            && tileX >= 0 && tileX < _forestMap.GetLength(0)
+            && tileY >= 0 && tileY < _forestMap.GetLength(1)
+            && _forestMap[tileX, tileY];
+
+        // ── Base color ──────────────────────────────────────────────────────
+
+        Color baseColor;
+        if (height <= 0)
+        {
+            // Water: check if any cardinal neighbour is ≥ 1 → shallow coast, else deep
+            var hasLandNeighbour =
+                GetHeight(tileX - 1, tileY) >= 1 ||
+                GetHeight(tileX + 1, tileY) >= 1 ||
+                GetHeight(tileX, tileY - 1) >= 1 ||
+                GetHeight(tileX, tileY + 1) >= 1;
+            baseColor = hasLandNeighbour ? ColorShallowWater : ColorDeepWater;
+        }
+        else
+        {
+            baseColor = HeightToColor(height);
+        }
+
+        DrawRect(new Rect2(px, py, TileSize - 1, TileSize - 1), baseColor);
+
+        // ── Water depth effect: darker small rect in center ────────────────
+        if (height <= 0)
+        {
+            var depthColor = new Color(
+                Mathf.Max(baseColor.R - 0.07f, 0f),
+                Mathf.Max(baseColor.G - 0.07f, 0f),
+                Mathf.Max(baseColor.B - 0.08f, 0f),
+                0.65f);
+            var depthSize = TileSize * 0.35f;
+            var depthOffset = (TileSize - depthSize) * 0.5f;
+            DrawRect(new Rect2(px + depthOffset, py + depthOffset, depthSize, depthSize), depthColor);
+            // No overlays for water tiles
+            return;
+        }
+
+        // ── Forest overlay ─────────────────────────────────────────────────
+        if (isForest)
+        {
+            DrawRect(new Rect2(px, py, TileSize - 1, TileSize - 1), ColorForestOverlay);
+            // Small dark green dot in center
+            var dotSize = 5f;
+            DrawRect(new Rect2(
+                px + (TileSize - dotSize) * 0.5f,
+                py + (TileSize - dotSize) * 0.5f,
+                dotSize, dotSize), ColorForestDot);
+        }
+
+        // ── Cliff edge indicator: 3px dark brown line on edges with height diff > 1 ──
+        const float cliffWidth = 3f;
+        // Left edge
+        if (System.Math.Abs(height - GetHeight(tileX - 1, tileY)) > 1)
+            DrawRect(new Rect2(px, py, cliffWidth, TileSize - 1), CliffEdgeColor);
+        // Right edge
+        if (System.Math.Abs(height - GetHeight(tileX + 1, tileY)) > 1)
+            DrawRect(new Rect2(px + TileSize - 1 - cliffWidth, py, cliffWidth, TileSize - 1), CliffEdgeColor);
+        // Top edge
+        if (System.Math.Abs(height - GetHeight(tileX, tileY - 1)) > 1)
+            DrawRect(new Rect2(px, py, TileSize - 1, cliffWidth), CliffEdgeColor);
+        // Bottom edge
+        if (System.Math.Abs(height - GetHeight(tileX, tileY + 1)) > 1)
+            DrawRect(new Rect2(px, py + TileSize - 1 - cliffWidth, TileSize - 1, cliffWidth), CliffEdgeColor);
+
+        // ── Plateau highlight: all 4 cardinal neighbours within ±1 height ──
+        if (height >= 2)
+        {
+            var dLeft  = System.Math.Abs(height - GetHeight(tileX - 1, tileY));
+            var dRight = System.Math.Abs(height - GetHeight(tileX + 1, tileY));
+            var dUp    = System.Math.Abs(height - GetHeight(tileX, tileY - 1));
+            var dDown  = System.Math.Abs(height - GetHeight(tileX, tileY + 1));
+            if (dLeft <= 1 && dRight <= 1 && dUp <= 1 && dDown <= 1)
+            {
+                // Small white triangle in the top-left corner
+                const float shimmerSize = 7f;
+                var v1 = new Vector2(px + 1, py + 1);
+                var v2 = new Vector2(px + 1 + shimmerSize, py + 1);
+                var v3 = new Vector2(px + 1, py + 1 + shimmerSize);
+                DrawTriangle(v1, v2, v3, PlateauShimmer);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Draws cliff edge indicators on an already-rendered zoned tile.
+    /// Applies 3px dark brown lines only on edges where height difference > 1.
+    /// </summary>
+    private void DrawZonedCliffEdges(int tileX, int tileY, float px, float py)
+    {
+        if (_heightMap == null) return;
+        var height = GetHeight(tileX, tileY);
+        const float cliffWidth = 3f;
+        if (System.Math.Abs(height - GetHeight(tileX - 1, tileY)) > 1)
+            DrawRect(new Rect2(px, py, cliffWidth, TileSize), CliffEdgeColor);
+        if (System.Math.Abs(height - GetHeight(tileX + 1, tileY)) > 1)
+            DrawRect(new Rect2(px + TileSize - cliffWidth, py, cliffWidth, TileSize), CliffEdgeColor);
+        if (System.Math.Abs(height - GetHeight(tileX, tileY - 1)) > 1)
+            DrawRect(new Rect2(px, py, TileSize, cliffWidth), CliffEdgeColor);
+        if (System.Math.Abs(height - GetHeight(tileX, tileY + 1)) > 1)
+            DrawRect(new Rect2(px, py + TileSize - cliffWidth, TileSize, cliffWidth), CliffEdgeColor);
+    }
+
+    /// <summary>
+    /// Draws a filled triangle using three DrawLine calls approximated by a polygon.
+    /// Godot 4's Node2D _Draw() exposes DrawPolygon for filled shapes.
+    /// </summary>
+    private void DrawTriangle(Vector2 a, Vector2 b, Vector2 c, Color color)
+    {
+        DrawPolygon(new[] { a, b, c }, new[] { color, color, color });
     }
 
     /// <summary>
@@ -254,9 +495,11 @@ public partial class TilemapRenderer : Node2D
                         ZoneType.Commercial  => ColorCommercial,
                         _                    => ColorIndustrial,
                     };
+                    // Apply subtle height-based brightness modifier before fill lerp
+                    var heightTinted = ApplyHeightTintToZoneColor(baseColor, GetHeight(tile.X, tile.Y));
                     var fillFraction = Mathf.Clamp(tile.Population / 50f, 0f, 1f);
-                    var emptyColor = baseColor * 0.35f;
-                    color = emptyColor.Lerp(baseColor, fillFraction);
+                    var emptyColor = heightTinted * 0.35f;
+                    color = emptyColor.Lerp(heightTinted, fillFraction);
 
                     // Fill full tile — no gap between same-zone neighbours
                     var fullRect = new Rect2(px, py, TileSize, TileSize);
@@ -312,6 +555,9 @@ public partial class TilemapRenderer : Node2D
                         var dotRect = new Rect2(px + TileSize - 7, py + TileSize - 7, 5, 5);
                         DrawRect(dotRect, new Color(1f, 0.9f, 0.1f, 0.8f));
                     }
+
+                    // Cliff edges: draw dark brown lines on edges bordering tiles with height diff > 1
+                    DrawZonedCliffEdges(tile.X, tile.Y, px, py);
 
                     continue;
                 }
@@ -387,29 +633,14 @@ public partial class TilemapRenderer : Node2D
                     color = ColorHospital;
                     break;
                 default:
-                    color = tile.Terrain switch
-                    {
-                        Loopolis.Core.Grid.TerrainType.Water  => ColorWater,
-                        Loopolis.Core.Grid.TerrainType.Forest => ColorForest,
-                        Loopolis.Core.Grid.TerrainType.Hill   => ColorHill,
-                        _                                      => ColorEmpty,
-                    };
-                    break;
+                    // Empty tile: height-based gradient rendering with cliff edges, plateau highlight, forest overlay
+                    DrawHeightTile(tile.X, tile.Y, px, py);
+                    continue;
             }
 
-            // Hill terrain: use special hatched rendering instead of a plain rect
-            if (tile.Zone == ZoneType.Empty && tile.Terrain == Loopolis.Core.Grid.TerrainType.Hill)
-            {
-                DrawHillTile(px, py);
-                continue;
-            }
-
-            // Service buildings and terrain: keep 1px gap (stand-alone structures)
+            // Service buildings and utility tiles: keep 1px gap (stand-alone structures)
             var rect = new Rect2(px, py, TileSize - 1, TileSize - 1);
             DrawRect(rect, color);
-
-            // Water tiles have no overlays — skip pollution, power tint, and demand dot
-            if (tile.Terrain == Loopolis.Core.Grid.TerrainType.Water) continue;
         }
 
         // Brownout overlay: amber tint on all BFS-powered tiles when capacity < demand.

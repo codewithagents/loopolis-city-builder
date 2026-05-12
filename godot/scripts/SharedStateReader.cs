@@ -121,11 +121,11 @@ public partial class SharedStateReader : Node
             if (state == null || state.Tick == _lastTick) return;
 
             _lastTick = state.Tick;
-            var grid = RebuildGrid(state);
+            var (grid, heightMap, forestMap) = RebuildGrid(state);
             LastGrid  = grid;
             LastState = state;
             DetectBuildingBirths(state);
-            _renderer.Refresh(grid);
+            _renderer.RefreshWithHeight(grid, heightMap, forestMap);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _hud.UpdateStats(state);
             _hintOverlay.UpdateHints(state);
@@ -208,9 +208,17 @@ public partial class SharedStateReader : Node
         return candidates.FirstOrDefault();
     }
 
-    private static CityGrid RebuildGrid(SharedState state)
+    private static (CityGrid grid, int[,] heightMap, bool[,] forestMap) RebuildGrid(SharedState state)
     {
         var grid = new CityGrid(32, 32);
+        var heightMap = new int[32, 32];
+        var forestMap = new bool[32, 32];
+
+        // Default to height=1 (lowland) so pre-height state.json looks like flat terrain
+        for (var x = 0; x < 32; x++)
+        for (var y = 0; y < 32; y++)
+            heightMap[x, y] = 1;
+
         foreach (var tile in state.Tiles)
         {
             // Set terrain first (before zone — water blocks SetZone)
@@ -230,7 +238,22 @@ public partial class SharedStateReader : Node
             if (tile.Happiness < 1f) grid.SetHappiness(tile.X, tile.Y, tile.Happiness);
             if (tile.BuildingId != null) grid.SetBuildingId(tile.X, tile.Y, tile.BuildingId);
             if (tile.TrafficLoad > 0) grid.SetTrafficLoad(tile.X, tile.Y, tile.TrafficLoad);
+
+            // Height: use tile.Height directly (defaults to 1 if missing in JSON).
+            // Backward-compat: if Height is the default 1 but Terrain is Water, use 0.
+            var h = tile.Height;
+            if (h == 1 && tile.Terrain == "Water")
+                h = 0;
+            heightMap[tile.X, tile.Y] = h;
+            grid.SetHeightLevel(tile.X, tile.Y, h);
+
+            // Forest: use tile.HasForest (defaults to false if missing in JSON).
+            // Backward-compat: if HasForest wasn't set but Terrain is Forest, treat as forest.
+            var forest = tile.HasForest || tile.Terrain == "Forest";
+            forestMap[tile.X, tile.Y] = forest;
+            grid.SetForest(tile.X, tile.Y, forest);
         }
+
         // Restore building entities from the buildings list if present
         if (state.Buildings != null)
         {
@@ -241,7 +264,7 @@ public partial class SharedStateReader : Node
                 grid.Buildings[b.Id] = building;
             }
         }
-        return grid;
+        return (grid, heightMap, forestMap);
     }
 }
 
@@ -339,5 +362,7 @@ public record SharedTile(
     string? BuildingId = null,
     string? BuildingType = null,
     int TrafficLoad = 0,    // RoadTrafficSystem load — only set for Road/Avenue tiles
-    string? Terrain = null  // TerrainType as string ("Flat", "Hill", "Forest", "Water") — null means Flat
+    string? Terrain = null, // TerrainType as string ("Flat", "Hill", "Forest", "Water") — null means Flat
+    int Height = 1,         // height level: ≤0 = water, 1 = lowland, 2 = midland, 3+ = highland/peak
+    bool HasForest = false  // forest overlay (vegetation on top of elevation)
 );

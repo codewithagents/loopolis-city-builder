@@ -227,13 +227,21 @@ public partial class TileTooltip : CanvasLayer
     }
 
     /// <summary>
-    /// Show a minimal tooltip for an empty tile that has non-Flat terrain.
-    /// Gives the player feedback that terrain has mechanical effects.
+    /// Show a tooltip for an empty tile.
+    /// When height/forest data is available it supersedes the legacy TerrainType display.
     /// </summary>
-    public void ShowForEmptyTerrain(Tile tile, Vector2 screenPos)
+    public void ShowForEmptyTerrain(Tile tile, Vector2 screenPos, int height = -1, bool hasForest = false)
     {
         foreach (Node child in _vbox.GetChildren())
             child.QueueFree();
+
+        // If height data is provided (≥ 0), use the rich height-based display.
+        // Fall back to legacy TerrainType display when height == -1 (not yet provided by caller).
+        if (height >= 0)
+        {
+            ShowHeightTooltip(tile, screenPos, height, hasForest);
+            return;
+        }
 
         switch (tile.Terrain)
         {
@@ -252,6 +260,69 @@ public partial class TileTooltip : CanvasLayer
             default:
                 _panel.Visible = false;
                 return;
+        }
+
+        PositionAndShow(screenPos);
+    }
+
+    /// <summary>
+    /// Rich height-level tooltip. Called when Height data is available.
+    /// </summary>
+    private void ShowHeightTooltip(Tile tile, Vector2 screenPos, int height, bool hasForest)
+    {
+        // Title: height name + terrain qualifier
+        var (heightLabel, heightColor) = height switch
+        {
+            <= 0 => ("Water", new Color(0.3f, 0.6f, 1f)),
+            1    => ("Lowland", new Color(0.3f, 0.7f, 0.35f)),
+            2    => ("Midland", new Color(0.35f, 0.75f, 0.40f)),
+            3    => ("Highland", new Color(0.831f, 0.663f, 0.416f)),
+            4    => ("Upland", new Color(0.7f, 0.55f, 0.45f)),
+            _    => ("Peak", new Color(0.75f, 0.75f, 0.75f)),
+        };
+
+        AddLine(heightLabel, 15, heightColor);
+        AddLine($"Height: {height}", 12, new Color(0.65f, 0.65f, 0.65f));
+
+        if (height <= 0)
+        {
+            AddLine("Cannot build here", 12, new Color(0.5f, 0.65f, 0.85f));
+            PositionAndShow(screenPos);
+            return;
+        }
+
+        // Land value bonus descriptions
+        var landValueNote = height switch
+        {
+            1    => "Standard land value",
+            2    => "+land value (+10% elevated premium)",
+            3    => "Highland (+land value)",
+            4    => "Upland (+land value, +$50 build cost)",
+            _    => "Peak (+land value, +$50 build cost)",
+        };
+        AddLine(landValueNote, 12, new Color(0.7f, 0.75f, 0.65f));
+
+        // Forest overlay
+        if (hasForest)
+        {
+            AddLine("Forest present (+land value, +$75 clearing)", 12, new Color(0.3f, 0.75f, 0.35f));
+        }
+
+        // Terrain type from legacy system (Hill adds build cost)
+        if (tile.Terrain == TerrainType.Hill && height < 3)
+        {
+            // Legacy hill without height system active
+            AddLine("+$50 build cost", 12, new Color(0.75f, 0.65f, 0.5f));
+        }
+
+        // Plateau detection: all 4 cardinal neighbours within ±1 — signal to player
+        // We check via the tile's terrain context (plateau is computed visually by the renderer,
+        // but the tooltip can show it when height ≥ 2 and not a cliff edge).
+        if (height >= 2)
+        {
+            // Can't do neighbor check here without a grid reference — show generic premium hint
+            AddLine("Elevated — excellent for real estate (+35% land value)", 12,
+                new Color(0.9f, 0.85f, 0.5f));
         }
 
         PositionAndShow(screenPos);

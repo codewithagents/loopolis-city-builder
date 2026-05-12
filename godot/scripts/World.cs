@@ -183,59 +183,25 @@ public partial class World : Node2D
 
     private static void GenerateTerrain(CityGrid grid, int seed)
     {
-        int w = grid.Width;
-        int h = grid.Height;
+        var w = grid.Width;
+        var h = grid.Height;
 
-        // Height noise — determines land/water/hills
-        var heightNoise = new FastNoiseLite();
-        heightNoise.NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth;
-        heightNoise.Seed = seed;
-        heightNoise.Frequency = 0.04f; // large blobs
+        // Use the Core's diamond-square height map generator for procedural terrain.
+        var heightMap = HeightMapGenerator.Generate(w, h, seed, roughness: 0.55f);
+        var forestMap = HeightMapGenerator.GenerateForest(w, h, seed);
 
-        // Forest noise — separate layer for tree coverage
-        var forestNoise = new FastNoiseLite();
-        forestNoise.NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth;
-        forestNoise.Seed = heightNoise.Seed + 1;
-        forestNoise.Frequency = 0.08f;
+        grid.ApplyHeightMap(heightMap);
+        grid.ApplyForestMap(forestMap);
 
-        // Small random offset so the island isn't always perfectly centred
-        var rng = new System.Random(heightNoise.Seed);
-        float offX = (float)(rng.NextDouble() - 0.5) * 8; // ±4 tiles
-        float offY = (float)(rng.NextDouble() - 0.5) * 8;
-
-        for (int x = 0; x < w; x++)
+        // Guarantee a flat, non-forest starter area around center (so SeedStarterCity always works).
+        var cx = w / 2;
+        var cy = h / 2;
+        for (var x = cx - 6; x <= cx + 6; x++)
+        for (var y = cy - 6; y <= cy + 6; y++)
         {
-            for (int y = 0; y < h; y++)
-            {
-                float nx = heightNoise.GetNoise2D(x, y); // -1 to 1
-
-                // Island falloff: edges become water (gentler — less aggressive shrinkage)
-                float dx = (x - w * 0.5f - offX) / (w * 0.5f);
-                float dy = (y - h * 0.5f - offY) / (h * 0.5f);
-                float dist = Mathf.Sqrt(dx * dx + dy * dy);
-                float height = nx - dist * 0.5f;
-
-                TerrainType terrain;
-                if (height < -0.45f)
-                    terrain = TerrainType.Water;
-                else if (height > 0.4f)
-                    terrain = TerrainType.Hill;
-                else
-                {
-                    // Forest on mid-elevation land
-                    float fn = forestNoise.GetNoise2D(x, y);
-                    terrain = fn > 0.2f ? TerrainType.Forest : TerrainType.Flat;
-                }
-
-                grid.SetTerrain(x, y, terrain);
-            }
+            grid.SetHeightLevel(x, y, 1);
+            grid.SetForest(x, y, false);
         }
-
-        // Guarantee a flat starter area around center (so SeedStarterCity always works)
-        int cx = w / 2, cy = h / 2;
-        for (int x = cx - 6; x <= cx + 6; x++)
-        for (int y = cy - 6; y <= cy + 6; y++)
-            grid.SetTerrain(x, y, TerrainType.Flat);
     }
 
     public override void _Process(double delta)
@@ -313,9 +279,12 @@ public partial class World : Node2D
         var tile = grid.GetTile(tileX, tileY);
         if (tile.Zone == Loopolis.Core.Grid.ZoneType.Empty)
         {
-            // Show terrain tooltip for non-flat empty tiles (Hill, Forest, Water)
-            if (tile.Terrain != Loopolis.Core.Grid.TerrainType.Flat)
-                _tooltip.ShowForEmptyTerrain(tile, GetViewport().GetMousePosition());
+            // Show terrain tooltip — pass height/forest from renderer's maps for rich display
+            var h = _renderer.GetTileHeight(tileX, tileY);
+            var isForest = _renderer.GetTileForest(tileX, tileY);
+            // Show tooltip whenever there is interesting terrain data (height != 1 or forest or water)
+            if (h != 1 || isForest || tile.Terrain != Loopolis.Core.Grid.TerrainType.Flat)
+                _tooltip.ShowForEmptyTerrain(tile, GetViewport().GetMousePosition(), h, isForest);
             else
                 _tooltip.Hide();
             return;
