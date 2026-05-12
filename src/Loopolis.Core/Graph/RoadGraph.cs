@@ -254,4 +254,131 @@ public class RoadGraph
 
         return result;
     }
+
+    /// <summary>
+    /// Run Dijkstra from (sourceX, sourceY) and return both a distance map and a parent map.
+    /// The parent map records, for each node, which node it was reached from (i.e. the previous
+    /// node on the shortest path from the source). The source maps to itself.
+    /// Returns empty dictionaries if the source is not in the graph.
+    /// </summary>
+    public (Dictionary<(int x, int y), float> Distances, Dictionary<(int x, int y), (int x, int y)> Parents)
+        ShortestPathWithParents(int sourceX, int sourceY)
+    {
+        var source  = (sourceX, sourceY);
+        var dist    = new Dictionary<(int x, int y), float>();
+        var parents = new Dictionary<(int x, int y), (int x, int y)>();
+
+        if (!_nodes.ContainsKey(source))
+            return (dist, parents);
+
+        dist[source]    = 0f;
+        parents[source] = source;
+
+        var pq = new PriorityQueue<(int x, int y), float>();
+        pq.Enqueue(source, 0f);
+
+        while (pq.Count > 0)
+        {
+            pq.TryDequeue(out var current, out var currentDist);
+
+            if (dist.TryGetValue(current, out var bestDist) && currentDist > bestDist)
+                continue;
+
+            if (!_edges.TryGetValue(current, out var adj)) continue;
+
+            foreach (var (next, edgeWeight) in adj)
+            {
+                var newDist = currentDist + edgeWeight;
+                if (!dist.TryGetValue(next, out var existingDist) || newDist < existingDist)
+                {
+                    dist[next]    = newDist;
+                    parents[next] = current;
+                    pq.Enqueue(next, newDist);
+                }
+            }
+        }
+
+        return (dist, parents);
+    }
+
+    /// <summary>
+    /// Reconstruct the path from source to target using a parent map produced by
+    /// <see cref="ShortestPathWithParents"/>. Returns the sequence of nodes from
+    /// source (inclusive) to target (inclusive), or an empty list if target is not
+    /// in the parent map (unreachable).
+    /// </summary>
+    public static List<(int x, int y)> ReconstructPath(
+        Dictionary<(int x, int y), (int x, int y)> parents,
+        (int x, int y) source,
+        (int x, int y) target)
+    {
+        var path = new List<(int x, int y)>();
+
+        if (!parents.ContainsKey(target))
+            return path;
+
+        var current = target;
+        while (current != source)
+        {
+            path.Add(current);
+            current = parents[current];
+        }
+        path.Add(source);
+        path.Reverse();
+        return path;
+    }
+
+    // ── Edge traffic tracking ──────────────────────────────────────────────────
+
+    // Canonical edge key: pack smaller node first so (a,b) == (b,a).
+    // Each node is packed as a 32-bit pair (x*65536+y) and the two halves are stored
+    // as (long lo, long hi) where lo ≤ hi.
+    private readonly Dictionary<(long lo, long hi), int> _edgeTraffic = new();
+
+    private static (long lo, long hi) EdgeKey(int x1, int y1, int x2, int y2)
+    {
+        var a = (long)x1 * 65536 + y1;
+        var b = (long)x2 * 65536 + y2;
+        return a <= b ? (a, b) : (b, a);
+    }
+
+    /// <summary>
+    /// Increment traffic on the undirected edge between two adjacent road nodes.
+    /// Direction-agnostic: IncrementEdgeTraffic(a,b) == IncrementEdgeTraffic(b,a).
+    /// </summary>
+    public void IncrementEdgeTraffic(int x1, int y1, int x2, int y2, int amount = 1)
+    {
+        var key = EdgeKey(x1, y1, x2, y2);
+        _edgeTraffic.TryGetValue(key, out var current);
+        _edgeTraffic[key] = current + amount;
+    }
+
+    /// <summary>Get current traffic load on the undirected edge between two nodes.</summary>
+    public int GetEdgeTraffic(int x1, int y1, int x2, int y2)
+    {
+        var key = EdgeKey(x1, y1, x2, y2);
+        return _edgeTraffic.TryGetValue(key, out var v) ? v : 0;
+    }
+
+    /// <summary>Reset all edge traffic to 0. Call at the start of each tick.</summary>
+    public void ResetEdgeTraffic() => _edgeTraffic.Clear();
+
+    /// <summary>
+    /// For a given road node, return the total traffic load — sum of traffic across all its edges,
+    /// divided by 2 to avoid double-counting (each worker traverses both an entry and an exit edge).
+    /// This is written to tile.TrafficLoad and shown in the HUD.
+    /// Returns 0 for nodes not in the graph.
+    /// </summary>
+    public int GetNodeTraffic(int x, int y)
+    {
+        if (!_edges.TryGetValue((x, y), out var adj)) return 0;
+
+        var total = 0;
+        foreach (var (neighbour, _) in adj)
+            total += GetEdgeTraffic(x, y, neighbour.x, neighbour.y);
+
+        // Divide by 2: each worker contributes to both the edge entering this node
+        // and the edge leaving, so summing all edges double-counts each worker.
+        return total / 2;
+    }
 }

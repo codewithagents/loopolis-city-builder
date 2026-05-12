@@ -966,6 +966,18 @@ static void WriteState(
         CapacityRatio: Math.Round(pcs.CapacityRatio, 4),
         IsBrownout:    pcs.IsBrownout);
 
+    // --- Worker flow ---
+    WorkerFlowState? workerFlowState = null;
+    if (engine.LastWorkerFlow != null)
+    {
+        var wf = engine.LastWorkerFlow;
+        workerFlowState = new WorkerFlowState(
+            WorkersRouted:          wf.WorkersRouted,
+            AverageCommuteDistance: Math.Round(wf.AverageCommuteDistance, 2),
+            UnroutedWorkers:        wf.UnroutedWorkers,
+            OverloadedEdges:        wf.OverloadedEdges);
+    }
+
     var state = new ServerState(
         Tick:                      engine.TickCount,
         Paused:                    paused,
@@ -1006,7 +1018,8 @@ static void WriteState(
         Power:                     powerState,
         LastCommand:               lastCommand,
         Terrain:                   terrainSummary,
-        RoadGraphNodes:            engine.RoadGraph.NodeCount
+        RoadGraphNodes:            engine.RoadGraph.NodeCount,
+        WorkerFlow:                workerFlowState
     );
 
     var options = new JsonSerializerOptions
@@ -1366,6 +1379,12 @@ record PowerState(
     [property: JsonPropertyName("capacityRatio")]  double CapacityRatio,
     [property: JsonPropertyName("isBrownout")]     bool   IsBrownout);
 
+record WorkerFlowState(
+    [property: JsonPropertyName("workersRouted")]          int    WorkersRouted,
+    [property: JsonPropertyName("averageCommuteDistance")] double AverageCommuteDistance,
+    [property: JsonPropertyName("unroutedWorkers")]        int    UnroutedWorkers,
+    [property: JsonPropertyName("overloadedEdges")]        int    OverloadedEdges);
+
 record OverlayTile(
     [property: JsonPropertyName("x")]     int    X,
     [property: JsonPropertyName("y")]     int    Y,
@@ -1422,7 +1441,8 @@ record ServerState(
     PowerState? Power = null,
     string? LastCommand = null,
     TerrainSummary? Terrain = null,
-    int RoadGraphNodes = 0);
+    int RoadGraphNodes = 0,
+    WorkerFlowState? WorkerFlow = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

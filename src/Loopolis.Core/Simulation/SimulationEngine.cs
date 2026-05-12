@@ -11,17 +11,19 @@ namespace Loopolis.Core.Simulation;
 ///   1. PowerNetwork.Propagate         — mark tiles that have electricity
 ///   2. PowerCapacitySystem.Propagate  — compute city-level supply/demand + brownout flag
 ///   3. RoadNetwork.Propagate          — mark zones with road access
-///   4. RoadTrafficSystem.Propagate    — compute traffic load + overload flags per road/avenue tile
-///   5. PollutionSystem.Propagate      — industrial zones + CoalPlant emit pollution
-///   6. DemandSystem.Propagate         — demand depends on which zones are ready (powered + road)
-///   7. HappinessSystem.Propagate      — happiness uses pollution + demand + services + traffic + brownout penalty
-///   8. LandValueSystem.Propagate      — land value from terrain, pollution, happiness, power
-///   9. Population.Tick                — grow/decline based on ready zones + demand + happiness + traffic + brownout multiplier
-///  10. Budget.SetPopulation           — sync population to budget
-///  11. Budget.CollectTaxes            — income from current population (modified by land value for residential)
-///  12. Budget.CollectCommercialIncome — commercial tile income
-///  13. Budget.DeductMaintenance       — costs from current grid
-///  14. MilestoneSystem.Check          — check for milestone progression and bankruptcy
+///   4. RoadGraph.ResetEdgeTraffic     — clear previous tick's edge traffic
+///   5. WorkerFlowSystem.Route         — route workers R→I, accumulate edge traffic
+///   6. RoadTrafficSystem.Propagate    — set tile.TrafficLoad from real edge-traffic data
+///   7. PollutionSystem.Propagate      — industrial zones + CoalPlant emit pollution
+///   8. DemandSystem.Propagate         — demand depends on which zones are ready (powered + road)
+///   9. HappinessSystem.Propagate      — happiness uses pollution + demand + services + traffic + brownout penalty
+///  10. LandValueSystem.Propagate      — land value from terrain, pollution, happiness, power
+///  11. Population.Tick                — grow/decline based on ready zones + demand + happiness + traffic + brownout multiplier
+///  12. Budget.SetPopulation           — sync population to budget
+///  13. Budget.CollectTaxes            — income from current population (modified by land value for residential)
+///  14. Budget.CollectCommercialIncome — commercial tile income
+///  15. Budget.DeductMaintenance       — costs from current grid
+///  16. MilestoneSystem.Check          — check for milestone progression and bankruptcy
 ///
 /// This class has no Godot dependencies and is safe to use from tests, Runner, and Godot.
 /// </summary>
@@ -43,7 +45,11 @@ public class SimulationEngine
     public BuildingGrowthSystem BuildingGrowthSystem { get; } = new();
     public LandValueSystem LandValueSystem { get; } = new();
     public RoadGraph RoadGraph { get; } = new();
+    public WorkerFlowSystem WorkerFlowSystem { get; } = new();
     public int TickCount { get; private set; }
+
+    /// <summary>Result of the most recent WorkerFlowSystem.Route call. Null before first tick.</summary>
+    public WorkerFlowResult? LastWorkerFlow { get; private set; }
 
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
     public string? LatestEventBanner { get; private set; }
@@ -134,10 +140,12 @@ public class SimulationEngine
     {
         LatestEventBanner = null;
         PowerNetwork.Propagate(Grid);
-        PowerCapacitySystem.Propagate(Grid);   // supply/demand after BFS power is known
+        PowerCapacitySystem.Propagate(Grid);       // supply/demand after BFS power is known
         RoadNetwork.Propagate(Grid);
-        RoadTrafficSystem.Propagate(Grid); // traffic load after road access is known
-        PollutionSystem.Propagate(Grid);   // pollution before happiness
+        RoadGraph.ResetEdgeTraffic();              // clear previous tick's worker-flow traffic
+        LastWorkerFlow = WorkerFlowSystem.Route(Grid, RoadGraph);  // R→I routing, accumulates edge traffic
+        RoadTrafficSystem.Propagate(Grid, RoadGraph);  // real traffic from edge data
+        PollutionSystem.Propagate(Grid);           // pollution before happiness
         DemandSystem.Propagate(Grid);      // demand before happiness
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;

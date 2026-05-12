@@ -52,8 +52,9 @@
 | CityGrid HeightLevel/Forest/Plateau/Cliff | ✅ Done | 13 (added) |
 | RoadGraph (G1) | ✅ Done | 34 |
 | G2 Road-based service coverage | ✅ Done | 17 new (RoadGraph + HappinessSystem) |
+| G3 Worker Flows + Real Traffic | ✅ Done | 18 new (WorkerFlowSystemTests) |
 
-**Total: 393 tests · 0 failures · ~0.29s runtime**
+**Total: 411 tests · 0 failures · ~0.29s runtime**
 
 ---
 
@@ -200,4 +201,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-12 | default | G1 road graph: RoadGraph data structure added as pure foundation layer. 500-tick default run unchanged — pop 200, balance +$9,885, +$12.40/tick. Zero simulation impact (data structure only). roadGraphNodes field confirmed in state.json. | — |
 | 2026-05-12 | city_path | G2 road-based service coverage: happiness=0.863 (Active, 500t). Services at (8,16), (14,16), (16,10) are road-adjacent → connected via road graph → all residential tiles covered. Runner wiring fixed: place_zone/erase/place_rect/erase_rect now via engine.PlaceTile/EraseTile. services scenario redesigned with road-adjacent services → happiness 0.704. | — |
 
-*Last updated: 2026-05-12 — G2 road-based service coverage: GetDistanceViaRoads, HappinessSystem road-graph coverage, Runner wiring fix, SeedRoadGraphFromGrid, 17 new tests*
+| 2026-05-12 | town | G3 worker flows: at tick 31 with 347 pop, workersRouted=75, averageCommuteDistance=6.25, unroutedWorkers=0, overloadedEdges=0. Industrial tiles in town scenario (8×9 block at x=17-24, y=16-24) have road access via y=15 road. Workers route from R tiles through road graph edges to nearest I entry node. Edge traffic accumulates correctly — chokepoint detection ready. | — |
+
+*Last updated: 2026-05-12 — G3 worker flows: RoadGraph edge traffic (IncrementEdgeTraffic/GetEdgeTraffic/ResetEdgeTraffic/GetNodeTraffic), ShortestPathWithParents, ReconstructPath, WorkerFlowSystem R→I routing, RoadTrafficSystem real-traffic mode, SimulationEngine wiring, workerFlow in state.json, 18 new tests*

@@ -1,3 +1,4 @@
+using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Simulation;
@@ -5,13 +6,17 @@ namespace Loopolis.Core.Simulation;
 /// <summary>
 /// Calculates traffic density pressure on road and avenue tiles.
 ///
-/// For each road/avenue tile, counts the number of R/C/I zone tiles within
-/// Chebyshev distance 1 (the 8 tiles immediately surrounding the road tile).
-/// This count is the tile's TrafficLoad, written back to the grid each tick.
+/// When called with a <see cref="RoadGraph"/> (real traffic mode, G3+):
+///   Each road/avenue tile's TrafficLoad is set to <c>roadGraph.GetNodeTraffic(x,y)</c> —
+///   the real worker-flow load accumulated by <see cref="WorkerFlowSystem"/> this tick.
 ///
-/// Overload thresholds:
-///   Road:   overloaded if TrafficLoad > 6  (all 6 non-road adjacent tiles packed = real congestion)
-///   Avenue: overloaded if TrafficLoad > 10 (wider road handles more direct adjacency)
+/// When called without a RoadGraph (legacy heuristic mode, used by unit tests):
+///   For each road/avenue tile, counts the number of R/C/I zone tiles within
+///   Chebyshev distance 1 (the 8 tiles immediately surrounding the road tile).
+///
+/// Overload thresholds (both modes):
+///   Road:   overloaded if TrafficLoad > RoadOverloadThreshold   (80 workers real / 6 heuristic)
+///   Avenue: overloaded if TrafficLoad > AvenueOverloadThreshold (200 workers real / 10 heuristic)
 ///
 /// When a road tile is overloaded, adjacent R/C/I zones receive:
 ///   - Growth multiplier: ×0.7
@@ -22,8 +27,14 @@ namespace Loopolis.Core.Simulation;
 /// </summary>
 public class RoadTrafficSystem
 {
+    // Heuristic mode thresholds (used when no RoadGraph is provided)
     private const int RoadOverloadThreshold   = 6;
     private const int AvenueOverloadThreshold = 10;
+
+    // Real-traffic mode thresholds (workers/tick, used with RoadGraph)
+    private const int RoadOverloadThresholdReal   = 80;
+    private const int AvenueOverloadThresholdReal = 200;
+
     private const double OverloadGrowthMultiplier  = 0.7;
     private const double OverloadHappinessPenalty  = -0.10;
 
@@ -52,9 +63,12 @@ public class RoadTrafficSystem
 
     /// <summary>
     /// Recalculates traffic load for every road/avenue tile and writes results to the grid.
-    /// Call once per simulation tick, after RoadNetwork.Propagate.
+    /// Call once per simulation tick, after <see cref="WorkerFlowSystem.Route"/> (if using G3 real traffic).
+    ///
+    /// When <paramref name="roadGraph"/> is provided, uses real edge-traffic data from
+    /// <see cref="RoadGraph.GetNodeTraffic"/>. Without it, falls back to the zone-neighbor heuristic.
     /// </summary>
-    public void Propagate(CityGrid grid)
+    public void Propagate(CityGrid grid, RoadGraph? roadGraph = null)
     {
         grid.ClearTrafficLoad();
         _loadCache.Clear();
@@ -72,12 +86,22 @@ public class RoadTrafficSystem
 
         foreach (var (rx, ry, zone) in roadTiles)
         {
-            var load = CountZonesInChebyshev1(grid, rx, ry);
+            // Real-traffic mode: use edge-traffic accumulated by WorkerFlowSystem
+            // Legacy mode: count zone neighbours within Chebyshev-1
+            var load = roadGraph != null
+                ? roadGraph.GetNodeTraffic(rx, ry)
+                : CountZonesInChebyshev1(grid, rx, ry);
+
             grid.SetTrafficLoad(rx, ry, load);
             _loadCache[(rx, ry)] = load;
             totalLoad += load;
 
-            var threshold = zone == ZoneType.Avenue ? AvenueOverloadThreshold : RoadOverloadThreshold;
+            int threshold;
+            if (roadGraph != null)
+                threshold = zone == ZoneType.Avenue ? AvenueOverloadThresholdReal : RoadOverloadThresholdReal;
+            else
+                threshold = zone == ZoneType.Avenue ? AvenueOverloadThreshold : RoadOverloadThreshold;
+
             if (load > threshold)
             {
                 OverloadedRoadCount++;
