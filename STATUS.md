@@ -51,8 +51,9 @@
 | HeightMapGenerator (diamond-square) | ✅ Done | 17 |
 | CityGrid HeightLevel/Forest/Plateau/Cliff | ✅ Done | 13 (added) |
 | RoadGraph (G1) | ✅ Done | 34 |
+| G2 Road-based service coverage | ✅ Done | 17 new (RoadGraph + HappinessSystem) |
 
-**Total: 376 tests · 0 failures · ~0.31s runtime**
+**Total: 393 tests · 0 failures · ~0.29s runtime**
 
 ---
 
@@ -197,5 +198,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-12 | generated_map seed=99 | Height system: 63 water tiles (6.1%), 50 elevated, 42 plateaus on 32×32 grid. TerrainSummary in state.json (averageHeight=1.01). All existing scenarios (default/town/mixed/no_power/no_roads) unchanged — SetFlatTerrain() ensures immunity to procedural terrain. Cliff road constraint rejects height diff >1. | Working correctly |
 
 | 2026-05-12 | default | G1 road graph: RoadGraph data structure added as pure foundation layer. 500-tick default run unchanged — pop 200, balance +$9,885, +$12.40/tick. Zero simulation impact (data structure only). roadGraphNodes field confirmed in state.json. | — |
+| 2026-05-12 | city_path | G2 road-based service coverage: happiness=0.863 (Active, 500t). Services at (8,16), (14,16), (16,10) are road-adjacent → connected via road graph → all residential tiles covered. Runner wiring fixed: place_zone/erase/place_rect/erase_rect now via engine.PlaceTile/EraseTile. services scenario redesigned with road-adjacent services → happiness 0.704. | — |
 
-*Last updated: 2026-05-12 — G1 RoadGraph: weighted Dijkstra graph, SimulationEngine integration, 34 new tests*
+*Last updated: 2026-05-12 — G2 road-based service coverage: GetDistanceViaRoads, HappinessSystem road-graph coverage, Runner wiring fix, SeedRoadGraphFromGrid, 17 new tests*
