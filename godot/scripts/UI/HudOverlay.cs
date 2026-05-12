@@ -41,6 +41,10 @@ public partial class HudOverlay : CanvasLayer
     private Label _tutorialBanner = null!;
     private bool _tutorialDismissed = false;
 
+    // Error banner — shown when the simulation throws an unhandled exception
+    private PanelContainer _errorBannerPanel = null!;
+    private Label _errorBannerLabel = null!;
+
     public override void _Ready()
     {
         Layer = 10;
@@ -163,6 +167,28 @@ public partial class HudOverlay : CanvasLayer
 
         // Keep a reference to the panel so we can show/hide it via the label's parent
         _tutorialBanner.SetMeta("panel", tutorialPanel);
+
+        // Error banner — full-width red panel at the very top, hidden by default
+        _errorBannerPanel = new PanelContainer();
+        _errorBannerPanel.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+        _errorBannerPanel.Position = new Vector2(0, 0);
+        _errorBannerPanel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        var errorStyle = new StyleBoxFlat();
+        errorStyle.BgColor = new Color(0.65f, 0.04f, 0.04f, 0.92f);
+        errorStyle.ContentMarginLeft   = 16;
+        errorStyle.ContentMarginRight  = 16;
+        errorStyle.ContentMarginTop    = 6;
+        errorStyle.ContentMarginBottom = 6;
+        _errorBannerPanel.AddThemeStyleboxOverride("panel", errorStyle);
+
+        _errorBannerLabel = new Label();
+        _errorBannerLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _errorBannerLabel.AddThemeColorOverride("font_color", Colors.White);
+        _errorBannerLabel.AddThemeFontSizeOverride("font_size", 16);
+        _errorBannerLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _errorBannerPanel.AddChild(_errorBannerLabel);
+        _errorBannerPanel.Visible = false;
+        AddChild(_errorBannerPanel);
     }
 
     public override void _Process(double delta)
@@ -190,6 +216,23 @@ public partial class HudOverlay : CanvasLayer
     public void FlashBalanceWarning()
     {
         _balanceWarningTimer = BalanceWarningDuration;
+    }
+
+    /// <summary>
+    /// Shows a full-width red error banner at the top of the screen.
+    /// The simulation should be paused before calling this.
+    /// Press F12 to dismiss.
+    /// </summary>
+    public void ShowErrorBanner(string message)
+    {
+        _errorBannerLabel.Text = $"SIMULATION ERROR: {message}    [Press F12 to dismiss]";
+        _errorBannerPanel.Visible = true;
+    }
+
+    /// <summary>Hides the error banner (called when the player presses F12).</summary>
+    public void DismissErrorBanner()
+    {
+        _errorBannerPanel.Visible = false;
     }
 
     /// <summary>Called by SharedStateReader (viewer mode) and World (standalone mode) each tick.</summary>

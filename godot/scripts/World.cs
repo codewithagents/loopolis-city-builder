@@ -238,7 +238,35 @@ public partial class World : Node2D
             foreach (var kvp in _grid.Buildings)
                 priorBuildingTypes[kvp.Key] = (kvp.Value.TypeId, kvp.Value.AnchorX, kvp.Value.AnchorY);
 
-            _engine.Tick();
+            try
+            {
+                _engine.Tick();
+            }
+            catch (Exception ex)
+            {
+                GD.PrintErr($"[Loopolis] Tick crash at tick {_engine.TickCount}: {ex.GetType().Name}: {ex.Message}");
+                GD.PrintErr(ex.StackTrace);
+
+                // Pause immediately so the player sees the error
+                _standalonePaused = true;
+                _toolbar.SetPaused(true);
+
+                // Write crash log to user data dir
+                try
+                {
+                    var logPath = Path.Combine(OS.GetUserDataDir(), "loopolis_crash.log");
+                    File.AppendAllText(logPath,
+                        $"[{DateTime.Now:HH:mm:ss}] Tick {_engine.TickCount}: {ex}\n\n");
+                    GD.Print($"[Loopolis] Crash log written to: {logPath}");
+                }
+                catch (Exception logEx)
+                {
+                    GD.PrintErr($"[Loopolis] Could not write crash log: {logEx.Message}");
+                }
+
+                _hud.ShowErrorBanner($"Tick {_engine.TickCount}: {ex.Message}");
+                return; // skip the rest of this tick's processing
+            }
             _standaloneTick++;
 
             // Detect new buildings spawned this tick
@@ -502,6 +530,26 @@ public partial class World : Node2D
 
             if (key.Keycode == Key.Space)
                 OnPauseToggled();
+
+            // F12 dismisses the error banner
+            if (key.Keycode == Key.F12)
+            {
+                _hud.DismissErrorBanner();
+                return;
+            }
+
+            // F9 dumps a debug summary to the Godot console (standalone mode only)
+            if (key.Keycode == Key.F9 && !_viewerMode)
+            {
+                var lastDegraded = _engine.LastDegradedBuildings.Count > 0
+                    ? string.Join(", ", _engine.LastDegradedBuildings)
+                    : "none";
+                GD.Print($"[DEBUG] Tick: {_engine.TickCount} | Pop: {_population?.Population ?? 0} | Balance: ${_budget?.Balance:N0} | Happiness: {_engine.HappinessSystem.AverageHappiness(_grid):F2}");
+                GD.Print($"[DEBUG] Buildings: {_grid.Buildings.Count} | RoadNodes: {_engine.RoadGraph.NodeCount} | RoadEdges: {_engine.RoadGraph.EdgeCount}");
+                GD.Print($"[DEBUG] Jobs: {_engine.EmploymentSystem.AvailableJobs} available / {_engine.EmploymentSystem.RequiredJobs} required | EmploymentRatio: {_engine.EmploymentSystem.EmploymentRatio:F2}");
+                GD.Print($"[DEBUG] LastDegraded: {lastDegraded}");
+                return;
+            }
 
             // Ctrl+S = Save, Ctrl+L = Load (standalone mode only)
             if (key.CtrlPressed && !_viewerMode && !_gameOver)
