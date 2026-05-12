@@ -681,7 +681,7 @@ public partial class World : Node2D
 		{
 			// If a tool is selected (build mode), Space always clears the tool and resumes.
 			// This covers both: build-mode-paused (auto) and manually-paused-then-selected cases.
-			var hasActiveTool = !string.IsNullOrEmpty(_toolbar.SelectedZone) && _toolbar.SelectedZone != "Empty";
+			var hasActiveTool = !string.IsNullOrEmpty(_toolbar.SelectedZone);
 			if (_buildModePaused || hasActiveTool)
 			{
 				// Clear build mode and resume
@@ -1248,6 +1248,10 @@ public partial class World : Node2D
 			MilestoneReached:          _engine.LatestEventBanner ?? milestone,
 			GameState:                 gameStateName,
 			Tiles:                     System.Array.Empty<SharedTile>(),
+			HasPowerPlant:             _grid.AllTiles().Any(t =>
+				t.Zone == Loopolis.Core.Grid.ZoneType.CoalPlant ||
+				t.Zone == Loopolis.Core.Grid.ZoneType.NuclearPlant ||
+				t.Zone == Loopolis.Core.Grid.ZoneType.PowerPlant),
 			NextMilestoneName:         nextMilestoneName,
 			NextMilestoneTarget:       nextMilestoneTarget,
 			ActiveEventName:           activeEvent?.Name,

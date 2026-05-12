@@ -395,7 +395,8 @@ public record SharedState(
     WorkerFlowDto? WorkerFlow = null,       // commute routing stats (G4)
     string[]? LastDegradedBuildings = null, // typeIds of buildings demolished by degradation this tick
     int EventTileX = -1,                    // X of tile currently on fire (-1 = none)
-    int EventTileY = -1                     // Y of tile currently on fire (-1 = none)
+    int EventTileY = -1,                    // Y of tile currently on fire (-1 = none)
+    bool HasPowerPlant = false              // true when any CoalPlant/NuclearPlant/PowerPlant tile exists
 )
 {
     /// <summary>

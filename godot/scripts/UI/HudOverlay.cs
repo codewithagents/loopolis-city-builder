@@ -676,15 +676,7 @@ public partial class HudOverlay : CanvasLayer
         var panel = (Control)_tutorialBanner.GetMeta("panel").As<GodotObject>();
 
         // Check if a power plant exists on the map
-        var hasPowerPlant = false;
-        foreach (var t in state.Tiles)
-        {
-            if (t.Zone == "CoalPlant" || t.Zone == "NuclearPlant" || t.Zone == "PowerPlant")
-            {
-                hasPowerPlant = true;
-                break;
-            }
-        }
+        var hasPowerPlant = state.HasPowerPlant;
 
         if (hasPowerPlant)
         {
