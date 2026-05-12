@@ -55,7 +55,7 @@
 | G3 Worker Flows + Real Traffic | ✅ Done | 18 new (WorkerFlowSystemTests) |
 | G4 Service Capacity Model | ✅ Done | 26 new (ServiceCapacityTests) |
 
-**Total: 437 tests · 0 failures · ~0.32s runtime**
+**Total: 455 tests · 0 failures · ~0.32s runtime**
 
 ---
 
@@ -205,5 +205,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-12 | town | G3 worker flows: at tick 31 with 347 pop, workersRouted=75, averageCommuteDistance=6.25, unroutedWorkers=0, overloadedEdges=0. Industrial tiles in town scenario (8×9 block at x=17-24, y=16-24) have road access via y=15 road. Workers route from R tiles through road graph edges to nearest I entry node. Edge traffic accumulates correctly — chokepoint detection ready. | — |
 
 | 2026-05-12 | city_path | G4 service capacity: at tick 5 — schoolSeatsTotal=200, schoolSeatsUsed=96, schoolCoveragePercent=0.7368. Police 300/Fire 400 capacity present. Coverage correctly partial — only tiles within road-graph radius AND within capacity are covered. Hospital=0 (no hospital in city_path scenario). All 437 tests green. | — |
+| 2026-05-12 | default | Border road + empty start: new default is empty — only border connection at (16,31) + 3 starter road tiles. 500-tick run: pop=0 (no zones yet), balance $3,000 ($4,000 − 500 × $2/tick for 4 roads). IsBorderConnection persists through save/load; EraseTile is a no-op on border tiles; 1.2× migration multiplier confirmed in tests (R-tile at distance 3 grows faster than without border graph). 455 tests green. | — |
 
 *Last updated: 2026-05-12 — G4 service capacity: ServiceCapacityModel (constants + GetDemandPerTile), ServiceCoverageResult record, HappinessSystem.ComputeServiceCoverage (capacity-draining closest-first model, road-graph + fallback modes), SimulationEngine.LastServiceCoverage, RoadGraph.IsRoadNode, state.json 8 new capacity fields, 26 new tests*
