@@ -60,8 +60,9 @@ Output is JSON — designed for agent analysis.
 22. ✅ **Worker Flows (G3)** — R→I worker routing via road graph. Edge traffic accumulates per tick. Chokepoints see real congestion. `WorkerFlowSystem` exposes workersRouted, averageCommuteDistance, unroutedWorkers, overloadedEdges.
 23. ✅ **Service Capacity (G4)** — School=200 seats, Police=300, Fire=400 bldgs, Hospital=80 beds. Closest-first drain. Capacity shown in HUD.
 24. ✅ HeightMapGenerator — diamond-square, dynamic canvas (33→129 for 128×128 maps). Scenarios: 32×32 (default), 64×64 (generated_map), 128×128 (generated_128).
+25. ✅ Border Road — `IsBorderConnection` flag (unerasable). One Regional Highway enters from center-south edge. R-tiles within graph-distance 12 get 1.2× growth multiplier. `ExternalAnchor` in RoadGraph for future worker routing.
 
-**443 tests · 0 failures**
+**455 tests · 0 failures**
 
 ## Building Catalog
 
