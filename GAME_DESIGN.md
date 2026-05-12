@@ -107,10 +107,12 @@ Each milestone unlocks new zone types or building options (design TBD).
 ## Progression Curve
 
 ### Early Game (0 – 500 residents)
-- 1 power plant, handful of roads, 3-10 residential zones
+- Empty map at new game: only the unerasable **border road** (south-center) and 2-3 starter road tiles extending into the map. No power plant, no zones, no services.
+- First decision: *where to place your power plant relative to the border road*. Near the border = cheap road extension, more pollution near the regional connection. Far from the border = preserves "downtown" but demands a longer power/road spine.
+- Build out: 1 power plant, handful of roads, 3-10 residential zones along the spine
 - Budget is slightly negative — urgent pressure to grow
-- Core challenge: connect power to zones AND put roads adjacent to them
-- Reward: first moment the simulation shows population > 0
+- Core challenge: connect power to zones AND put roads adjacent to them, while staying in reach of the border road for the migration bonus
+- Reward: first moment the simulation shows population > 0 — and migration arrives visibly along the spine from the border
 
 ### Mid Game (500 – 10,000 residents)
 - Multiple power sources, planned road networks
@@ -842,6 +844,12 @@ Total milestones from now to graph-Loopolis: 8 sessions. Honest. Doable. Each on
 - **Graph G5:** BPR congestion exponent of 4 is correct for real-world traffic models. Loopolis is not realistic. Drop to 2 for milder, more legible congestion? Balancer call.
 - **Graph G5:** Edge load tints on every road might clutter the map at 256². Show tints only above 60% load? Lean yes — green-everywhere is noise; only the chokepoints are interesting.
 - **Graph overarching:** Should power propagation also move to the road graph (no more "power flows through zones")? Cleaner mental model — "graph carries everything." But it's a separate redesign and risks breaking power-line-as-alternative-conductor. Defer this question until after G5 ships.
+- **Starter state:** Should the 2-3 pre-placed road tiles extending from the border road be erasable? Lean yes — they're just a visible hint, not a fixture. Only the border tile itself is unerasable. Player should be free to redesign the spine immediately if they want.
+- **Border road (range):** What's the "near the border" road-graph distance N that triggers the 1.2× migration multiplier? First-pass: 8 weighted-road-tiles. Balancer pass needed at 128² to verify the bonus is real but doesn't trivialize layout. Open whether the falloff should be binary (within N → bonus, else nothing) or graded (linear interpolation 0–N).
+- **Border road (post-G3):** Effective commute distance to external jobs = `graph_distance_to_border + K`. What's K? First-pass: 15 (matches the −0.20 unhappy threshold so external-only districts get the soft penalty, not the no-path red link). Tune at G3 ship time.
+- **Border road (visual):** Renderer needs a unique sprite/marker for the border tile (downward arrow + "REGIONAL HIGHWAY" tag). Distinct enough that players never try to delete it, but not so loud that it dominates the map.
+- **Starter state (cluster optimization):** Players will optimize layouts to hug the border road (migration bonus + future fallback jobs + future trade). Acceptable in v1 — it's a real incentive that emerges from the system. Counter in F2 scenarios by placing high-value terrain (forest, hills) far from the border on some maps. Don't pre-emptively nerf.
+- **Starter state (legacy scenarios):** Existing scenarios (default/town/mixed/services/no_power/no_roads) were balanced with the seeded starter city. After this change, every scenario's first ~50 ticks looks different. F2 medal thresholds need re-calibration. Regression test scenarios (32² Hamlet) keep the old seeded starter for test stability.
 
 ---
 
@@ -897,3 +905,8 @@ Total milestones from now to graph-Loopolis: 8 sessions. Honest. Doable. Each on
 | 2026-05-12 | Power network NOT moved onto road graph in M10. Stays as its own BFS over its own conductor set. Open question deferred to after G5: should they unify? |
 | 2026-05-12 | Migration interaction: Scale Session 2's "rewrite commute" and "rewrite traffic" tasks are SUPERSEDED by Graph G3 and G5 respectively. Do not double-rewrite. Effective order: Scale S1 → Graph G1 → G2 → G3 → Scale S2 (only pollution + landvalue rewrite) → Scale S3 → Graph G4 → G5. |
 | 2026-05-12 | Per-citizen agent simulation REJECTED forever — Loopolis is a planner game. Aggregate per-district flows only. No vehicle routing, no transit lines, no traffic lights. One edge weight per road class. |
+| 2026-05-12 | **Starting conditions overhaul:** Remove pre-placed power plant from starter city. New game state = empty map + unerasable border road at south-center + 2-3 pre-placed road tiles extending north as a "spine starter." Starting budget unchanged ($4,000). Rationale: today's seeded starter teaches by inspection but skips the most important first decision — where the power plant goes. Empty start makes plant placement a real spatial choice relative to the border anchor. |
+| 2026-05-12 | **Border road introduced:** Single unerasable Road tile (not Highway) at fixed position `(width/2, height-1)`, flagged `IsBorderConnection=true`. Represents the city's connection to the outside world. Visible as a downward arrow / "REGIONAL HWY" label. Pre-M9 effect: 1.2× residential growth multiplier for R-tiles within road-graph distance N of the border (migration). Post-G3 effect: border becomes a virtual I-district anchor with infinite job capacity and a fixed long base commute (fallback employment). Post-M9 effect: goods export node for Timber/Grain. |
+| 2026-05-12 | Border road scope discipline: ONE connection at v1 (not 2-4). Fixed south-center, not random or player-chosen — preserves scenario seeds. Regular Road, not Highway (Highway is a RoadClass deferred to Scale Session 3; the "no zones adjacent to highway" rule would conflict with the border being a development anchor). Multiple border roads deferred until "which border do I prioritize" is a real layout decision (post-G5). |
+| 2026-05-12 | Regional-power-near-border REJECTED for v1 — adds parallel utility system with no clear failure legibility. Reconsider after empty-start playtest if onboarding is too steep. |
+| 2026-05-12 | Onboarding mitigation: tutorial hint banner on first new game ("Place a power plant near the regional highway. Connect zones with roads. Watch your city grow.") that vanishes after first plant is placed. Plant-placement preview showing BFS power-flood radius before commit (natural F1 Road Pulse extension). |
