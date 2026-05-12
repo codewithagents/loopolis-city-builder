@@ -29,6 +29,7 @@ public partial class SharedStateReader : Node
     private CityHealthPanel _cityHealth = null!;
     private bool _bankruptShown = false;
     private bool _abandonedShown = false;
+    private bool _winShown = false;
     private double _pollTimer = 0;
     private const double PollInterval = 0.05; // 20Hz polling
 
@@ -179,6 +180,20 @@ public partial class SharedStateReader : Node
                 _abandonedShown = true;
                 _hintOverlay.SetGameOver();
                 _gameOverPanel.ShowAbandoned(state.Tick, state.Population, state.Happiness);
+                try
+                {
+                    var commandPath = Path.Combine(_sharedDir, $"command-{_sessionId}.json");
+                    File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
+                }
+                catch { /* runner may not be listening */ }
+            }
+
+            // Win detection — show panel once when Loopolis milestone reached
+            if (!_winShown && state.GameState == "Loopolis")
+            {
+                _winShown = true;
+                _gameOverPanel.ShowWin(state.Tick, state.Population, state.Balance);
+                _hintOverlay.SetGameOver();
                 try
                 {
                     var commandPath = Path.Combine(_sharedDir, $"command-{_sessionId}.json");

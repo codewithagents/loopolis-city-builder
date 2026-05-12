@@ -424,7 +424,7 @@ public partial class HudOverlay : CanvasLayer
 
         if (!string.IsNullOrEmpty(state.NextMilestoneName) && state.NextMilestoneTarget > 0)
         {
-            _nextMilestoneLabel.Text = $"Next: {state.NextMilestoneName} ({state.Population:N0} / {state.NextMilestoneTarget:N0})";
+            UpdateMilestoneProgressLabel(_nextMilestoneLabel, state.NextMilestoneName, state.NextMilestoneTarget, state.Population);
             _nextMilestoneLabel.Visible = true;
         }
         else
@@ -702,13 +702,25 @@ public partial class HudOverlay : CanvasLayer
     {
         if (!string.IsNullOrEmpty(name) && target > 0)
         {
-            _nextMilestoneLabel.Text = $"Next: {name} ({currentPop:N0} / {target:N0})";
+            UpdateMilestoneProgressLabel(_nextMilestoneLabel, name, target, currentPop);
             _nextMilestoneLabel.Visible = true;
         }
         else
         {
             _nextMilestoneLabel.Visible = false;
         }
+    }
+
+    /// <summary>
+    /// Updates a label with a visual milestone progress bar.
+    /// Format: "🥉 Town  ███████░░░  72%  (360/500)"
+    /// </summary>
+    private static void UpdateMilestoneProgressLabel(Label label, string milestoneName, int target, int currentPop)
+    {
+        var pct  = target > 0 ? Math.Clamp((int)((double)currentPop / target * 100), 0, 100) : 0;
+        var bar  = MakeBar8(pct);
+        label.Text = $"→ {milestoneName}  {bar}  {pct}%  ({currentPop:N0}/{target:N0})";
+        label.AddThemeColorOverride("font_color", GetMilestoneColor(milestoneName));
     }
 
     /// <summary>Called by Toolbar when the player changes the selected zone.</summary>
@@ -733,10 +745,22 @@ public partial class HudOverlay : CanvasLayer
 
     private void ShowMilestone(string milestone)
     {
-        _milestoneLabel.Text = $"  {milestone}  ";
+        // Tier-specific styling: size and color differ by milestone
+        var (emoji, color, size, duration) = milestone switch
+        {
+            "Town"       => ("🥉", new Color(0.85f, 0.60f, 0.15f), 28, 3.0),
+            "City"       => ("🥈", new Color(0.80f, 0.85f, 0.90f), 32, 3.5),
+            "Metropolis" => ("🥇", new Color(1.0f,  0.85f, 0.10f), 38, 4.0),
+            "Loopolis"   => ("🏆", new Color(0.20f, 1.0f,  0.90f), 44, 5.0),
+            _            => ("★", new Color(1f, 0.9f, 0.2f),       26, 3.0),
+        };
+
+        _milestoneLabel.Text = $"  {emoji}  {milestone.ToUpperInvariant()} REACHED!  {emoji}  ";
+        _milestoneLabel.AddThemeFontSizeOverride("font_size", size);
+        _milestoneLabel.AddThemeColorOverride("font_color", color);
         _milestoneLabel.Modulate = new Color(1f, 1f, 1f, 1f);
         _milestoneLabel.Visible = true;
-        _milestoneTimer = MilestoneDuration;
+        _milestoneTimer = duration;
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -747,6 +771,23 @@ public partial class HudOverlay : CanvasLayer
         var filled = Math.Clamp(percent, 0, 100) / 10;
         return new string('█', filled) + new string('░', 10 - filled);
     }
+
+    /// <summary>Builds an 8-character unicode block bar for a 0–100% value (compact variant).</summary>
+    private static string MakeBar8(int percent)
+    {
+        var filled = Math.Clamp(percent, 0, 100) * 8 / 100;
+        return new string('█', filled) + new string('░', 8 - filled);
+    }
+
+    /// <summary>Returns tier-specific color for a milestone name (e.g. "Town 🥉" or "Town").</summary>
+    private static Color GetMilestoneColor(string name) => name switch
+    {
+        var n when n.Contains("Town")       => new Color(0.85f, 0.60f, 0.15f), // bronze
+        var n when n.Contains("City")       => new Color(0.78f, 0.82f, 0.88f), // silver
+        var n when n.Contains("Metropolis") => new Color(1.0f,  0.85f, 0.10f), // gold
+        var n when n.Contains("Loopolis")   => new Color(0.20f, 1.0f,  0.90f), // teal/win
+        _                                   => new Color(0.70f, 0.85f, 1.0f),  // default blue
+    };
 
     /// <summary>Creates a hidden, monospace-friendly service-capacity label.</summary>
     private static Label MakeServiceLabel()

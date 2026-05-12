@@ -320,6 +320,16 @@ public partial class World : Node2D
                 _gameOverPanel.ShowAbandoned(_standaloneTick, _population!.Population, happiness);
                 _hintOverlay.SetGameOver();
             }
+
+            // Win condition — Loopolis (100k population)
+            if (_engine.MilestoneSystem.CurrentState == Loopolis.Core.Simulation.GameState.Loopolis)
+            {
+                _gameOver = true;
+                _standalonePaused = true;
+                _toolbar.SetPaused(true);
+                _gameOverPanel.ShowWin(_standaloneTick, _population!.Population, _budget!.Balance);
+                _hintOverlay.SetGameOver();
+            }
         }
     }
 

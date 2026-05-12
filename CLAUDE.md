@@ -19,11 +19,25 @@ godot/                    — Godot 4 project (presentation layer only).
 
 ## Development
 
-**Run tests:**
+**Run tests (Core logic — 504 tests):**
 ```bash
 export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
 export PATH="$DOTNET_ROOT:$PATH"
 dotnet test
+```
+
+**Check Godot scripts compile (catch missing methods before opening editor):**
+```bash
+export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
+export PATH="$DOTNET_ROOT:$PATH"
+cd godot && dotnet build Loopolis.Godot.csproj && cd ..
+```
+
+**Run both (recommended after any Godot script change):**
+```bash
+export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
+export PATH="$DOTNET_ROOT:$PATH"
+dotnet test && cd godot && dotnet build Loopolis.Godot.csproj && cd ..
 ```
 
 **Run simulation (agent feedback loop):**

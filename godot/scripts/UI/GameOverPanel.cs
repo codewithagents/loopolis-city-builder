@@ -106,6 +106,30 @@ public partial class GameOverPanel : CanvasLayer
         _overlay.Visible = true;
     }
 
+    /// <summary>
+    /// Show the win screen when the city reaches Loopolis (100k population).
+    /// Different styling — gold title, celebration stats, "Play Again" button.
+    /// </summary>
+    public void ShowWin(int tick, int population, double balance)
+    {
+        // Swap overlay to a gold-tinted dark background
+        ((ColorRect)_overlay).Color = new Color(0.05f, 0.04f, 0f, 0.80f);
+
+        _titleLabel.Text = "🏆  LOOPOLIS  🏆";
+        _titleLabel.AddThemeColorOverride("font_color", new Color(1f, 0.88f, 0.10f)); // gold
+        _titleLabel.AddThemeFontSizeOverride("font_size", 52);
+
+        _statsLabel.Text =
+            $"You built a Loopolis in {tick:N0} ticks!\n" +
+            $"Population: {population:N0}   |   Balance: ${balance:N0}";
+        _statsLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.95f, 0.85f));
+
+        _hintLabel.Text = "A city of 100,000 souls. The streets are alive. The lights never go out.";
+        _hintLabel.AddThemeColorOverride("font_color", new Color(0.7f, 1f, 0.85f)); // teal
+
+        _overlay.Visible = true;
+    }
+
     public new void Hide()
     {
         _overlay.Visible = false;
