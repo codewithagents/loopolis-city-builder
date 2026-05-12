@@ -351,6 +351,27 @@ public partial class World : Node2D
         _renderer.SetCoverageHighlight(tiles, _coverageColor);
     }
 
+    /// <summary>
+    /// For Road and Avenue zones, constrains a drag rectangle to a 1-tile-wide line
+    /// along the dominant axis.  Returns (constrainedStart, constrainedEnd).
+    /// For all other zones, the inputs are returned unchanged.
+    /// </summary>
+    private (Vector2I start, Vector2I end) ConstrainToLineIfRoad(Vector2I start, Vector2I end)
+    {
+        var zone = _toolbar.SelectedZone;
+        if (zone != "Road" && zone != "Avenue") return (start, end);
+
+        var dx = System.Math.Abs(end.X - start.X);
+        var dy = System.Math.Abs(end.Y - start.Y);
+
+        if (dx >= dy)
+            // Horizontal line: lock Y to the start row
+            return (start, new Vector2I(end.X, start.Y));
+        else
+            // Vertical line: lock X to the start column
+            return (start, new Vector2I(start.X, end.Y));
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event is InputEventMouseButton mb)
@@ -363,18 +384,20 @@ public partial class World : Node2D
                     _rectStart      = GetTileUnderMouse();
                     _rectEnd        = _rectStart;
                     _isRectPainting = true;
-                    _renderer.SetRectPreview(_rectStart, _rectEnd, GetZonePreviewColor());
+                    var (cs, ce) = ConstrainToLineIfRoad(_rectStart, _rectEnd);
+                    _renderer.SetRectPreview(cs, ce, GetZonePreviewColor());
                 }
                 else if (_isRectPainting)
                 {
-                    // Commit: fill all tiles in the selected rectangle
+                    // Commit: fill all tiles in the selected rectangle (line for Road/Avenue)
                     _isRectPainting = false;
                     _renderer.ClearRectPreview();
 
-                    var minX = System.Math.Min(_rectStart.X, _rectEnd.X);
-                    var maxX = System.Math.Max(_rectStart.X, _rectEnd.X);
-                    var minY = System.Math.Min(_rectStart.Y, _rectEnd.Y);
-                    var maxY = System.Math.Max(_rectStart.Y, _rectEnd.Y);
+                    var (cs, ce) = ConstrainToLineIfRoad(_rectStart, _rectEnd);
+                    var minX = System.Math.Min(cs.X, ce.X);
+                    var maxX = System.Math.Max(cs.X, ce.X);
+                    var minY = System.Math.Min(cs.Y, ce.Y);
+                    var maxY = System.Math.Max(cs.Y, ce.Y);
 
                     for (var ty = minY; ty <= maxY; ty++)
                     for (var tx = minX; tx <= maxX; tx++)
@@ -391,7 +414,8 @@ public partial class World : Node2D
         if (@event is InputEventMouseMotion && _isRectPainting)
         {
             _rectEnd = GetTileUnderMouse();
-            _renderer.SetRectPreview(_rectStart, _rectEnd, GetZonePreviewColor());
+            var (cs, ce) = ConstrainToLineIfRoad(_rectStart, _rectEnd);
+            _renderer.SetRectPreview(cs, ce, GetZonePreviewColor());
         }
 
         if (@event is InputEventKey key && key.Pressed && !key.Echo)
