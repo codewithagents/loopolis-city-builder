@@ -24,7 +24,7 @@ public partial class Toolbar : CanvasLayer
 
     // ── State ──────────────────────────────────────────────────────────────────
 
-    private string _selectedZone = "Road";
+    private string _selectedZone = "";   // empty = no tool selected
     private string _taxLevel     = "normal";
     private float  _selectedSpeed = 2.0f;
     private int    _activeTab    = 0;   // 0 = Zones, 1 = Utilities, 2 = Services
@@ -34,6 +34,7 @@ public partial class Toolbar : CanvasLayer
     private readonly Dictionary<string, Button> _taxButtons = new();
     private readonly Dictionary<float,  Button> _speedButtons = new();
     private Button? _pauseButton;
+    private Label?  _buildModeLabel;
 
     // Tab containers: each holds the buttons for one tab
     private readonly Container[] _tabContainers = new Container[3];
@@ -110,6 +111,14 @@ public partial class Toolbar : CanvasLayer
             tabRow.AddChild(tabBtn);
             _tabHeaders[i] = tabBtn;
         }
+
+        // Build mode indicator: shown in the tab row when a tool is active
+        _buildModeLabel = new Label();
+        _buildModeLabel.Text = "⏸ BUILD MODE  [Esc to resume]";
+        _buildModeLabel.Visible = false;
+        _buildModeLabel.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.1f));
+        _buildModeLabel.AddThemeFontSizeOverride("font_size", 13);
+        tabRow.AddChild(_buildModeLabel);
 
         // ── Content row: [tabbed zone area] | [always-visible tools] ───────
 
@@ -231,14 +240,44 @@ public partial class Toolbar : CanvasLayer
         menuBtn.Pressed += () => EmitSignal(SignalName.MainMenuRequested);
         contentRow.AddChild(menuBtn);
 
-        // Apply initial highlights
+        // Apply initial highlights (no tool selected on startup)
         HighlightTabHeaders();
-        HighlightButton(_selectedZone);
+        if (!string.IsNullOrEmpty(_selectedZone))
+            HighlightButton(_selectedZone);
     }
 
     // ── Public API ──────────────────────────────────────────────────────────────
 
     public string SelectedZone => _selectedZone;
+
+    /// <summary>
+    /// Deselects all zone/tool buttons and emits ZoneSelected("") so World.cs
+    /// knows no tool is active. Safe to call when no tool is selected.
+    /// </summary>
+    public void DeselectAll()
+    {
+        _selectedZone = "";
+        // Clear all button highlights
+        foreach (var (zone, btn) in _buttons)
+        {
+            var style = GetBaseStyle(zone);
+            btn.AddThemeStyleboxOverride("normal",  style);
+            btn.AddThemeStyleboxOverride("hover",   MakeHoverStyle(style));
+            btn.AddThemeStyleboxOverride("pressed", style);
+            btn.AddThemeStyleboxOverride("focus",   style);
+        }
+        EmitSignal(SignalName.ZoneSelected, "");
+    }
+
+    /// <summary>
+    /// Shows or hides the BUILD MODE label in the toolbar tab row.
+    /// Called by World.cs whenever build-mode pause state changes.
+    /// </summary>
+    public void SetBuildMode(bool active)
+    {
+        if (_buildModeLabel != null)
+            _buildModeLabel.Visible = active;
+    }
 
     public void SetPaused(bool paused)
     {
@@ -361,6 +400,12 @@ public partial class Toolbar : CanvasLayer
 
     private void SelectZone(string zone, Button btn)
     {
+        // Clicking the same tool again toggles it off
+        if (_selectedZone == zone)
+        {
+            DeselectAll();
+            return;
+        }
         _selectedZone = zone;
         HighlightButton(zone);
         EmitSignal(SignalName.ZoneSelected, zone);

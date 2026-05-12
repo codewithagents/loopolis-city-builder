@@ -125,6 +125,7 @@ public partial class HudOverlay : CanvasLayer
         vbox.AddChild(_selectedLabel);
         vbox.AddChild(_pausedLabel);
 
+        _pausedLabel.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.1f));
         _pausedLabel.Visible = false;
 
         // Milestone banner — centered near the top
@@ -536,7 +537,21 @@ public partial class HudOverlay : CanvasLayer
     /// <summary>Called by Toolbar when the player changes the selected zone.</summary>
     public void SetSelectedZone(string zoneName)
     {
-        _selectedLabel.Text = $"[Selected: {zoneName}]";
+        if (string.IsNullOrEmpty(zoneName) || zoneName == "Empty")
+            _selectedLabel.Text = "[No tool selected]";
+        else
+            _selectedLabel.Text = $"[Selected: {zoneName}]";
+    }
+
+    /// <summary>
+    /// Updates the paused label text to reflect build-mode vs manual pause.
+    /// Call from World.cs whenever build-mode state changes.
+    /// </summary>
+    public void SetBuildModePaused(bool buildMode)
+    {
+        _pausedLabel.Text = buildMode ? "⏸ PAUSED — Build mode (Esc or Resume to continue)" : "[Paused]";
+        _pausedLabel.AddThemeColorOverride("font_color",
+            buildMode ? new Color(1f, 0.85f, 0.1f) : new Color(0.9f, 0.9f, 0.9f));
     }
 
     private void ShowMilestone(string milestone)

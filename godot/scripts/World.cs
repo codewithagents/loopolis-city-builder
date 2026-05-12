@@ -33,6 +33,7 @@ public partial class World : Node2D
     // Standalone mode state for HUD updates
     private int _standaloneTick = 0;
     private bool _standalonePaused = false;
+    private bool _buildModePaused = false; // true when pause was triggered by selecting a build tool
     private bool _gameOver = false;
     private BudgetSystem? _budget;
     private PopulationSystem? _population;
@@ -517,14 +518,27 @@ public partial class World : Node2D
             };
             if (zone != null)
             {
-                _toolbar.SwitchToTabForZone(zone);
-                _toolbar.SelectZone(zone);
+                // Pressing the same tool key again toggles it off
+                if (_toolbar.SelectedZone == zone)
+                {
+                    _toolbar.DeselectAll();
+                }
+                else
+                {
+                    _toolbar.SwitchToTabForZone(zone);
+                    _toolbar.SelectZone(zone);
+                }
             }
 
-            // Escape cancels in-progress rectangle painting
+            // Escape: cancel in-progress rectangle painting, deselect tool, and resume if build-mode paused
             if (key.Keycode == Key.Escape)
             {
                 CancelRectPainting();
+
+                // If a tool is selected, deselect it (this also auto-resumes via OnZoneSelected)
+                if (!string.IsNullOrEmpty(_toolbar.SelectedZone) && _toolbar.SelectedZone != "Empty")
+                    _toolbar.DeselectAll();
+
                 return;
             }
 
@@ -567,6 +581,42 @@ public partial class World : Node2D
     {
         _hud.SetSelectedZone(zoneName);
 
+        // Build-mode auto-pause: selecting any tool pauses the sim; deselecting resumes it.
+        var toolSelected = !string.IsNullOrEmpty(zoneName) && zoneName != "Empty";
+        if (toolSelected)
+        {
+            if (!_standalonePaused && !_buildModePaused)
+            {
+                _buildModePaused  = true;
+                _standalonePaused = true;
+                _toolbar.SetPaused(true);
+
+                // Viewer mode: send pause command to server
+                if (_viewerMode)
+                    WriteCommand("{\"cmd\":\"pause\"}");
+            }
+            _toolbar.SetBuildMode(true);
+            _hud.SetBuildModePaused(true);
+            if (!_viewerMode) PushStandaloneHudUpdate();
+        }
+        else
+        {
+            // Tool deselected — resume if we were the ones who paused
+            if (_buildModePaused)
+            {
+                _buildModePaused  = false;
+                _standalonePaused = false;
+                _toolbar.SetPaused(false);
+
+                // Viewer mode: send resume command to server
+                if (_viewerMode)
+                    WriteCommand("{\"cmd\":\"resume\"}");
+            }
+            _toolbar.SetBuildMode(false);
+            _hud.SetBuildModePaused(false);
+            if (!_viewerMode) PushStandaloneHudUpdate();
+        }
+
         // Update coverage radius for service buildings
         (_coverageRadius, _coverageColor) = zoneName switch
         {
@@ -591,14 +641,40 @@ public partial class World : Node2D
     {
         if (_viewerMode)
         {
-            WriteCommand("{\"cmd\":\"pause\"}");
+            // If we're in build mode, Resume deselects the tool and resumes the sim
+            if (_buildModePaused)
+            {
+                _buildModePaused = false;
+                _toolbar.DeselectAll();
+                _toolbar.SetBuildMode(false);
+                _hud.SetBuildModePaused(false);
+                WriteCommand("{\"cmd\":\"resume\"}");
+            }
+            else
+            {
+                WriteCommand("{\"cmd\":\"pause\"}");
+            }
             // Toolbar button text is updated when state.json reflects new paused state
         }
         else
         {
-            _standalonePaused = !_standalonePaused;
-            _toolbar.SetPaused(_standalonePaused);
-            PushStandaloneHudUpdate();
+            if (_buildModePaused)
+            {
+                // Resume button while in build mode: deselect tool + resume sim
+                _buildModePaused  = false;
+                _standalonePaused = false;
+                _toolbar.DeselectAll();
+                _toolbar.SetBuildMode(false);
+                _toolbar.SetPaused(false);
+                _hud.SetBuildModePaused(false);
+                PushStandaloneHudUpdate();
+            }
+            else
+            {
+                _standalonePaused = !_standalonePaused;
+                _toolbar.SetPaused(_standalonePaused);
+                PushStandaloneHudUpdate();
+            }
         }
     }
 
@@ -613,8 +689,12 @@ public partial class World : Node2D
             SetupStandaloneSimulation();
             _standaloneTick   = 0;
             _standalonePaused = false;
+            _buildModePaused  = false;
             _gameOver         = false;
+            _toolbar.DeselectAll();
+            _toolbar.SetBuildMode(false);
             _toolbar.SetPaused(false);
+            _hud.SetBuildModePaused(false);
             _gameOverPanel.Hide();
         }
     }
@@ -955,10 +1035,14 @@ public partial class World : Node2D
             _engine           = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
             _standaloneTick   = save.Tick;
             _standalonePaused = false;
+            _buildModePaused  = false;
             _gameOver         = false;
 
+            _toolbar.DeselectAll();
+            _toolbar.SetBuildMode(false);
             _toolbar.SetPaused(false);
             _toolbar.SetTaxRate(save.TaxLevel);
+            _hud.SetBuildModePaused(false);
             _gameOverPanel.Hide();
             _renderer.Refresh(_grid);
             _camera.FitToMap(savedW, savedH);
