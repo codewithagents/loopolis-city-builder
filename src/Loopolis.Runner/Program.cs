@@ -531,6 +531,101 @@ static void ProcessCommand(
                 }
                 break;
 
+            case "place_rect":
+                if (root.TryGetProperty("x1", out var rx1Prop) &&
+                    root.TryGetProperty("y1", out var ry1Prop) &&
+                    root.TryGetProperty("x2", out var rx2Prop) &&
+                    root.TryGetProperty("y2", out var ry2Prop) &&
+                    root.TryGetProperty("zone", out var rzProp))
+                {
+                    var rZone = rzProp.GetString() ?? "";
+                    // Normalise so x1 ≤ x2, y1 ≤ y2
+                    var rx1 = Math.Min(rx1Prop.GetInt32(), rx2Prop.GetInt32());
+                    var rx2 = Math.Max(rx1Prop.GetInt32(), rx2Prop.GetInt32());
+                    var ry1 = Math.Min(ry1Prop.GetInt32(), ry2Prop.GetInt32());
+                    var ry2 = Math.Max(ry1Prop.GetInt32(), ry2Prop.GetInt32());
+
+                    if (!Enum.TryParse<ZoneType>(rZone, out var rZoneType))
+                    {
+                        Console.WriteLine($"[place_rect] Unknown zone type: {rZone}");
+                        break;
+                    }
+
+                    var placedCount       = 0;
+                    var skippedOob        = 0;
+                    var skippedMilestone  = 0;
+                    var skippedOccupied   = 0;
+                    var skippedFunds      = 0;
+                    var placementCost     = BudgetSystem.PlacementCosts.GetValueOrDefault(rZone, 0.0);
+
+                    for (var ry = ry1; ry <= ry2; ry++)
+                    for (var rx = rx1; rx <= rx2; rx++)
+                    {
+                        // Out-of-bounds: skip but continue
+                        if (!grid.IsInBounds(rx, ry)) { skippedOob++; continue; }
+
+                        // Occupied tile: skip
+                        if (rZoneType != ZoneType.Empty && grid.GetTile(rx, ry).Zone != ZoneType.Empty)
+                        { skippedOccupied++; continue; }
+
+                        // Milestone gate
+                        var (rAllowed, _) = engine.MilestoneSystem.CanPlace(rZoneType, engine.Population.Population);
+                        if (!rAllowed) { skippedMilestone++; continue; }
+
+                        // Funds check per tile
+                        if (!engine.Budget.CanAfford(placementCost)) { skippedFunds++; continue; }
+
+                        engine.Budget.Charge(placementCost);
+                        grid.SetZone(rx, ry, rZoneType);
+                        placedCount++;
+                    }
+
+                    var rectMsg = $"place_rect placed {placedCount} tiles ({rZone}) in ({rx1},{ry1})–({rx2},{ry2})";
+                    var warnings = new List<string>();
+                    if (skippedOob       > 0) warnings.Add($"{skippedOob} tiles skipped (out of bounds)");
+                    if (skippedMilestone > 0) warnings.Add($"{skippedMilestone} tiles skipped (milestone gate)");
+                    if (skippedOccupied  > 0) warnings.Add($"{skippedOccupied} tiles skipped (occupied)");
+                    if (skippedFunds     > 0) warnings.Add($"{skippedFunds} tiles skipped (insufficient funds)");
+                    var warnStr = warnings.Count > 0 ? " | warnings: " + string.Join("; ", warnings) : "";
+                    Console.WriteLine($"[place_rect] {rectMsg}{warnStr}");
+                    WriteState(tmpPath, statePath, engine, grid, paused, sessionId,
+                        pauseReason: null, ticksRun: null, recentEvents: recentEvents,
+                        lastCommand: rectMsg + (warnings.Count > 0 ? " | " + string.Join("; ", warnings) : null));
+                }
+                break;
+
+            case "erase_rect":
+                if (root.TryGetProperty("x1", out var erx1Prop) &&
+                    root.TryGetProperty("y1", out var ery1Prop) &&
+                    root.TryGetProperty("x2", out var erx2Prop) &&
+                    root.TryGetProperty("y2", out var ery2Prop))
+                {
+                    // Normalise so x1 ≤ x2, y1 ≤ y2
+                    var erx1 = Math.Min(erx1Prop.GetInt32(), erx2Prop.GetInt32());
+                    var erx2 = Math.Max(erx1Prop.GetInt32(), erx2Prop.GetInt32());
+                    var ery1 = Math.Min(ery1Prop.GetInt32(), ery2Prop.GetInt32());
+                    var ery2 = Math.Max(ery1Prop.GetInt32(), ery2Prop.GetInt32());
+
+                    var erasedCount = 0;
+                    var erSkippedOob = 0;
+
+                    for (var ery = ery1; ery <= ery2; ery++)
+                    for (var erx = erx1; erx <= erx2; erx++)
+                    {
+                        if (!grid.IsInBounds(erx, ery)) { erSkippedOob++; continue; }
+                        grid.SetZone(erx, ery, ZoneType.Empty);
+                        erasedCount++;
+                    }
+
+                    var eraseMsg = $"erase_rect erased {erasedCount} tiles in ({erx1},{ery1})–({erx2},{ery2})";
+                    var erWarnStr = erSkippedOob > 0 ? $" | {erSkippedOob} tiles skipped (out of bounds)" : "";
+                    Console.WriteLine($"[erase_rect] {eraseMsg}{erWarnStr}");
+                    WriteState(tmpPath, statePath, engine, grid, paused, sessionId,
+                        pauseReason: null, ticksRun: null, recentEvents: recentEvents,
+                        lastCommand: eraseMsg + (erSkippedOob > 0 ? $" | {erSkippedOob} tiles skipped (out of bounds)" : null));
+                }
+                break;
+
             case "new_game":
             {
                 var newGrid   = new CityGrid(32, 32);
@@ -619,7 +714,8 @@ static void WriteState(
     string? pauseReason = null,
     int? ticksRun = null,
     List<string>? recentEvents = null,
-    string? error = null)
+    string? error = null,
+    string? lastCommand = null)
 {
     // Build a lookup from buildingId → typeId for tile population
     var buildingTypeLookup = grid.Buildings.ToDictionary(
@@ -856,7 +952,8 @@ static void WriteState(
         TicksRun:                  ticksRun,
         RecentEvents:              recentEvents ?? new List<string>(),
         Error:                     error,
-        Power:                     powerState
+        Power:                     powerState,
+        LastCommand:               lastCommand
     );
 
     var options = new JsonSerializerOptions
@@ -1245,7 +1342,8 @@ record ServerState(
     int? TicksRun = null,
     List<string>? RecentEvents = null,
     string? Error = null,
-    PowerState? Power = null);
+    PowerState? Power = null,
+    string? LastCommand = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 
