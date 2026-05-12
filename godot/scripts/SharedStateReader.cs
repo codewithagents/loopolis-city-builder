@@ -300,6 +300,7 @@ public partial class SharedStateReader : Node
             if (tile.Happiness < 1f) grid.SetHappiness(tile.X, tile.Y, tile.Happiness);
             if (tile.BuildingId != null) grid.SetBuildingId(tile.X, tile.Y, tile.BuildingId);
             if (tile.TrafficLoad > 0) grid.SetTrafficLoad(tile.X, tile.Y, tile.TrafficLoad);
+            if (tile.LandValue > 0f) grid.SetLandValue(tile.X, tile.Y, tile.LandValue);
 
             // Height: use tile.Height directly (defaults to 1 if missing in JSON).
             // Backward-compat: if Height is the default 1 but Terrain is Water, use 0.
@@ -460,5 +461,6 @@ public record SharedTile(
     string? Terrain = null, // TerrainType as string ("Flat", "Hill", "Forest", "Water") — null means Flat
     int Height = 1,         // height level: ≤0 = water, 1 = lowland, 2 = midland, 3+ = highland/peak
     bool HasForest = false, // forest overlay (vegetation on top of elevation)
-    bool IsBorderConnection = false // border road tile — cannot be erased or overwritten
+    bool IsBorderConnection = false, // border road tile — cannot be erased or overwritten
+    float LandValue = 0f    // 0.0-1.0 from LandValueSystem; 0 when not emitted by server
 );

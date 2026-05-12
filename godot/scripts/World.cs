@@ -69,6 +69,9 @@ public partial class World : Node2D
         }
     }
 
+    // Active overlay mode
+    private OverlayMode _activeOverlay = OverlayMode.None;
+
     // Coverage radius overlay tracking
     private int _coverageRadius = 0;
     private Color _coverageColor = Colors.Transparent;
@@ -294,6 +297,7 @@ public partial class World : Node2D
                 _cityHealth.NotifyDegradation();
 
             _renderer.Refresh(_grid);
+            UpdateNeglectMap();
             PushStandaloneHudUpdate();
 
             // Bankrupt check
@@ -544,6 +548,13 @@ public partial class World : Node2D
 
             if (key.Keycode == Key.Space)
                 OnPauseToggled();
+
+            // F1–F5: overlay modes
+            if (key.Keycode == Key.F1) { ToggleOverlay(OverlayMode.Happiness);  return; }
+            if (key.Keycode == Key.F2) { ToggleOverlay(OverlayMode.Traffic);    return; }
+            if (key.Keycode == Key.F3) { ToggleOverlay(OverlayMode.Coverage);   return; }
+            if (key.Keycode == Key.F4) { ToggleOverlay(OverlayMode.LandValue);  return; }
+            if (key.Keycode == Key.F5) { ToggleOverlay(OverlayMode.Pollution);  return; }
 
             // F12 dismisses the error banner
             if (key.Keycode == Key.F12)
@@ -862,6 +873,16 @@ public partial class World : Node2D
 
     private void Log(string text) => _eventLog.AddEntry(text);
 
+    // ── Overlay toggle ─────────────────────────────────────────────────────
+
+    private void ToggleOverlay(OverlayMode mode)
+    {
+        _activeOverlay = (_activeOverlay == mode) ? OverlayMode.None : mode;
+        _renderer.ActiveOverlay = _activeOverlay;
+        _renderer.QueueRedraw();
+        _hud.ShowOverlayLegend(_activeOverlay);
+    }
+
     // ── Visual effects ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -1082,6 +1103,20 @@ public partial class World : Node2D
             .Where(f => (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds < 2.0)
             .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
             .FirstOrDefault();
+    }
+
+    // ── Neglect map update (standalone mode only) ──────────────────────────
+
+    private void UpdateNeglectMap()
+    {
+        if (_engine == null || _grid == null) return;
+        var w = _grid.Width;
+        var h = _grid.Height;
+        var map = new float[w, h];
+        for (var x = 0; x < w; x++)
+        for (var y = 0; y < h; y++)
+            map[x, y] = (float)_engine.HappinessSystem.GetNeglect(x, y);
+        _renderer.SetNeglectMap(map);
     }
 
     // ── Standalone HUD sync ────────────────────────────────────────────────

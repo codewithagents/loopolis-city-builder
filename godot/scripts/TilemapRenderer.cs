@@ -5,10 +5,29 @@ using Loopolis.Core.Grid;
 
 namespace LoopolisGodot;
 
+public enum OverlayMode { None, Happiness, Traffic, Coverage, LandValue, Pollution }
+
 public partial class TilemapRenderer : Node2D
 {
     private CityGrid? _grid;
     public const int TileSize = 32;
+
+    // ── Overlay system ──────────────────────────────────────────────────────
+    public OverlayMode ActiveOverlay = OverlayMode.None;
+
+    // Neglect map: (x, y) → neglect value (0.0–0.20) for residential tiles
+    // Populated each tick by World.cs from HappinessSystem.GetNeglect() in standalone mode.
+    private float[,]? _neglectMap;
+
+    /// <summary>
+    /// Updates the per-tile neglect map used for the pulsing amber ring warning.
+    /// Only called in standalone mode; viewer mode skips per-tile neglect.
+    /// </summary>
+    public void SetNeglectMap(float[,] neglectMap)
+    {
+        _neglectMap = neglectMap;
+        // No QueueRedraw here — caller (World._Process) will call Refresh() which triggers it.
+    }
 
     // Height and forest maps — parallel arrays updated with Refresh()
     // These are separate from CityGrid because Core doesn't have HeightLevel on Tile yet.
@@ -469,6 +488,57 @@ public partial class TilemapRenderer : Node2D
         DrawRect(new Rect2(px + TileSize - 3, py, 2, TileSize - 1), ColorHillShadow);
     }
 
+    // ── Overlay color helpers ───────────────────────────────────────────────
+
+    private static Color HappinessOverlayColor(float h)
+    {
+        if (h < 0.5f)
+            return new Color(1f, 0f, 0f).Lerp(new Color(1f, 1f, 0f), h * 2f) with { A = 0.75f };
+        return new Color(1f, 1f, 0f).Lerp(new Color(0.267f, 1f, 0.267f), (h - 0.5f) * 2f) with { A = 0.75f };
+    }
+
+    private static Color TrafficOverlayColor(int load)
+    {
+        if (load <= 0) return Colors.Transparent;
+        if (load < 60) return new Color(1f, 1f, 0.267f, 0.133f).Lerp(new Color(1f, 1f, 0f), load / 60f) with { A = 0.6f };
+        return new Color(1f, 1f, 0f).Lerp(new Color(1f, 0f, 0f), System.Math.Min((load - 60f) / 40f, 1f)) with { A = 0.8f };
+    }
+
+    private static Color CoverageOverlayColor(bool hasRoad, bool hasPower, bool hasService)
+    {
+        if (!hasRoad)  return new Color(0.15f, 0.15f, 0.15f, 0.70f); // dark grey — no road
+        if (!hasPower) return new Color(1f, 0.55f, 0f, 0.70f);        // amber — road but no power
+        if (!hasService) return new Color(0f, 0.3f, 0.7f, 0.65f);     // dim blue — needs services
+        return new Color(0f, 0.6f, 1f, 0.75f);                        // bright blue — fully covered
+    }
+
+    private static Color LandValueOverlayColor(float lv)
+    {
+        return new Color(0.239f, 0.125f, 0f).Lerp(new Color(1f, 0.843f, 0f), lv) with { A = 0.75f };
+    }
+
+    private static Color PollutionOverlayColor(float p)
+    {
+        if (p < 0.01f) return Colors.Transparent;
+        return Colors.Orange.Lerp(new Color(0.545f, 0f, 0f), p) with { A = 0.7f };
+    }
+
+    private Color GetOverlayColor(Loopolis.Core.Grid.Tile tile)
+    {
+        return ActiveOverlay switch
+        {
+            OverlayMode.Happiness  => HappinessOverlayColor((float)tile.Happiness),
+            OverlayMode.Traffic    => TrafficOverlayColor(tile.TrafficLoad),
+            OverlayMode.Coverage   => CoverageOverlayColor(
+                                         tile.HasRoadAccess,
+                                         tile.HasPower,
+                                         tile.Happiness > 0.70f),
+            OverlayMode.LandValue  => LandValueOverlayColor((float)tile.LandValue),
+            OverlayMode.Pollution  => PollutionOverlayColor((float)tile.PollutionLevel),
+            _                      => Colors.Transparent,
+        };
+    }
+
     private bool IsSameZone(ZoneType zone, int x, int y)
     {
         if (_grid == null) return false;
@@ -737,6 +807,121 @@ public partial class TilemapRenderer : Node2D
                 DrawRect(new Rect2(bx,                by + bh - outlineW, bw, outlineW), borderColor);     // bottom
                 DrawRect(new Rect2(bx,                by,                outlineW, bh), borderColor);      // left
                 DrawRect(new Rect2(bx + bw - outlineW, by,                outlineW, bh), borderColor);    // right
+            }
+        }
+
+        // ── Overlay mode pass ────────────────────────────────────────────────
+        // Drawn after all base tiles so the overlay tint covers everything uniformly.
+        if (ActiveOverlay != OverlayMode.None && _grid != null)
+        {
+            foreach (var t in _grid.AllTiles())
+            {
+                if (t.Zone == ZoneType.Empty) continue; // skip empty terrain for all overlays
+                // Traffic overlay only meaningful for road tiles; skip zone tiles
+                if (ActiveOverlay == OverlayMode.Traffic &&
+                    t.Zone != ZoneType.Road && t.Zone != ZoneType.Avenue) continue;
+                // Coverage overlay only meaningful for zoned (R/C/I) tiles
+                if (ActiveOverlay == OverlayMode.Coverage &&
+                    t.Zone != ZoneType.Residential && t.Zone != ZoneType.Commercial && t.Zone != ZoneType.Industrial)
+                    continue;
+                // Land value: skip water, roads, utilities
+                if (ActiveOverlay == OverlayMode.LandValue &&
+                    (t.Zone == ZoneType.Road || t.Zone == ZoneType.Avenue ||
+                     t.Zone == ZoneType.PowerLine || t.Zone == ZoneType.PowerPlant ||
+                     t.Zone == ZoneType.CoalPlant || t.Zone == ZoneType.NuclearPlant))
+                    continue;
+
+                var overlayColor = GetOverlayColor(t);
+                if (overlayColor.A > 0.01f)
+                {
+                    var overlayRect = new Rect2(t.X * TileSize, t.Y * TileSize, TileSize, TileSize);
+                    DrawRect(overlayRect, overlayColor);
+                }
+            }
+        }
+
+        // ── Neglect warning pulse (standalone mode only) ────────────────────
+        // Pulsing or solid amber ring on residential tiles with service neglect.
+        if (_neglectMap != null && _grid != null)
+        {
+            var timeSec = Time.GetTicksMsec() / 1000.0f;
+            foreach (var t in _grid.AllTiles())
+            {
+                if (t.Zone != ZoneType.Residential) continue;
+                if (t.BuildingId == null) continue; // only buildings show neglect warnings
+
+                var nx = t.X;
+                var ny = t.Y;
+                if (nx < 0 || nx >= _neglectMap.GetLength(0)) continue;
+                if (ny < 0 || ny >= _neglectMap.GetLength(1)) continue;
+                var neglect = _neglectMap[nx, ny];
+                if (neglect < 0.10f) continue;
+
+                float alpha;
+                if (neglect > 0.16f)
+                {
+                    // High neglect: solid amber ring, always visible
+                    alpha = 0.90f;
+                }
+                else
+                {
+                    // Mid neglect: pulsing amber ring (oscillates between 0.25 and 0.85)
+                    alpha = 0.55f + 0.30f * Mathf.Sin(timeSec * Mathf.Pi * 2f);
+                }
+
+                var ringColor = new Color(1f, 0.55f, 0f, alpha);
+                float px = t.X * TileSize;
+                float py = t.Y * TileSize;
+                const float ringW = 2.5f;
+                DrawRect(new Rect2(px,                        py,              TileSize, ringW), ringColor); // top
+                DrawRect(new Rect2(px,                        py + TileSize - ringW, TileSize, ringW), ringColor); // bottom
+                DrawRect(new Rect2(px,                        py,              ringW,    TileSize), ringColor); // left
+                DrawRect(new Rect2(px + TileSize - ringW,     py,              ringW,    TileSize), ringColor); // right
+            }
+
+            // Queue another redraw so the pulse animation continues
+            QueueRedraw();
+        }
+
+        // ── Growth blocker icons for bare zone tiles ────────────────────────
+        // Shows a small corner icon explaining why a bare zoned tile has no building yet.
+        if (_grid != null)
+        {
+            foreach (var t in _grid.AllTiles())
+            {
+                if (t.Zone != ZoneType.Residential && t.Zone != ZoneType.Commercial && t.Zone != ZoneType.Industrial)
+                    continue;
+                if (t.BuildingId != null) continue; // building exists — no blocker needed
+
+                float px = t.X * TileSize;
+                float py = t.Y * TileSize;
+
+                // Determine blocker and icon
+                string icon;
+                Color iconColor;
+                if (!t.HasRoadAccess)
+                {
+                    icon = "⊘"; // ⊘ — no road
+                    iconColor = new Color(1f, 0.55f, 0f, 0.90f); // amber
+                }
+                else if (!t.HasPower)
+                {
+                    icon = "⚡"; // ⚡ — no power
+                    iconColor = new Color(1f, 0.75f, 0.1f, 0.90f); // orange-yellow
+                }
+                else
+                {
+                    icon = "▲"; // ▲ — eligible to grow
+                    iconColor = new Color(0.3f, 1f, 0.3f, 0.70f); // green
+                }
+
+                // Semi-transparent dark background square for readability
+                var bgRect = new Rect2(px + 1, py + 1, 10, 10);
+                DrawRect(bgRect, new Color(0f, 0f, 0f, 0.55f));
+
+                // Draw the icon string
+                DrawString(ThemeDB.FallbackFont, new Vector2(px + 2, py + 10), icon,
+                    HorizontalAlignment.Left, -1, 9, iconColor);
             }
         }
 

@@ -4,6 +4,7 @@ using Godot;
 
 namespace LoopolisGodot;
 
+
 /// <summary>
 /// Stats HUD shown in the top-left corner as a semi-transparent dark panel.
 /// Displays tick, population, balance, net income, happiness, selected tool, pause state, and milestone banners.
@@ -44,6 +45,12 @@ public partial class HudOverlay : CanvasLayer
     // Error banner — shown when the simulation throws an unhandled exception
     private PanelContainer _errorBannerPanel = null!;
     private Label _errorBannerLabel = null!;
+
+    // Overlay legend panel — shown in bottom-right when an overlay is active
+    private PanelContainer _overlayLegendPanel = null!;
+    private Label _overlayLegendTitle = null!;
+    private Label[] _overlayLegendRows = System.Array.Empty<Label>();
+    private ColorRect[] _overlayLegendSwatches = System.Array.Empty<ColorRect>();
 
     public override void _Ready()
     {
@@ -190,6 +197,99 @@ public partial class HudOverlay : CanvasLayer
         _errorBannerPanel.AddChild(_errorBannerLabel);
         _errorBannerPanel.Visible = false;
         AddChild(_errorBannerPanel);
+
+        // ── Overlay legend panel — bottom-right, hidden until an overlay is active ──
+        _overlayLegendPanel = new PanelContainer();
+        _overlayLegendPanel.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        _overlayLegendPanel.GrowHorizontal = Control.GrowDirection.Begin;
+        _overlayLegendPanel.GrowVertical   = Control.GrowDirection.Begin;
+        _overlayLegendPanel.Position       = new Vector2(-152, -100);
+        _overlayLegendPanel.MouseFilter    = Control.MouseFilterEnum.Ignore;
+        var legendStyle = new StyleBoxFlat();
+        legendStyle.BgColor            = new Color(0f, 0f, 0f, 0.72f);
+        legendStyle.ContentMarginLeft   = 8;
+        legendStyle.ContentMarginRight  = 8;
+        legendStyle.ContentMarginTop    = 6;
+        legendStyle.ContentMarginBottom = 6;
+        legendStyle.CornerRadiusTopLeft     = 4;
+        legendStyle.CornerRadiusTopRight    = 4;
+        legendStyle.CornerRadiusBottomLeft  = 4;
+        legendStyle.CornerRadiusBottomRight = 4;
+        _overlayLegendPanel.AddThemeStyleboxOverride("panel", legendStyle);
+
+        var legendVbox = new VBoxContainer();
+        legendVbox.AddThemeConstantOverride("separation", 3);
+        legendVbox.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _overlayLegendPanel.AddChild(legendVbox);
+
+        _overlayLegendTitle = new Label();
+        _overlayLegendTitle.Text = "OVERLAY";
+        _overlayLegendTitle.HorizontalAlignment = HorizontalAlignment.Center;
+        _overlayLegendTitle.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f, 0.9f));
+        _overlayLegendTitle.AddThemeFontSizeOverride("font_size", 11);
+        _overlayLegendTitle.MouseFilter = Control.MouseFilterEnum.Ignore;
+        legendVbox.AddChild(_overlayLegendTitle);
+
+        // Three swatch+label rows (high / medium / low or covered / partial / none etc.)
+        _overlayLegendSwatches = new ColorRect[3];
+        _overlayLegendRows     = new Label[4]; // 3 legend rows + 1 dismiss hint
+        for (int i = 0; i < 3; i++)
+        {
+            var row = new HBoxContainer();
+            row.AddThemeConstantOverride("separation", 4);
+            row.MouseFilter = Control.MouseFilterEnum.Ignore;
+            legendVbox.AddChild(row);
+
+            var swatch = new ColorRect();
+            swatch.CustomMinimumSize = new Vector2(12, 12);
+            swatch.MouseFilter = Control.MouseFilterEnum.Ignore;
+            row.AddChild(swatch);
+            _overlayLegendSwatches[i] = swatch;
+
+            var rowLabel = new Label();
+            rowLabel.Text = "";
+            rowLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
+            rowLabel.AddThemeFontSizeOverride("font_size", 11);
+            rowLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+            row.AddChild(rowLabel);
+            _overlayLegendRows[i] = rowLabel;
+        }
+
+        // Dismiss hint label
+        var dismissLabel = new Label();
+        dismissLabel.Text = "[press again to hide]";
+        dismissLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        dismissLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        dismissLabel.AddThemeFontSizeOverride("font_size", 10);
+        dismissLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        legendVbox.AddChild(dismissLabel);
+        _overlayLegendRows[3] = dismissLabel;
+
+        _overlayLegendPanel.Visible = false;
+        AddChild(_overlayLegendPanel);
+
+        // ── Hotkey hints row — bottom of screen, always visible ─────────────
+        var hintsPanel = new PanelContainer();
+        hintsPanel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
+        hintsPanel.GrowVertical = Control.GrowDirection.Begin;
+        hintsPanel.Position = new Vector2(0, -28);
+        hintsPanel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        var hintsStyle = new StyleBoxFlat();
+        hintsStyle.BgColor = new Color(0f, 0f, 0f, 0.45f);
+        hintsStyle.ContentMarginLeft   = 8;
+        hintsStyle.ContentMarginRight  = 8;
+        hintsStyle.ContentMarginTop    = 2;
+        hintsStyle.ContentMarginBottom = 2;
+        hintsPanel.AddThemeStyleboxOverride("panel", hintsStyle);
+
+        var hintsLabel = new Label();
+        hintsLabel.Text = "[F1] Happiness  [F2] Traffic  [F3] Coverage  [F4] Land Value  [F5] Pollution";
+        hintsLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        hintsLabel.AddThemeColorOverride("font_color", new Color(0.65f, 0.65f, 0.65f, 0.85f));
+        hintsLabel.AddThemeFontSizeOverride("font_size", 10);
+        hintsLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        hintsPanel.AddChild(hintsLabel);
+        AddChild(hintsPanel);
     }
 
     public override void _Process(double delta)
@@ -234,6 +334,83 @@ public partial class HudOverlay : CanvasLayer
     public void DismissErrorBanner()
     {
         _errorBannerPanel.Visible = false;
+    }
+
+    /// <summary>
+    /// Shows or hides the overlay legend panel in the bottom-right corner.
+    /// Called by World.cs when the active overlay changes.
+    /// </summary>
+    public void ShowOverlayLegend(OverlayMode mode)
+    {
+        if (mode == OverlayMode.None)
+        {
+            _overlayLegendPanel.Visible = false;
+            return;
+        }
+
+        // Configure title and three color swatch rows based on the active overlay
+        string title;
+        (Color swatchColor, string rowText)[] rows;
+
+        switch (mode)
+        {
+            case OverlayMode.Happiness:
+                title = "HAPPINESS [F1]";
+                rows = new[]
+                {
+                    (new Color(0.267f, 1f, 0.267f), "High  (>70%)"),
+                    (new Color(1f, 1f, 0f),          "Medium (40–70%)"),
+                    (new Color(1f, 0f, 0f),           "Low   (<40%)"),
+                };
+                break;
+            case OverlayMode.Traffic:
+                title = "TRAFFIC [F2]";
+                rows = new[]
+                {
+                    (new Color(1f, 0f, 0f),           "Heavy (60+)"),
+                    (new Color(1f, 1f, 0f),            "Moderate (10–60)"),
+                    (new Color(0.5f, 0.5f, 0.5f),      "Light (<10)"),
+                };
+                break;
+            case OverlayMode.Coverage:
+                title = "COVERAGE [F3]";
+                rows = new[]
+                {
+                    (new Color(0f, 0.6f, 1f),          "Fully covered"),
+                    (new Color(1f, 0.55f, 0f),          "Road, no power"),
+                    (new Color(0.15f, 0.15f, 0.15f),    "No road access"),
+                };
+                break;
+            case OverlayMode.LandValue:
+                title = "LAND VALUE [F4]";
+                rows = new[]
+                {
+                    (new Color(1f, 0.843f, 0f),         "High value"),
+                    (new Color(0.6f, 0.5f, 0.1f),       "Medium value"),
+                    (new Color(0.239f, 0.125f, 0f),      "Low value"),
+                };
+                break;
+            case OverlayMode.Pollution:
+                title = "POLLUTION [F5]";
+                rows = new[]
+                {
+                    (new Color(0.545f, 0f, 0f),          "Heavy"),
+                    (new Color(1f, 0.5f, 0f),             "Moderate"),
+                    (new Color(0.5f, 0.5f, 0.5f),         "None"),
+                };
+                break;
+            default:
+                _overlayLegendPanel.Visible = false;
+                return;
+        }
+
+        _overlayLegendTitle.Text = title;
+        for (int i = 0; i < 3; i++)
+        {
+            _overlayLegendSwatches[i].Color = rows[i].swatchColor;
+            _overlayLegendRows[i].Text = rows[i].rowText;
+        }
+        _overlayLegendPanel.Visible = true;
     }
 
     /// <summary>Called by SharedStateReader (viewer mode) and World (standalone mode) each tick.</summary>
