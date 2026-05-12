@@ -319,7 +319,7 @@ public class ServiceTierTests
         var grid = new CityGrid(5, 5);
         grid.SetZone(0, 0, ZoneType.PoliceHQ);
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(25.0).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(15.0).Within(0.001));
     }
 
     [Test]
@@ -329,7 +329,7 @@ public class ServiceTierTests
         var grid = new CityGrid(5, 5);
         grid.SetZone(0, 0, ZoneType.FireHQ);
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(25.0).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(15.0).Within(0.001));
     }
 
     [Test]
@@ -339,7 +339,7 @@ public class ServiceTierTests
         var grid = new CityGrid(5, 5);
         grid.SetZone(0, 0, ZoneType.Hospital);
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(35.0).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(20.0).Within(0.001));
     }
 
     // ── City milestone gate ───────────────────────────────────────────────────

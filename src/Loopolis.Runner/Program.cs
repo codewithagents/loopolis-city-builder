@@ -18,8 +18,12 @@ if (args.Length > 0 && args[0] == "server")
     var initialSpeed = speedIndex >= 0 && speedIndex + 1 < args.Length
         ? double.Parse(args[speedIndex + 1])
         : 1.0;
+    var seedIndex    = Array.IndexOf(args, "--seed");
+    var terrainSeed  = seedIndex >= 0 && seedIndex + 1 < args.Length
+        ? int.Parse(args[seedIndex + 1])
+        : new Random().Next();
 
-    RunServer(scenario, initialSpeed);
+    RunServer(scenario, initialSpeed, terrainSeed);
     return;
 }
 
@@ -28,8 +32,10 @@ if (args.Length > 0 && args[0] == "server")
 var ticks    = args.Length > 0 ? int.Parse(args[0]) : 500;
 var cliScene = args.Length > 1 ? args[1] : "default";
 var asciiMode = args.Contains("--ascii");
+var cliSeedIdx  = Array.IndexOf(args, "--seed");
+var cliSeed     = cliSeedIdx >= 0 && cliSeedIdx + 1 < args.Length ? int.Parse(args[cliSeedIdx + 1]) : 0;
 
-var (cliGrid, cliEngine) = SetupScenario(cliScene);
+var (cliGrid, cliEngine) = SetupScenario(cliScene, cliSeed);
 var budget     = cliEngine.Budget;
 var population = cliEngine.Population;
 var powerNetwork = cliEngine.PowerNetwork;
@@ -92,7 +98,7 @@ else
 
 // ── Server mode ──────────────────────────────────────────────────────────────
 
-static void RunServer(string scenario, double initialSpeed)
+static void RunServer(string scenario, double initialSpeed, int terrainSeed = 0)
 {
     var sharedDir  = Path.Combine(FindSolutionRoot(), "godot", "shared");
     Directory.CreateDirectory(sharedDir);
@@ -104,7 +110,7 @@ static void RunServer(string scenario, double initialSpeed)
 
     Console.WriteLine($"[loopolis] session={sessionId}");
 
-    var (grid, engine) = SetupScenario(scenario);
+    var (grid, engine) = SetupScenario(scenario, terrainSeed);
 
     var paused           = false;
     var speed            = initialSpeed;
@@ -370,7 +376,7 @@ static void WriteOverlay(
 
             case "landvalue":
                 // Non-water tiles only; sparse encoding (skip value=0).
-                value = tile.Terrain != TerrainType.Water
+                value = grid.GetHeightLevel(x, y) > 0
                     ? Math.Round(tile.LandValue, 4)
                     : 0.0;
                 break;
@@ -502,6 +508,17 @@ static void ProcessCommand(
                             WriteStateWithError(tmpPath, statePath, engine, grid, paused, sessionId, gateError!, recentEvents);
                             break;
                         }
+                        // Cliff guard: Road and Avenue cannot span height differences > 1
+                        if (zoneType == ZoneType.Road || zoneType == ZoneType.Avenue)
+                        {
+                            var (roadOk, roadErr) = grid.CanPlaceRoad(x, y);
+                            if (!roadOk)
+                            {
+                                Console.WriteLine($"[place_zone] cliff_guard: {roadErr}");
+                                WriteStateWithError(tmpPath, statePath, engine, grid, paused, sessionId, roadErr!, recentEvents);
+                                break;
+                            }
+                        }
                         engine.Budget.Charge(placementCost);
                         grid.SetZone(x, y, zoneType);
                         Console.WriteLine($"[place_zone] ({x},{y}) => {zoneType} (cost: ${placementCost:N0})");
@@ -556,6 +573,7 @@ static void ProcessCommand(
                     var skippedMilestone  = 0;
                     var skippedOccupied   = 0;
                     var skippedFunds      = 0;
+                    var skippedCliff      = 0;
                     var placementCost     = BudgetSystem.PlacementCosts.GetValueOrDefault(rZone, 0.0);
 
                     for (var ry = ry1; ry <= ry2; ry++)
@@ -572,6 +590,13 @@ static void ProcessCommand(
                         var (rAllowed, _) = engine.MilestoneSystem.CanPlace(rZoneType, engine.Population.Population);
                         if (!rAllowed) { skippedMilestone++; continue; }
 
+                        // Cliff guard for roads
+                        if (rZoneType == ZoneType.Road || rZoneType == ZoneType.Avenue)
+                        {
+                            var (roadOk, _) = grid.CanPlaceRoad(rx, ry);
+                            if (!roadOk) { skippedCliff++; continue; }
+                        }
+
                         // Funds check per tile
                         if (!engine.Budget.CanAfford(placementCost)) { skippedFunds++; continue; }
 
@@ -586,6 +611,7 @@ static void ProcessCommand(
                     if (skippedMilestone > 0) warnings.Add($"{skippedMilestone} tiles skipped (milestone gate)");
                     if (skippedOccupied  > 0) warnings.Add($"{skippedOccupied} tiles skipped (occupied)");
                     if (skippedFunds     > 0) warnings.Add($"{skippedFunds} tiles skipped (insufficient funds)");
+                    if (skippedCliff     > 0) warnings.Add($"{skippedCliff} tiles skipped (cliff — height diff too large)");
                     var warnStr = warnings.Count > 0 ? " | warnings: " + string.Join("; ", warnings) : "";
                     Console.WriteLine($"[place_rect] {rectMsg}{warnStr}");
                     WriteState(tmpPath, statePath, engine, grid, paused, sessionId,
@@ -723,7 +749,7 @@ static void WriteState(
         kvp => kvp.Value.TypeId);
 
     var nonEmptyTiles = grid.AllTiles()
-        .Where(t => t.Zone != ZoneType.Empty || t.Terrain != TerrainType.Flat)
+        .Where(t => t.Zone != ZoneType.Empty || t.HeightLevel != 1 || t.HasForest)
         .Select(t => new TileState(
             t.X, t.Y, t.Zone.ToString(), t.HasPower, t.HasRoadAccess,
             t.Zone == ZoneType.Residential ? grid.GetPopulation(t.X, t.Y) : 0,
@@ -733,7 +759,9 @@ static void WriteState(
             t.BuildingId,
             t.BuildingId != null ? buildingTypeLookup.GetValueOrDefault(t.BuildingId) : null,
             t.TrafficLoad,
-            t.Terrain != TerrainType.Flat ? t.Terrain.ToString() : null))
+            t.Terrain != TerrainType.Flat ? t.Terrain.ToString() : null,
+            t.HeightLevel,
+            t.HasForest))
         .ToList();
 
     // --- Enriched building info ---
@@ -906,6 +934,27 @@ static void WriteState(
             CurrentPopulation:   currentPop)
         : null;
 
+    // --- Terrain summary ---
+    var waterTileCount   = 0;
+    var elevatedCount    = 0;
+    var plateauCount     = 0;
+    for (var ty = 0; ty < grid.Height; ty++)
+    for (var tx = 0; tx < grid.Width; tx++)
+    {
+        var hl = grid.GetHeightLevel(tx, ty);
+        if (hl <= 0) waterTileCount++;
+        else if (hl >= 2)
+        {
+            elevatedCount++;
+            if (grid.IsPlateau(tx, ty)) plateauCount++;
+        }
+    }
+    var terrainSummary = new TerrainSummary(
+        AverageHeight:    Math.Round(grid.AverageHeight, 3),
+        WaterTileCount:   waterTileCount,
+        ElevatedTileCount: elevatedCount,
+        PlateauTileCount:  plateauCount);
+
     var activeEvent = engine.EventSystem.ActiveEvent;
 
     // --- Power capacity ---
@@ -954,7 +1003,8 @@ static void WriteState(
         RecentEvents:              recentEvents ?? new List<string>(),
         Error:                     error,
         Power:                     powerState,
-        LastCommand:               lastCommand
+        LastCommand:               lastCommand,
+        Terrain:                   terrainSummary
     );
 
     var options = new JsonSerializerOptions
@@ -982,7 +1032,7 @@ static string FindSolutionRoot()
 
 // ── Scenario setup (shared between CLI and server mode) ──────────────────────
 
-static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
+static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, int terrainSeed = 0)
 {
     var grid       = new CityGrid(32, 32);
     var budget     = new BudgetSystem(); // default $4,000 starting balance
@@ -993,8 +1043,34 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
 
     switch (scenario)
     {
+        case "generated_map":
+        {
+            // Procedurally generated terrain using diamond-square. Seed from CLI --seed arg.
+            // All zone placements come from the player — this scenario starts empty with terrain.
+            var seed = terrainSeed != 0 ? terrainSeed : 42;
+            var heightMap = Loopolis.Core.Grid.HeightMapGenerator.Generate(32, 32, seed);
+            var forestMap = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(32, 32, seed);
+            grid.ApplyHeightMap(heightMap);
+            grid.ApplyForestMap(forestMap);
+            // Place a starter coal plant on the first flat non-water tile we find
+            for (var sy = 0; sy < 32; sy++)
+            for (var sx = 0; sx < 32; sx++)
+            {
+                if (grid.GetHeightLevel(sx, sy) == 1)
+                {
+                    grid.SetZone(sx, sy, ZoneType.CoalPlant);
+                    Console.WriteLine($"[generated_map] Placed starter CoalPlant at ({sx},{sy}), seed={seed}");
+                    goto doneStarter;
+                }
+            }
+            doneStarter:
+            break;
+        }
+
         case "no_power":
             // Zones with roads but no power → no growth
+            // Explicit flat terrain so road cliff constraint never fires
+            grid.SetFlatTerrain();
             grid.SetZone(5, 5, ZoneType.Road);
             grid.SetZone(6, 5, ZoneType.Residential);
             grid.SetZone(7, 5, ZoneType.Residential);
@@ -1003,6 +1079,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
 
         case "no_roads":
             // Zones with power but no road access → no growth
+            grid.SetFlatTerrain();
             grid.SetZone(5, 5, ZoneType.PowerPlant);
             grid.SetZone(6, 5, ZoneType.PowerLine);
             grid.SetZone(7, 5, ZoneType.Residential);  // powered but no road adjacent
@@ -1011,6 +1088,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
             break;
 
         case "town":
+            grid.SetFlatTerrain();
             // Roads form a cross
             for (var x = 5; x <= 25; x++) grid.SetZone(x, 15, ZoneType.Road);
             for (var y = 5; y <= 25; y++) grid.SetZone(15, y, ZoneType.Road);
@@ -1044,6 +1122,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
             // Expected: northern R zones grow at base happiness; southern R zones near industrial
             //           suffer heavy pollution penalty → much slower growth
 
+            grid.SetFlatTerrain();
             // Power
             grid.SetZone(5, 5, ZoneType.PowerPlant);
             for (var x = 6; x <= 15; x++) grid.SetZone(x, 5, ZoneType.PowerLine);
@@ -1084,6 +1163,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
             //
             // Expected: covered zones reach happiness ~0.75+, uncovered zones stay at 0.6
 
+            grid.SetFlatTerrain();
             // Power
             grid.SetZone(5, 5, ZoneType.PowerPlant);
             for (var x = 6; x <= 20; x++) grid.SetZone(x, 5, ZoneType.PowerLine);
@@ -1119,30 +1199,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
 
         case "city_path":
             // Compact mixed-use foundation designed to reach City milestone (5,000 pop).
-            //
-            // Layout (32x32 grid):
-            //   CoalPlant at (2,15) — moved west so nearest residential (7,14) is Euclidean ≈ 5.1 tiles away
-            //                         (safely outside pollution radius 3).
-            //   Main E-W road:  y=15, x=3..24 (22 tiles — extended to keep plant road-adjacent)
-            //   North spur:     x=16, y=11..14 (4 tiles, branches off main road)
-            //
-            //   Residential west row  (y=14, x=7..15):  9 tiles — adjacent to main road at y=15
-            //   Residential east col  (x=17, y=11..14): 4 tiles — adjacent to north spur at x=16
-            //   Total: 13 residential tiles, capacity 650 pop, all road-accessible and powered.
-            //
-            //   Commercial   (y=16, x=9..12):  4 tiles — south of road, Chebyshev-3 demand boost to west residential
-            //   Industrial   (y=16, x=7):      1 tile  — adjacent to road, covers west residential (commute ≤ 8)
-            //   Industrial   (y=16, x=16):     1 tile  — adjacent to road, covers east residential (commute ≤ 6)
-            //
-            //   Commute distances (all ≤ 8, penalty = 0):
-            //     (7,14)→(7,16):   0+2=2  ✓     (13,14)→nearest: min(6+2=8, 3+2=5)=5  ✓
-            //     (15,14)→(16,16): 1+2=3  ✓     (17,11)→(16,16): 1+5=6  ✓
-            //
-            //   Services:
-            //     FireStation   at (8,16)   — radius 4: covers residential x=7..12, y=14
-            //     PoliceStation at (14,16)  — radius 4: covers residential x=10..18, y=12..14
-            //     School        at (16,10)  — adjacent to north spur at (16,11); radius 5: covers x=17,y=11..14 + x=11..16,y=14
-
+            grid.SetFlatTerrain();
             // Power — plant at (2,15), road starts at (3,15) immediately adjacent
             grid.SetZone(2, 15, ZoneType.CoalPlant);
 
@@ -1172,10 +1229,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
 
         default:
             // Teaching layout: plant at west end → road runs east → homes on north side → shops + factory south
-            // Coal plant at (5,12), road x=6..14 y=12, residential y=11 x=9..12, commercial y=13 x=9..10,
-            // industrial y=13 x=6..7.
-            // Plant→nearest residential (9,11): Euclidean ≈ 4.12 (> pollution radius 3) — no pollution on start zones.
-            // Industrial (7,13)→residential (9,11): Manhattan 4 — well within commute range.
+            grid.SetFlatTerrain();
             grid.SetZone(5, 12, ZoneType.CoalPlant);
             for (var x = 6; x <= 14; x++) grid.SetZone(x, 12, ZoneType.Road);
             // Residential north of road
@@ -1269,7 +1323,15 @@ record TileState(
     [property: JsonPropertyName("buildingId")] string? BuildingId = null,
     [property: JsonPropertyName("buildingType")] string? BuildingType = null,
     [property: JsonPropertyName("trafficLoad")] int TrafficLoad = 0,
-    [property: JsonPropertyName("terrain")] string? Terrain = null);
+    [property: JsonPropertyName("terrain")] string? Terrain = null,
+    [property: JsonPropertyName("height")] int HeightLevel = 1,
+    [property: JsonPropertyName("hasForest")] bool HasForest = false);
+
+record TerrainSummary(
+    [property: JsonPropertyName("averageHeight")]    double AverageHeight,
+    [property: JsonPropertyName("waterTileCount")]   int    WaterTileCount,
+    [property: JsonPropertyName("elevatedTileCount")] int   ElevatedTileCount,
+    [property: JsonPropertyName("plateauTileCount")] int    PlateauTileCount);
 
 record CoverageSummary(
     [property: JsonPropertyName("poweredZonedTilesCount")]   int    PoweredZonedTilesCount,
@@ -1345,7 +1407,8 @@ record ServerState(
     List<string>? RecentEvents = null,
     string? Error = null,
     PowerState? Power = null,
-    string? LastCommand = null);
+    string? LastCommand = null,
+    TerrainSummary? Terrain = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

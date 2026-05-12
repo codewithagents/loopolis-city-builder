@@ -15,23 +15,47 @@ public class LandValueSystemTests
     // ── Terrain bonuses ──────────────────────────────────────────────────────
 
     [Test]
-    public void HillTileHasHigherLandValue()
+    public void ElevatedTile_GetsElevatedBonus()
     {
-        // Arrange: two isolated tiles — one Hill, one Flat, same conditions
+        // Arrange: elevated tile (height ≥ 2) vs. flat tile — otherwise same conditions
         var grid = new CityGrid(10, 10);
-        grid.SetTerrain(3, 3, TerrainType.Hill);
-        // (6,6) stays Flat
+        grid.SetHeightLevel(3, 3, 3); // elevated — gets ElevatedBonus
+        // (6,6) stays at height=1 (flat)
 
-        // Act
         _system.Propagate(grid);
 
-        var hillValue = grid.GetTile(3, 3).LandValue;
-        var flatValue = grid.GetTile(6, 6).LandValue;
+        var elevatedValue = grid.GetTile(3, 3).LandValue;
+        var flatValue     = grid.GetTile(6, 6).LandValue;
 
-        // Assert: Hill tile gets the +0.30 bonus
-        Assert.That(hillValue, Is.GreaterThan(flatValue),
-            "A Hill tile should have a higher land value than a Flat tile with otherwise equal conditions.");
-        Assert.That(hillValue, Is.GreaterThanOrEqualTo(LandValueSystem.HillBonus).Within(0.001));
+        Assert.That(elevatedValue, Is.GreaterThan(flatValue),
+            "An elevated tile should have higher land value than a flat tile.");
+        Assert.That(elevatedValue, Is.GreaterThanOrEqualTo(LandValueSystem.ElevatedBonus).Within(0.001));
+    }
+
+    [Test]
+    public void PlateauTile_GetsHigherBonusThanPlainElevated()
+    {
+        // A plateau (all cardinal neighbours within height diff 1) gets PlateauBonus (0.35)
+        // A cliff-edge elevated tile (has a steep neighbour) gets only ElevatedBonus (0.20)
+        var grid = new CityGrid(10, 10);
+
+        // Plateau at (2,2): all neighbours at height 3
+        for (var dx = -1; dx <= 1; dx++)
+        for (var dy = -1; dy <= 1; dy++)
+            grid.SetHeightLevel(2 + dx, 2 + dy, 3);
+
+        // Plain elevated at (7,7): height 3 but neighbour at (7,8) is height 1 → cliff
+        grid.SetHeightLevel(7, 7, 3);
+        grid.SetHeightLevel(7, 8, 1); // diff 2 → not a plateau
+
+        _system.Propagate(grid);
+
+        var plateauValue  = grid.GetTile(2, 2).LandValue;
+        var elevatedValue = grid.GetTile(7, 7).LandValue;
+
+        Assert.That(plateauValue, Is.GreaterThan(elevatedValue),
+            "Plateau bonus (0.35) should yield higher land value than plain elevated bonus (0.20).");
+        Assert.That(plateauValue, Is.GreaterThanOrEqualTo(LandValueSystem.PlateauBonus).Within(0.001));
     }
 
     [Test]
@@ -39,12 +63,11 @@ public class LandValueSystemTests
     {
         // Arrange: tile at (5,5), Water tile at (5,7) which is Chebyshev distance 2 (within 3)
         var grid = new CityGrid(15, 15);
-        grid.SetTerrain(5, 7, TerrainType.Water);
+        grid.SetHeightLevel(5, 7, 0); // water
 
-        // Act
         _system.Propagate(grid);
 
-        var nearWaterValue = grid.GetTile(5, 5).LandValue;
+        var nearWaterValue    = grid.GetTile(5, 5).LandValue;
         var farFromWaterValue = grid.GetTile(1, 1).LandValue; // far from water
 
         Assert.That(nearWaterValue, Is.GreaterThan(farFromWaterValue),
@@ -55,14 +78,11 @@ public class LandValueSystemTests
     [Test]
     public void WaterTileItself_HasZeroLandValue()
     {
-        // Arrange
         var grid = new CityGrid(10, 10);
-        grid.SetTerrain(5, 5, TerrainType.Water);
+        grid.SetHeightLevel(5, 5, 0); // water
 
-        // Act
         _system.Propagate(grid);
 
-        // Assert
         Assert.That(grid.GetTile(5, 5).LandValue, Is.EqualTo(0.0),
             "Water tiles should always have LandValue = 0.");
     }
@@ -72,11 +92,10 @@ public class LandValueSystemTests
     {
         // Arrange: place 3 Forest tiles within Chebyshev distance 2 of (5,5)
         var grid = new CityGrid(15, 15);
-        grid.SetTerrain(5, 4, TerrainType.Forest); // dy=1
-        grid.SetTerrain(5, 3, TerrainType.Forest); // dy=2
-        grid.SetTerrain(4, 4, TerrainType.Forest); // dx=-1, dy=1
+        grid.SetForest(5, 4, true); // dy=1
+        grid.SetForest(5, 3, true); // dy=2
+        grid.SetForest(4, 4, true); // dx=-1, dy=1
 
-        // Act
         _system.Propagate(grid);
 
         var forestAdjacentValue = grid.GetTile(5, 5).LandValue;
@@ -91,29 +110,21 @@ public class LandValueSystemTests
     [Test]
     public void ForestBonus_IsCappedAtMaxValue()
     {
-        // Arrange: surround (5,5) with many forests
+        // Arrange: surround (5,5) with many forests via SetForest
         var grid = new CityGrid(15, 15);
         for (var dx = -2; dx <= 2; dx++)
         for (var dy = -2; dy <= 2; dy++)
         {
             if (dx == 0 && dy == 0) continue;
-            grid.SetTerrain(5 + dx, 5 + dy, TerrainType.Forest);
+            grid.SetForest(5 + dx, 5 + dy, true);
         }
 
-        // Act
         _system.Propagate(grid);
 
-        // Forest contribution must not exceed the cap
-        // The tile itself is Flat here so max forest contribution = ForestBonusMax
         var value = grid.GetTile(5, 5).LandValue;
-        // Additional bonuses (LowPollution etc.) may push it above ForestBonusMax, so we check forest contribution
-        // by using a tile surrounded only by forests (no other bonuses apply since no power/happiness set)
-        // LowPollutionBonus always applies (pollution default 0), so expected = ForestBonusMax + LowPollutionBonus
+        // LowPollutionBonus always applies (pollution default 0)
         var expectedMin = LandValueSystem.ForestBonusMax + LandValueSystem.LowPollutionBonus;
         Assert.That(value, Is.GreaterThanOrEqualTo(expectedMin).Within(0.001));
-
-        // Ensure the forest component itself is capped (not 24 forests × 0.08 = 1.92)
-        // Value should not exceed 1.0 (cap)
         Assert.That(value, Is.LessThanOrEqualTo(1.0), "LandValue must be capped at 1.0.");
     }
 
@@ -153,9 +164,7 @@ public class LandValueSystemTests
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Road);
         grid.SetZone(5, 4, ZoneType.Residential);
-        // Simulate high land value by setting terrain to Hill (will get 0.30+0.10 = 0.40 base,
-        // then add happy tile bonus for ≥0.7 requirement)
-        grid.SetTerrain(5, 4, TerrainType.Hill);
+        grid.SetHeightLevel(5, 4, 3); // elevated — gets land value bonus
         grid.SetHappiness(5, 4, 0.8); // happiness > 0.7 for +0.10
         grid.SetLandValue(5, 4, 0.75); // manually set ≥ 0.7 threshold
 
@@ -229,13 +238,13 @@ public class LandValueSystemTests
     [Test]
     public void HillsideVillaRequiresHillTerrain()
     {
-        // Arrange: a 3×3 footprint on Flat terrain — no hill tiles
+        // Arrange: a 3×3 footprint on Flat terrain (height=1) — no elevated tiles
         var grid = new CityGrid(15, 15);
         for (var dx = 0; dx < 3; dx++)
         for (var dy = 0; dy < 3; dy++)
         {
             grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
-            grid.SetTerrain(5 + dx, 5 + dy, TerrainType.Flat);
+            grid.SetHeightLevel(5 + dx, 5 + dy, 1); // explicitly flat
         }
         grid.SetZone(4, 5, ZoneType.Road);
         grid.SetZone(4, 6, ZoneType.Road);
@@ -273,13 +282,13 @@ public class LandValueSystemTests
     [Test]
     public void HillsideVillaRequiresLandValueThreshold()
     {
-        // Arrange: footprint has Hill terrain but LandValue is 0 (below 0.7 threshold)
+        // Arrange: footprint has elevated terrain (height ≥ 2) but LandValue is 0 (below 0.7 threshold)
         var grid = new CityGrid(15, 15);
         for (var dx = 0; dx < 3; dx++)
         for (var dy = 0; dy < 3; dy++)
         {
             grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
-            grid.SetTerrain(5 + dx, 5 + dy, TerrainType.Hill);
+            grid.SetHeightLevel(5 + dx, 5 + dy, 3); // elevated
         }
         grid.SetZone(4, 5, ZoneType.Road);
         grid.SetZone(4, 6, ZoneType.Road);
@@ -323,13 +332,13 @@ public class LandValueSystemTests
     [Test]
     public void HillsideVilla_DoesNotGrow_BeforeTownMilestone()
     {
-        // Arrange: all conditions met (Hill terrain, high LandValue) but milestone is Active (not Town)
+        // Arrange: all conditions met (elevated terrain, high LandValue) but milestone is Active (not Town)
         var grid = new CityGrid(15, 15);
         for (var dx = 0; dx < 3; dx++)
         for (var dy = 0; dy < 3; dy++)
         {
             grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
-            grid.SetTerrain(5 + dx, 5 + dy, TerrainType.Hill);
+            grid.SetHeightLevel(5 + dx, 5 + dy, 3); // elevated
             grid.SetLandValue(5 + dx, 5 + dy, 0.8);
         }
         grid.SetZone(4, 5, ZoneType.Road);
@@ -363,13 +372,13 @@ public class LandValueSystemTests
     [Test]
     public void HillsideVilla_Grows_WhenAllConditionsMet()
     {
-        // Arrange: 3×3 Residential footprint with Hill terrain and high LandValue, road access at Town milestone
+        // Arrange: 3×3 Residential footprint with elevated terrain and high LandValue, road access at Town milestone
         var grid = new CityGrid(15, 15);
         for (var dx = 0; dx < 3; dx++)
         for (var dy = 0; dy < 3; dy++)
         {
             grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
-            grid.SetTerrain(5 + dx, 5 + dy, TerrainType.Hill);
+            grid.SetHeightLevel(5 + dx, 5 + dy, 3); // elevated (≥2 → HasHillTerrain passes)
             grid.SetLandValue(5 + dx, 5 + dy, 0.8); // ≥ 0.7 threshold
         }
         // Road tiles along left side so all three rows get road access
@@ -414,15 +423,17 @@ public class LandValueSystemTests
     }
 
     [Test]
-    public void MaxLandValue_HillTile_ReflectsHillBonus()
+    public void MaxLandValue_ElevatedTile_ReflectsElevatedBonus()
     {
+        // A plain elevated tile (height=3, surrounded by lower tiles so it's a cliff edge, not a plateau)
+        // gets ElevatedBonus, not PlateauBonus.
         var grid = new CityGrid(10, 10);
-        grid.SetTerrain(5, 5, TerrainType.Hill);
+        grid.SetHeightLevel(5, 5, 3); // elevated; neighbours stay at 1 → cliff edge, not plateau
         _system.Propagate(grid);
 
-        // Hill tile gets at least HillBonus + LowPollutionBonus (no happiness bonus since default Happiness=1.0 > 0.7)
+        // Elevated tile gets at least ElevatedBonus + LowPollutionBonus + HighHappinessBonus
         var maxVal = _system.MaxLandValue(grid);
         Assert.That(maxVal, Is.GreaterThanOrEqualTo(
-            LandValueSystem.HillBonus + LandValueSystem.LowPollutionBonus + LandValueSystem.HighHappinessBonus).Within(0.001));
+            LandValueSystem.ElevatedBonus + LandValueSystem.LowPollutionBonus + LandValueSystem.HighHappinessBonus).Within(0.001));
     }
 }

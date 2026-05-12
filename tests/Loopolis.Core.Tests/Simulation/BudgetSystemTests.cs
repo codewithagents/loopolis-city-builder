@@ -111,7 +111,7 @@ public class BudgetSystemTests
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.PowerPlant);
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(8.0).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(6.0).Within(0.001));
     }
 
     [Test]
@@ -120,12 +120,12 @@ public class BudgetSystemTests
         var budget = new BudgetSystem();
         var grid = new CityGrid(10, 10);
 
-        // 3 roads × $1.0 = $3.0
+        // 3 roads × $0.5 = $1.5
         grid.SetZone(1, 1, ZoneType.Road);
         grid.SetZone(2, 1, ZoneType.Road);
         grid.SetZone(3, 1, ZoneType.Road);
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(3.0).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(1.5).Within(0.001));
     }
 
     [Test]
@@ -134,13 +134,13 @@ public class BudgetSystemTests
         var budget = new BudgetSystem();
         var grid = new CityGrid(10, 10);
 
-        grid.SetZone(0, 0, ZoneType.PowerPlant);   // $8.0
-        grid.SetZone(1, 0, ZoneType.Road);          // $1.0
-        grid.SetZone(2, 0, ZoneType.Residential);   // $0.5
-        grid.SetZone(3, 0, ZoneType.Commercial);    // $0.5
-        grid.SetZone(4, 0, ZoneType.PowerLine);     // $0.5
+        grid.SetZone(0, 0, ZoneType.PowerPlant);   // $6.0
+        grid.SetZone(1, 0, ZoneType.Road);          // $0.5
+        grid.SetZone(2, 0, ZoneType.Residential);   // $0.3
+        grid.SetZone(3, 0, ZoneType.Commercial);    // $0.4
+        grid.SetZone(4, 0, ZoneType.PowerLine);     // $0.2
 
-        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(10.5).Within(0.001));
+        Assert.That(budget.CalculateMaintenanceCost(grid), Is.EqualTo(7.4).Within(0.001));
     }
 
     [Test]
@@ -148,12 +148,12 @@ public class BudgetSystemTests
     {
         var budget = new BudgetSystem(initialBalance: 1000);
         var grid = new CityGrid(10, 10);
-        grid.SetZone(5, 5, ZoneType.Road); // $1.0/tick
+        grid.SetZone(5, 5, ZoneType.Road); // $0.5/tick
 
         budget.DeductMaintenance(grid);
 
-        Assert.That(budget.Balance, Is.EqualTo(999.0).Within(0.001));
-        Assert.That(budget.LastMaintenanceCost, Is.EqualTo(1.0).Within(0.001));
+        Assert.That(budget.Balance, Is.EqualTo(999.5).Within(0.001));
+        Assert.That(budget.LastMaintenanceCost, Is.EqualTo(0.5).Within(0.001));
     }
 
     [Test]

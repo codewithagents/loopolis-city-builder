@@ -12,21 +12,21 @@ public class BudgetSystem
     public static readonly IReadOnlyDictionary<ZoneType, double> MaintenanceCostPerTile =
         new Dictionary<ZoneType, double>
         {
-            { ZoneType.PowerPlant,    8.0 },   // legacy alias
-            { ZoneType.CoalPlant,     8.0 },
-            { ZoneType.NuclearPlant, 50.0 },
-            { ZoneType.PowerLine,     0.5 },
-            { ZoneType.Road,          1.0 },
-            { ZoneType.Avenue,        2.0 },
-            { ZoneType.Residential,   0.5 },
-            { ZoneType.Commercial,    0.5 },
-            { ZoneType.Industrial,    0.25 },
-            { ZoneType.FireStation,   3.0 },
-            { ZoneType.PoliceStation, 3.0 },
-            { ZoneType.School,        5.0 },
-            { ZoneType.PoliceHQ,     25.0 },
-            { ZoneType.FireHQ,       25.0 },
-            { ZoneType.Hospital,     35.0 },
+            { ZoneType.PowerPlant,    6.0 },   // legacy alias — reduced from 8.0 (balance pass 2026-05-11)
+            { ZoneType.CoalPlant,     6.0 },   // was 8.0
+            { ZoneType.NuclearPlant, 40.0 },   // was 50.0
+            { ZoneType.PowerLine,     0.2 },   // was 0.5
+            { ZoneType.Road,          0.5 },   // was 1.0 — single biggest driver of early deficit
+            { ZoneType.Avenue,        1.0 },   // was 2.0
+            { ZoneType.Residential,   0.3 },   // was 0.5
+            { ZoneType.Commercial,    0.4 },   // was 0.5
+            { ZoneType.Industrial,    0.15 },  // was 0.25 — 72 tiles in town scenario was /tick
+            { ZoneType.FireStation,   2.0 },   // was 3.0
+            { ZoneType.PoliceStation, 2.0 },   // was 3.0
+            { ZoneType.School,        3.0 },   // was 5.0
+            { ZoneType.PoliceHQ,     15.0 },   // was 25.0
+            { ZoneType.FireHQ,       15.0 },   // was 25.0
+            { ZoneType.Hospital,     20.0 },   // was 35.0
         };
 
     /// <summary>
@@ -62,7 +62,18 @@ public class BudgetSystem
 
     /// <summary>
     /// Returns the total placement cost for a zone, including any terrain surcharge.
-    /// Forest adds $75 (clearing cost), Hill adds $50. Water is unbuildable and returns the base cost only.
+    /// Forest tile adds $75 (clearing cost), elevated tile (HeightLevel ≥ 2) adds $50.
+    /// </summary>
+    public static double GetPlacementCost(string zoneName, int heightLevel, bool hasForest)
+    {
+        var baseCost = PlacementCosts.TryGetValue(zoneName, out var c) ? c : 0.0;
+        var terrainSurcharge = hasForest ? 75.0 : heightLevel >= 2 ? 50.0 : 0.0;
+        return baseCost + terrainSurcharge;
+    }
+
+    /// <summary>
+    /// Backward-compatible overload using the legacy TerrainType enum.
+    /// Forest adds $75, Hill adds $50. Prefer the (string, int, bool) overload going forward.
     /// </summary>
     public static double GetPlacementCost(string zoneName, TerrainType terrain)
     {

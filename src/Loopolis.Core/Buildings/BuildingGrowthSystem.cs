@@ -161,13 +161,13 @@ public class BuildingGrowthSystem
 
     private static bool HasHillTerrain(CityGrid grid, int ax, int ay, int w, int h)
     {
-        // At least one tile in the footprint must be Hill terrain
+        // At least one tile in the footprint must be elevated (HeightLevel >= 2)
         for (var dx = 0; dx < w; dx++)
         for (var dy = 0; dy < h; dy++)
         {
             var tx = ax + dx; var ty = ay + dy;
             if (!grid.IsInBounds(tx, ty)) continue;
-            if (grid.GetTerrain(tx, ty) == TerrainType.Hill) return true;
+            if (grid.GetHeightLevel(tx, ty) >= 2) return true;
         }
         return false;
     }
@@ -192,7 +192,7 @@ public class BuildingGrowthSystem
         {
             var tx = ax + dx; var ty = ay + dy;
             if (!grid.IsInBounds(tx, ty)) continue;
-            if (grid.GetTerrain(tx, ty) == TerrainType.Forest) return true;
+            if (grid.HasForestAt(tx, ty)) return true;
         }
         return false;
     }

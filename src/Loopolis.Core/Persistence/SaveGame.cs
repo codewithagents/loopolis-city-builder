@@ -28,5 +28,17 @@ public record SaveGame(
     [property: JsonPropertyName("gameState")]   string         GameState,
     [property: JsonPropertyName("terrainSeed")] int            TerrainSeed,
     [property: JsonPropertyName("tiles")]       SavedTile[]    Tiles,
-    [property: JsonPropertyName("buildings")]   SavedBuilding[]? Buildings = null
+    [property: JsonPropertyName("buildings")]   SavedBuilding[]? Buildings = null,
+    /// <summary>
+    /// Flat row-major height map: index = x + y * width.
+    /// Null in version 1–2 saves; RestoreGrid defaults to flat (height=1) when null.
+    /// </summary>
+    [property: JsonPropertyName("heightMap")]   int[]?          HeightMap = null,
+    /// <summary>
+    /// Flat row-major forest map: index = x + y * width.
+    /// Null in version 1–2 saves; RestoreGrid defaults to no forest when null.
+    /// </summary>
+    [property: JsonPropertyName("forestMap")]   bool[]?         ForestMap = null,
+    [property: JsonPropertyName("gridWidth")]   int             GridWidth = 32,
+    [property: JsonPropertyName("gridHeight")]  int             GridHeight = 32
 );
