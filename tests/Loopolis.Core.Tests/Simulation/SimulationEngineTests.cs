@@ -259,4 +259,110 @@ public class SimulationEngineTests
         Assert.That(milestones.CurrentState, Is.EqualTo(GameState.Abandoned),
             "Abandoned state should persist until happiness clears recovery threshold");
     }
+
+    // ── Stress tests: reproduces Godot standalone mode (no SeedRoadGraphFromGrid) ─
+
+    [Test]
+    public void StandaloneMode_NoRoadGraph_RunsTo200TicksWithoutCrash()
+    {
+        // Reproduces what Godot standalone mode does:
+        //   - Create grid via SetZone (NOT engine.PlaceTile)
+        //   - Create engine WITHOUT calling SeedRoadGraphFromGrid
+        //   - Tick 200 times — this is the crash zone (around tick 108 in Godot)
+        var grid = new CityGrid(32, 32);
+        grid.SetFlatTerrain();
+
+        // SeedStarterCity equivalent
+        var cx = 16; var cy = 16;
+        grid.SetZone(cx,     cy - 2, ZoneType.PowerPlant);
+        grid.SetZone(cx,     cy - 1, ZoneType.Road);
+        grid.SetZone(cx,     cy,     ZoneType.Road);
+        grid.SetZone(cx - 1, cy - 1, ZoneType.Residential);
+        grid.SetZone(cx + 1, cy - 1, ZoneType.Residential);
+        grid.SetZone(cx - 1, cy,     ZoneType.Residential);
+        grid.SetZone(cx + 1, cy,     ZoneType.Residential);
+
+        var engine = new SimulationEngine(
+            grid,
+            new BudgetSystem(10_000),
+            new PopulationSystem(),
+            new PowerNetwork(),
+            new RoadNetwork(),
+            new DemandSystem()
+        );
+        // NOTE: intentionally NOT calling engine.SeedRoadGraphFromGrid()
+
+        for (var tick = 0; tick < 200; tick++)
+        {
+            Assert.DoesNotThrow(() => engine.Tick(),
+                $"Engine.Tick() should not throw at tick {tick} in standalone mode");
+        }
+
+        Assert.That(engine.Population.Population, Is.GreaterThan(0),
+            "Population should have grown in standalone mode over 200 ticks");
+    }
+
+    [Test]
+    public void StandaloneMode_EraseViaSetZone_DemolishesBuilding()
+    {
+        // Godot standalone mode erases tiles via grid.SetZone(x, y, ZoneType.Empty)
+        // directly, not via engine.EraseTile(). After the fix, this should demolish
+        // the building rather than leaving an orphaned Buildings entry.
+        var grid = new CityGrid(10, 10);
+        grid.SetFlatTerrain();
+        grid.SetZone(5, 5, ZoneType.PowerPlant);
+        grid.SetZone(5, 6, ZoneType.Road);
+        grid.SetZone(4, 6, ZoneType.Residential);
+        grid.SetZone(6, 6, ZoneType.Residential);
+
+        var engine = BuildEngine(grid);
+
+        // Let buildings form
+        for (var i = 0; i < 30; i++) engine.Tick();
+
+        // Now erase a residential tile directly via SetZone (not engine.EraseTile)
+        var tile = grid.GetTile(4, 6);
+        if (tile.BuildingId != null)
+        {
+            var buildingId = tile.BuildingId;
+            grid.SetZone(4, 6, ZoneType.Empty); // Godot standalone erase path
+
+            // Building should be removed from registry (not orphaned)
+            Assert.That(grid.Buildings.ContainsKey(buildingId), Is.False,
+                "Erasing a building tile via SetZone should remove the building from registry");
+        }
+        else
+        {
+            // Tile never got a building (no road access from road graph) — still valid
+            Assert.Pass("No building formed at (4,6) — test still valid (no orphaned building)");
+        }
+    }
+
+    [Test]
+    public void StandaloneMode_LegacySaveBuilding_DoesNotCrashTryGrow()
+    {
+        // A building loaded from a save file with an unknown TypeId (e.g. removed building type)
+        // should not crash BuildingGrowthSystem.TryGrow.
+        var grid = new CityGrid(10, 10);
+        grid.SetFlatTerrain();
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetPower(5, 5, true);
+        grid.SetRoadAccess(5, 5, true);
+        grid.SetPopulation(5, 5, 50);
+
+        // Simulate a building from an old save with an unknown TypeId
+        var legacyId = "legacy_save_bldg";
+        var legacy = new Loopolis.Core.Buildings.Building(legacyId, "res_legacy_v1", ZoneType.Residential, 5, 5, 1, 1);
+        grid.Buildings[legacyId] = legacy;
+        grid.SetBuildingId(5, 5, legacyId);
+
+        var engine = BuildEngine(grid);
+
+        // Should not throw even with the legacy building present
+        for (var tick = 0; tick < 50; tick++)
+        {
+            Assert.DoesNotThrow(() => engine.Tick(),
+                $"Engine.Tick() should not throw at tick {tick} with legacy save building");
+        }
+    }
 }

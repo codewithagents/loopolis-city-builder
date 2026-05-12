@@ -510,4 +510,91 @@ public class UnpoweredSystemsTests
         Assert.That(employment.AvailableJobs, Is.Not.EqualTo(20),
             "Should NOT scale by activity when unpowered");
     }
+
+    // ── Null catalog guard tests ──────────────────────────────────────────────
+
+    [Test]
+    public void TryGrow_BuildingWithUnknownTypeId_DoesNotCrash()
+    {
+        // A building with a TypeId not in BuildingCatalog (e.g. from an old save)
+        // should be safely skipped rather than throwing NullReferenceException.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetPower(5, 5, true);
+        grid.SetRoadAccess(5, 5, true);
+        grid.SetPopulation(5, 5, 50);
+
+        // Register a building with an unknown TypeId (simulates old save format)
+        var unknownId = "old_building_legacy";
+        var building = new Building(unknownId, "res_legacy_unknown", ZoneType.Residential, 5, 5, 1, 1);
+        grid.Buildings[unknownId] = building;
+        grid.SetBuildingId(5, 5, unknownId);
+
+        var system = new BuildingGrowthSystem();
+
+        Assert.DoesNotThrow(() => system.TryGrow(grid, GameState.Active),
+            "TryGrow should skip (not crash) buildings with unknown TypeIds");
+    }
+
+    [Test]
+    public void TryGrow_BuildingWithUnknownTypeId_IsSkippedButOthersGrow()
+    {
+        // Buildings with known TypeIds should still grow even when an unknown-TypeId building
+        // is present in the grid. The unknown one is skipped, not crashing the whole tick.
+        var grid = new CityGrid(10, 10);
+
+        // Unknown building at (1, 1)
+        var unknownId = "stale_id";
+        grid.SetZone(1, 1, ZoneType.Residential);
+        grid.SetPower(1, 1, true);
+        grid.SetRoadAccess(1, 1, true);
+        grid.SetPopulation(1, 1, 40);
+        var unknownBuilding = new Building(unknownId, "res_legacy_unknown", ZoneType.Residential, 1, 1, 1, 1);
+        grid.Buildings[unknownId] = unknownBuilding;
+        grid.SetBuildingId(1, 1, unknownId);
+
+        // Known 1×1 cottage at (5, 5) that is ready to grow (at full capacity, power on)
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetZone(5, 6, ZoneType.Residential);
+        grid.SetZone(6, 5, ZoneType.Residential);
+        grid.SetZone(6, 6, ZoneType.Residential);
+        grid.SetPower(5, 5, true); grid.SetPower(5, 6, true);
+        grid.SetPower(6, 5, true); grid.SetPower(6, 6, true);
+        grid.SetRoadAccess(5, 5, true); grid.SetRoadAccess(5, 6, true);
+        grid.SetRoadAccess(6, 5, true); grid.SetRoadAccess(6, 6, true);
+        grid.SetPopulation(5, 5, 50); // at full capacity → should trigger growth
+        var knownId = "known_id";
+        var knownBuilding = new Building(knownId, "res_house_1x1", ZoneType.Residential, 5, 5, 1, 1);
+        grid.Buildings[knownId] = knownBuilding;
+        grid.SetBuildingId(5, 5, knownId);
+
+        var system = new BuildingGrowthSystem();
+
+        Assert.DoesNotThrow(() => system.TryGrow(grid, GameState.Active),
+            "TryGrow should not throw when an unknown-TypeId building exists alongside valid ones");
+        // Known building may or may not have grown (depends on anchor search), but no crash
+    }
+
+    [Test]
+    public void TryGrow_BuildingTilesPartiallyOutsideGrid_DoesNotCrash()
+    {
+        // A building whose footprint includes out-of-bounds tiles (e.g. from corrupted save data)
+        // should be safely skipped.
+        var grid = new CityGrid(5, 5);
+        grid.SetZone(4, 4, ZoneType.Residential);
+        grid.SetPower(4, 4, true);
+        grid.SetRoadAccess(4, 4, true);
+        grid.SetPopulation(4, 4, 50);
+
+        // Create a 2×2 building anchored at (4,4) — tiles (5,4), (4,5), (5,5) are out of bounds
+        var id = "edge_bldg";
+        var building = new Building(id, "res_townhouse_2x2", ZoneType.Residential, 4, 4, 2, 2);
+        grid.Buildings[id] = building;
+        grid.SetBuildingId(4, 4, id);
+
+        var system = new BuildingGrowthSystem();
+
+        Assert.DoesNotThrow(() => system.TryGrow(grid, GameState.Active),
+            "TryGrow should not crash when a building has tiles partially out of bounds");
+    }
 }

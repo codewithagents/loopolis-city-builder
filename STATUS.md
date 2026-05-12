@@ -56,8 +56,9 @@
 | G4 Service Capacity Model | ✅ Done | 26 new (ServiceCapacityTests) |
 | P1 Power-as-Density Unlock | ✅ Done | 14 new (BuildingGrowthSystemTests + UnpoweredSystemsTests) |
 | BuildingDegradationSystem | ✅ Done | 9 new (BuildingDegradationTests) |
+| Tick-108 crash fixes | ✅ Done | 12 new (CityGridTests + BuildingGrowthSystemTests + SimulationEngineTests) |
 
-**Total: 473 tests · 0 failures · ~0.35s runtime**
+**Total: 485 tests · 0 failures · ~0.71s runtime**
 
 ---
 
@@ -209,5 +210,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-12 | city_path | G4 service capacity: at tick 5 — schoolSeatsTotal=200, schoolSeatsUsed=96, schoolCoveragePercent=0.7368. Police 300/Fire 400 capacity present. Coverage correctly partial — only tiles within road-graph radius AND within capacity are covered. Hospital=0 (no hospital in city_path scenario). All 437 tests green. | — |
 | 2026-05-12 | default | Border road + empty start: new default is empty — only border connection at (16,31) + 3 starter road tiles. 500-tick run: pop=0 (no zones yet), balance $3,000 ($4,000 − 500 × $2/tick for 4 roads). IsBorderConnection persists through save/load; EraseTile is a no-op on border tiles; 1.2× migration multiplier confirmed in tests (R-tile at distance 3 grows faster than without border graph). 455 tests green. | — |
 | 2026-05-12 | no_power | P1 power-as-density: no_power scenario now shows pop=25 (cottage cap), TaxIncome=2.26/tick (0.7× unpowered modifier applied), balance +0.86/tick. Unpowered industrial: 0 pollution, 2 placeholder jobs. powered_start comparison: pop=236, TaxIncome=22.66/tick — ~10× more productive. 2×2+ buildings correctly blocked without power. BuildingDegradationSystem wired: multi-tile buildings degrade 2%/tick when requirements fail. 473 tests green. | — |
+| 2026-05-12 | stress_test | Tick-108 crash fixes: BuildingGrowthSystem.TryGrow now null-guards catalog lookup (no NullReferenceException on unknown TypeId). CityGrid.SetZone(Empty) now calls EraseBuildingAt to demolish multi-tile buildings atomically — fixes orphaned Buildings entries when Godot standalone erases tiles via SetZone directly. stress_test: 200 growth ticks + 200 degradation ticks → no crash, city goes Bankrupt (expected — 96 unpowered buildings + high costs). 485 tests green. | — |
 
-*Last updated: 2026-05-12 — G4 service capacity: ServiceCapacityModel (constants + GetDemandPerTile), ServiceCoverageResult record, HappinessSystem.ComputeServiceCoverage (capacity-draining closest-first model, road-graph + fallback modes), SimulationEngine.LastServiceCoverage, RoadGraph.IsRoadNode, state.json 8 new capacity fields, 26 new tests*
+*Last updated: 2026-05-12 — tick-108 crash fix: BuildingGrowthSystem null guard, CityGrid.EraseBuildingAt, SetZone auto-demolish, stress_test scenario, 12 new tests*

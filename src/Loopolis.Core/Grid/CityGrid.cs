@@ -351,7 +351,44 @@ public class CityGrid
             return; // cannot build on water
         if (zone != ZoneType.Empty && _tiles[x, y].Zone != ZoneType.Empty)
             return; // cannot overwrite occupied tile — use Erase (Empty) first
+
+        // When erasing a tile that is part of a multi-tile building, demolish the whole building.
+        // This keeps Buildings dictionary consistent when tiles are erased via SetZone directly
+        // (e.g. standalone Godot mode, which calls SetZone rather than engine.EraseTile).
+        if (zone == ZoneType.Empty && _tiles[x, y].BuildingId != null)
+            EraseBuildingAt(x, y);
+
         _tiles[x, y] = _tiles[x, y] with { Zone = zone };
+    }
+
+    /// <summary>
+    /// If the tile at (x, y) belongs to a building, removes the building from <see cref="Buildings"/>,
+    /// clears BuildingId on all of its tiles, and resets their population to 0.
+    /// No-op if the tile has no BuildingId or the building is not in the registry.
+    /// Call this before clearing a zone tile to keep the Buildings dictionary consistent.
+    /// </summary>
+    public void EraseBuildingAt(int x, int y)
+    {
+        if (!IsInBounds(x, y)) return;
+        var buildingId = _tiles[x, y].BuildingId;
+        if (buildingId == null) return;
+
+        if (!Buildings.TryGetValue(buildingId, out var building))
+        {
+            // BuildingId on tile but not in registry — just clear the tile reference
+            _tiles[x, y] = _tiles[x, y] with { BuildingId = null };
+            return;
+        }
+
+        // Remove the building from the registry
+        Buildings.Remove(buildingId);
+
+        // Clear BuildingId and population on all tiles in the building's footprint
+        foreach (var (tx, ty) in building.Tiles())
+        {
+            if (!IsInBounds(tx, ty)) continue;
+            _tiles[tx, ty] = _tiles[tx, ty] with { BuildingId = null, Population = 0 };
+        }
     }
 
     public void SetPower(int x, int y, bool hasPower)

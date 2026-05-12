@@ -52,8 +52,13 @@ public class BuildingGrowthSystem
             // Skip if building was absorbed in this tick
             if (!grid.Buildings.ContainsKey(building.Id)) continue;
 
-            var typeDef = BuildingCatalog.Find(building.TypeId)!;
-            var currentPop = building.Tiles().Sum(t => grid.GetTile(t.X, t.Y).Population);
+            // Guard: skip buildings whose TypeId is not in the catalog (e.g. loaded from an old save).
+            // A missing catalog entry would cause a NullReferenceException below.
+            var typeDef = BuildingCatalog.Find(building.TypeId);
+            if (typeDef == null) continue;
+
+            var currentPop = building.Tiles().Sum(t =>
+                grid.IsInBounds(t.X, t.Y) ? grid.GetTile(t.X, t.Y).Population : 0);
             var capacityFraction = typeDef.MaxPopulation > 0 ? (double)currentPop / typeDef.MaxPopulation : 0;
 
             if (capacityFraction < 0.80) continue; // not full enough to grow

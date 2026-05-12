@@ -44,6 +44,13 @@ var tickHistory = new List<TickSnapshot>();
 
 for (var tick = 0; tick < ticks; tick++)
 {
+    // stress_test: after 200 ticks remove the power plant to trigger degradation
+    if (cliScene == "stress_test" && tick == 200)
+    {
+        cliEngine.EraseTile(0, 0); // erase CoalPlant at (0,0)
+        Console.Error.WriteLine($"[stress_test] Removed power plant at tick {tick}");
+    }
+
     cliEngine.Tick();
 
     if (tick % 100 == 0 || tick == ticks - 1)
@@ -1306,6 +1313,51 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             grid.SetZone(13, 13, ZoneType.PoliceStation);
             grid.SetZone(15, 11, ZoneType.School);
             break;
+
+        case "stress_test":
+        {
+            // Dense 16×16 grid of R/C/I zones with roads + power.
+            // Designed to exercise BuildingGrowthSystem and BuildingDegradationSystem under real pressure.
+            // Phase 1 (ticks 0–199): city grows and buildings tier up.
+            // Phase 2 (ticks 200–399): power plant removed → degradation fires for all multi-tile buildings.
+            //
+            // Layout (grid 32×32, zones in top-left 16×16 block):
+            //   Power plant at (0,0)
+            //   Horizontal road spine at y=1 (x=0..16)
+            //   Vertical road spine at x=0 (y=0..16)
+            //   Residential: x=1..8, y=2..9  (8×8 = 64 tiles)
+            //   Commercial:  x=9..12, y=2..5  (4×4 = 16 tiles adjacent to R for demand boost)
+            //   Industrial:  x=9..12, y=6..9  (4×4 = 16 tiles)
+            //
+            // Note: this scenario is used by "dotnet run -- 400 stress_test" where the runner
+            // runs all 400 ticks. Power removal is done by the SimulationRunner wrapping this scenario.
+            // For the base 400-tick run we keep the power plant in place so buildings grow first,
+            // then use SetupStressTestPhase2 for the second half.
+            grid.SetFlatTerrain();
+            // Power plant + lines running along road spines
+            grid.SetZone(0, 0, ZoneType.CoalPlant);
+            for (var x = 1; x <= 16; x++) grid.SetZone(x, 0, ZoneType.PowerLine);
+            // Roads: horizontal at y=1, vertical at x=0
+            for (var x = 0; x <= 16; x++) grid.SetZone(x, 1, ZoneType.Road);
+            for (var y = 2; y <= 16; y++) grid.SetZone(0, y, ZoneType.Road);
+            // Residential block
+            for (var x = 1; x <= 8; x++)
+            for (var y = 2; y <= 9; y++)
+                grid.SetZone(x, y, ZoneType.Residential);
+            // Commercial strip (demand boost for residential)
+            for (var x = 9; x <= 12; x++)
+            for (var y = 2; y <= 5; y++)
+                grid.SetZone(x, y, ZoneType.Commercial);
+            // Industrial block
+            for (var x = 9; x <= 12; x++)
+            for (var y = 6; y <= 9; y++)
+                grid.SetZone(x, y, ZoneType.Industrial);
+            // Services — placed just below residential block, adjacent to vertical road at x=0
+            grid.SetZone(1, 10, ZoneType.FireStation);
+            grid.SetZone(1, 11, ZoneType.PoliceStation);
+            grid.SetZone(1, 12, ZoneType.School);
+            break;
+        }
 
         default:
             // Empty new-game start with a border connection road from the south edge.

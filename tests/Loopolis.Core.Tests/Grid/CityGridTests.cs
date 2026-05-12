@@ -375,4 +375,133 @@ public class CityGridTests
         var cost = BudgetSystem.GetPlacementCost("Road", TerrainType.Flat);
         Assert.That(cost, Is.EqualTo(25.0)); // Road base = $25, no surcharge
     }
+
+    // ── EraseBuildingAt tests ─────────────────────────────────────────────────
+
+    [Test]
+    public void EraseBuildingAt_RemovesBuildingFromRegistry()
+    {
+        var grid = new CityGrid(10, 10);
+        // Place a 2×2 residential building manually
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(3 + dx, 3 + dy, ZoneType.Residential);
+            grid.SetPopulation(3 + dx, 3 + dy, 20);
+        }
+        var id = "bldg01";
+        var building = new Loopolis.Core.Buildings.Building(id, "res_townhouse_2x2", ZoneType.Residential, 3, 3, 2, 2);
+        grid.Buildings[id] = building;
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetBuildingId(3 + dx, 3 + dy, id);
+
+        grid.EraseBuildingAt(3, 3);
+
+        Assert.That(grid.Buildings.ContainsKey(id), Is.False,
+            "Building should be removed from registry after EraseBuildingAt");
+    }
+
+    [Test]
+    public void EraseBuildingAt_ClearsBuildingIdOnAllTiles()
+    {
+        var grid = new CityGrid(10, 10);
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(3 + dx, 3 + dy, ZoneType.Residential);
+        }
+        var id = "bldg02";
+        var building = new Loopolis.Core.Buildings.Building(id, "res_townhouse_2x2", ZoneType.Residential, 3, 3, 2, 2);
+        grid.Buildings[id] = building;
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetBuildingId(3 + dx, 3 + dy, id);
+
+        grid.EraseBuildingAt(3, 4); // erase via non-anchor tile
+
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            Assert.That(grid.GetTile(3 + dx, 3 + dy).BuildingId, Is.Null,
+                $"All tiles should have BuildingId=null after EraseBuildingAt");
+    }
+
+    [Test]
+    public void EraseBuildingAt_ResetsPopulationOnAllTiles()
+    {
+        var grid = new CityGrid(10, 10);
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(3 + dx, 3 + dy, ZoneType.Residential);
+            grid.SetPopulation(3 + dx, 3 + dy, 30);
+        }
+        var id = "bldg03";
+        var building = new Loopolis.Core.Buildings.Building(id, "res_townhouse_2x2", ZoneType.Residential, 3, 3, 2, 2);
+        grid.Buildings[id] = building;
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetBuildingId(3 + dx, 3 + dy, id);
+
+        grid.EraseBuildingAt(3, 3);
+
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            Assert.That(grid.GetTile(3 + dx, 3 + dy).Population, Is.EqualTo(0),
+                $"Population should be 0 after EraseBuildingAt");
+    }
+
+    [Test]
+    public void EraseBuildingAt_NoBuildingId_IsNoOp()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        // No building registered
+
+        Assert.DoesNotThrow(() => grid.EraseBuildingAt(5, 5),
+            "EraseBuildingAt on a tile with no BuildingId should be a no-op");
+    }
+
+    [Test]
+    public void SetZone_ErasingTileWithBuildingId_DemolishesBuilding()
+    {
+        // When SetZone(Empty) is called on a tile that is part of a multi-tile building,
+        // the building should be demolished (removed from Buildings registry).
+        var grid = new CityGrid(10, 10);
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(3 + dx, 3 + dy, ZoneType.Residential);
+        }
+        var id = "bldg04";
+        var building = new Loopolis.Core.Buildings.Building(id, "res_townhouse_2x2", ZoneType.Residential, 3, 3, 2, 2);
+        grid.Buildings[id] = building;
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetBuildingId(3 + dx, 3 + dy, id);
+
+        // Erase the anchor tile via SetZone (as Godot standalone mode does)
+        grid.SetZone(3, 3, ZoneType.Empty);
+
+        Assert.That(grid.Buildings.ContainsKey(id), Is.False,
+            "SetZone(Empty) on a building tile should demolish the building");
+        // All tiles should have BuildingId cleared
+        Assert.That(grid.GetTile(4, 4).BuildingId, Is.Null,
+            "All tiles in the building footprint should have BuildingId=null");
+    }
+
+    [Test]
+    public void SetZone_EraseOnTileWithOrphanBuildingId_ClearsReference()
+    {
+        // If tile has a BuildingId that is NOT in the Buildings registry (orphaned reference),
+        // EraseBuildingAt should still clear the tile's BuildingId without crashing.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        grid.SetBuildingId(5, 5, "orphaned_id"); // no entry in Buildings dict
+
+        Assert.DoesNotThrow(() => grid.SetZone(5, 5, ZoneType.Empty),
+            "Erasing a tile with an orphaned BuildingId should not crash");
+        Assert.That(grid.GetTile(5, 5).BuildingId, Is.Null,
+            "Tile's BuildingId should be cleared even when building registry entry is missing");
+    }
 }
