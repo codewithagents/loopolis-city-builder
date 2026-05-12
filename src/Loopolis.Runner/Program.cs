@@ -1023,31 +1023,33 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
             // Compact mixed-use foundation designed to reach City milestone (5,000 pop).
             //
             // Layout (32x32 grid):
-            //   CoalPlant at (5,15) — powers everything via road BFS conductivity (no power lines needed).
-            //   Main E-W road:  y=15, x=6..24 (19 tiles)
+            //   CoalPlant at (2,15) — moved west so nearest residential (7,14) is Euclidean ≈ 5.1 tiles away
+            //                         (safely outside pollution radius 3).
+            //   Main E-W road:  y=15, x=3..24 (22 tiles — extended to keep plant road-adjacent)
             //   North spur:     x=16, y=11..14 (4 tiles, branches off main road)
             //
             //   Residential west row  (y=14, x=7..15):  9 tiles — adjacent to main road at y=15
             //   Residential east col  (x=17, y=11..14): 4 tiles — adjacent to north spur at x=16
             //   Total: 13 residential tiles, capacity 650 pop, all road-accessible and powered.
             //
-            //   Commercial   (y=16, x=9..12):  4 tiles — south of road, boosts adjacent residential demand
-            //   Industrial   (y=16, x=18..21): 4 tiles — south of road, max commute to residential = 12 tiles (-0.10 penalty)
+            //   Commercial   (y=16, x=9..12):  4 tiles — south of road, Chebyshev-3 demand boost to west residential
+            //   Industrial   (y=16, x=7):      1 tile  — adjacent to road, covers west residential (commute ≤ 8)
+            //   Industrial   (y=16, x=16):     1 tile  — adjacent to road, covers east residential (commute ≤ 6)
             //
-            //   Services (all adjacent to main road at y=15, avoiding industrial conflict):
+            //   Commute distances (all ≤ 8, penalty = 0):
+            //     (7,14)→(7,16):   0+2=2  ✓     (13,14)→nearest: min(6+2=8, 3+2=5)=5  ✓
+            //     (15,14)→(16,16): 1+2=3  ✓     (17,11)→(16,16): 1+5=6  ✓
+            //
+            //   Services:
             //     FireStation   at (8,16)   — radius 4: covers residential x=7..12, y=14
             //     PoliceStation at (14,16)  — radius 4: covers residential x=10..18, y=12..14
             //     School        at (16,10)  — adjacent to north spur at (16,11); radius 5: covers x=17,y=11..14 + x=11..16,y=14
-            //
-            //   Starting maintenance: ~$29.6/tick. Break-even: ~170 residents (~tick 70).
-            //   Max net/tick at full residential capacity (650 pop): ~+$60/tick.
-            //   Path to City (5,000 pop): player expands north from spur + east along main road.
 
-            // Power
-            grid.SetZone(5, 15, ZoneType.CoalPlant);
+            // Power — plant at (2,15), road starts at (3,15) immediately adjacent
+            grid.SetZone(2, 15, ZoneType.CoalPlant);
 
             // Roads
-            for (var x = 6; x <= 24; x++) grid.SetZone(x, 15, ZoneType.Road);    // main E-W spine
+            for (var x = 3; x <= 24; x++) grid.SetZone(x, 15, ZoneType.Road);    // main E-W spine
             for (var y = 11; y <= 14; y++) grid.SetZone(16, y, ZoneType.Road);    // north spur
 
             // Residential — west row (road access via y=15 main road)
@@ -1056,11 +1058,13 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
             // Residential — east column (road access via x=16 north spur)
             for (var y = 11; y <= 14; y++) grid.SetZone(17, y, ZoneType.Residential);
 
-            // Commercial south of main road — positioned for residential demand boost
+            // Commercial south of main road — Chebyshev-3 demand boost to west + center residential
             for (var x = 9; x <= 12; x++) grid.SetZone(x, 16, ZoneType.Commercial);
 
-            // Industrial south of main road — max commute from west residential ~12 tiles
-            for (var x = 18; x <= 21; x++) grid.SetZone(x, 16, ZoneType.Industrial);
+            // Industrial — two tiles placed so every residential tile is within 8 Manhattan distance
+            // (7,16): covers west residential; (16,16): covers east residential + center
+            grid.SetZone(7,  16, ZoneType.Industrial);
+            grid.SetZone(16, 16, ZoneType.Industrial);
 
             // Services
             grid.SetZone(8,  16, ZoneType.FireStation);    // covers west residential cluster (y=15 road adjacent)
@@ -1069,15 +1073,24 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario)
             break;
 
         default:
-            // Wired starter city: plant → road → zones (all connected)
-            grid.SetZone(10, 10, ZoneType.PowerPlant);
-            grid.SetZone(10, 11, ZoneType.Road);
-            grid.SetZone(10, 12, ZoneType.Road);
-            grid.SetZone(9,  12, ZoneType.Residential);
-            grid.SetZone(11, 12, ZoneType.Residential);
-            grid.SetZone(9,  13, ZoneType.Residential);
-            grid.SetZone(10, 13, ZoneType.Road);
-            grid.SetZone(11, 13, ZoneType.Commercial);
+            // Teaching layout: plant at west end → road runs east → homes on north side → shops + factory south
+            // Coal plant at (5,12), road x=6..14 y=12, residential y=11 x=9..12, commercial y=13 x=9..10,
+            // industrial y=13 x=6..7.
+            // Plant→nearest residential (9,11): Euclidean ≈ 4.12 (> pollution radius 3) — no pollution on start zones.
+            // Industrial (7,13)→residential (9,11): Manhattan 4 — well within commute range.
+            grid.SetZone(5, 12, ZoneType.CoalPlant);
+            for (var x = 6; x <= 14; x++) grid.SetZone(x, 12, ZoneType.Road);
+            // Residential north of road
+            grid.SetZone(9,  11, ZoneType.Residential);
+            grid.SetZone(10, 11, ZoneType.Residential);
+            grid.SetZone(11, 11, ZoneType.Residential);
+            grid.SetZone(12, 11, ZoneType.Residential);
+            // Commercial south of road (demand boost for residential — Chebyshev ≤ 3)
+            grid.SetZone(9,  13, ZoneType.Commercial);
+            grid.SetZone(10, 13, ZoneType.Commercial);
+            // Industrial near plant, south of road
+            grid.SetZone(6,  13, ZoneType.Industrial);
+            grid.SetZone(7,  13, ZoneType.Industrial);
             break;
     }
 
