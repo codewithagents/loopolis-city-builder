@@ -19,7 +19,7 @@ godot/                    — Godot 4 project (presentation layer only).
 
 ## Development
 
-**Run tests (Core logic — 504 tests):**
+**Run tests (Core logic — 504 tests, Godot compile clean):**
 ```bash
 export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
 export PATH="$DOTNET_ROOT:$PATH"
@@ -60,7 +60,7 @@ Output is JSON — designed for agent analysis.
 8. ✅ PollutionSystem — industrial tiles emit pollution, reduces happiness of nearby residential
 9. ✅ HappinessSystem — service coverage (road-graph reachability), neglect decay (cap 0.20), tax modifier, commute penalty, unemployment
 10. ✅ MilestoneSystem — thresholds Town(500)/City(5k)/Metropolis(25k)/Loopolis(100k), bankruptcy, abandonment (threshold 0.25, 50-tick window)
-11. ✅ EventSystem — 4 events (FireBreak/CrimeWave/PowerOutage/DemandSlump), 2%/tick trigger, 60-tick honeymoon
+11. ✅ EventSystem — 4 events (FireBreak/CrimeWave/PowerOutage/DemandSlump), 2%/tick trigger, 60-tick honeymoon. FireBreak now picks a random occupied tile — if no fire station exists, that tile is demolished when event ends. Fire tile exposed as `FireTileX/Y` for Godot rendering.
 12. ✅ EmploymentSystem — industrial activity → jobs (0.4/unit, 20 jobs/full tile), residential growth throttled above pop 100
 13. ✅ SimulationEngine — orchestrates all systems per tick
 14. ✅ SaveSystem (Persistence) v2 — Capture/Serialize/Deserialize/RestoreGrid; terrain seed saves exact map; buildings persisted
@@ -78,7 +78,14 @@ Output is JSON — designed for agent analysis.
 26. ✅ Power-as-Density Unlock (P1) — `res_house_1x1` forms from road access only (no power). Unpowered cottage: capacity 25, 0.7× tax. Powered: capacity 50, full tax. All 2×2+ buildings require all footprint tiles powered. Unpowered industrial: 2 placeholder jobs, zero pollution.
 27. ✅ BuildingDegradationSystem — Multi-tile buildings that lose power or road access have 2% chance/tick to demolish back to bare zone. `LastDegradedBuildings` on engine. `BuildingCatalog.GetZoneForBuilding()` helper.
 
-**473 tests · 0 failures**
+**504 tests · 0 failures**
+
+### Godot (presentation layer — restored after accidental truncation in 4138be5)
+- `World.cs` — 1323 lines: standalone game loop, tile painting, overlays, build-mode pause, error handling
+- `TilemapRenderer.cs` — 963 lines: height renderer, overlay passes, fire tile pulse, neglect warnings, coverage highlights
+- `HudOverlay.cs` — milestone progress bar with tier colors (🥉bronze/🥈silver/🥇gold/🏆teal), tier-specific banner text/size/duration
+- `GameOverPanel.cs` — win screen (Loopolis 100k), bankrupt, abandoned panels
+- `SharedStateReader.cs` — viewer mode: detects Bankrupt/Abandoned/Loopolis game states
 
 ## Building Catalog
 
