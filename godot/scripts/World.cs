@@ -13,6 +13,18 @@ public partial class World : Node2D
 
 	private TilemapRenderer _renderer = null!;
 
+	// ── Static server process management (used by MainMenu) ─────────────────
+	private static int _serverPid = -1;
+
+	public static void SetServerPid(int pid) => _serverPid = pid;
+
+	public static void KillServerIfRunning()
+	{
+		if (_serverPid <= 0) return;
+		try { OS.Kill(_serverPid); } catch { /* already dead */ }
+		_serverPid = -1;
+	}
+
 	public override void _Ready()
 	{
 		// Find child nodes by name — avoids Export wiring in .tscn

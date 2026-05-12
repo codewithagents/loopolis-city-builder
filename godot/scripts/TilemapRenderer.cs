@@ -18,9 +18,25 @@ public partial class TilemapRenderer : Node2D
 	// Unpowered zones get a dark overlay — show the mechanic visually
 	private static readonly Color UnpoweredTint    = new Color(0f, 0f, 0f, 0.45f);
 
+	private bool _brownout = false;
+
 	public void Refresh(CityGrid grid)
 	{
 		_grid = grid;
+		QueueRedraw();
+	}
+
+	// Height/forest data lives in the grid already — this overload is an alias.
+	public void RefreshWithHeight(CityGrid grid, int[,]? heightMap, bool[,]? forestMap)
+	{
+		_grid = grid;
+		QueueRedraw();
+	}
+
+	public void SetBrownout(bool active)
+	{
+		if (_brownout == active) return;
+		_brownout = active;
 		QueueRedraw();
 	}
 
