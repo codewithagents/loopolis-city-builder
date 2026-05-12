@@ -57,8 +57,10 @@
 | P1 Power-as-Density Unlock | ✅ Done | 14 new (BuildingGrowthSystemTests + UnpoweredSystemsTests) |
 | BuildingDegradationSystem | ✅ Done | 9 new (BuildingDegradationTests) |
 | Tick-108 crash fixes | ✅ Done | 12 new (CityGridTests + BuildingGrowthSystemTests + SimulationEngineTests) |
+| Park zone (ZoneType.Park) | ✅ Done | 11 new (ParkSystemTests) |
+| IsActiveBrownout (brownout Tier-1 fix) | ✅ Done | 4 new (PowerCapacitySystemTests) |
 
-**Total: 489 tests · 0 failures · ~0.71s runtime**
+**Total: 504 tests · 0 failures · ~0.71s runtime**
 
 ---
 
@@ -213,5 +215,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-12 | stress_test | Tick-108 crash fixes: BuildingGrowthSystem.TryGrow now null-guards catalog lookup (no NullReferenceException on unknown TypeId). CityGrid.SetZone(Empty) now calls EraseBuildingAt to demolish multi-tile buildings atomically — fixes orphaned Buildings entries when Godot standalone erases tiles via SetZone directly. stress_test: 200 growth ticks + 200 degradation ticks → no crash, city goes Bankrupt (expected — 96 unpowered buildings + high costs). 485 tests green. | — |
 
 | 2026-05-12 | cottage_start | Balance fixes: GrowthRate 0.05→0.07 (+40%), IndustrialGrowthRate 0.025→0.05 (2×). cottage_start scenario (7R + road + 7C, no power): pop=105 at tick 500 (all cottages at 15 pop cap). AverageNeglect metric added to HappinessSystem and exposed in happinessBreakdown JSON. 4 new tests. 489 total. | — |
+| 2026-05-12 | city_path | Park tiles: park at (11,13) near residential center. city_path happiness=0.901 (up from ~0.863 — park bonus confirmed). cottage_start runs 500 ticks cleanly (no brownout pause with supply=0). IsActiveBrownout guards early-game: false when no plant. 15 new tests. 504 total. | — |
 
-*Last updated: 2026-05-12 — balance fixes: GrowthRate 0.05→0.07, IndustrialGrowthRate 0.025→0.05, cottage_start scenario, AverageNeglect metric, 489 tests*
+*Last updated: 2026-05-12 — park tiles (ZoneType.Park), IsActiveBrownout brownout guard, 504 tests*
