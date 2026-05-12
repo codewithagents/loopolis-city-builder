@@ -102,9 +102,13 @@ public class SimulationEngine
             {
                 case ZoneType.Road:
                     RoadGraph.AddNode(tile.X, tile.Y, 1.0f);
+                    if (tile.IsBorderConnection)
+                        RoadGraph.SetExternalAnchor(tile.X, tile.Y);
                     break;
                 case ZoneType.Avenue:
                     RoadGraph.AddNode(tile.X, tile.Y, 0.5f);
+                    if (tile.IsBorderConnection)
+                        RoadGraph.SetExternalAnchor(tile.X, tile.Y);
                     break;
             }
         }
@@ -122,9 +126,15 @@ public class SimulationEngine
         {
             case ZoneType.Road:
                 RoadGraph.AddNode(x, y, 1.0f);
+                // If this tile is a border connection (placed via PlaceBorderConnection before PlaceTile),
+                // tag it as an external anchor in the road graph.
+                if (Grid.GetTile(x, y).IsBorderConnection)
+                    RoadGraph.SetExternalAnchor(x, y);
                 break;
             case ZoneType.Avenue:
                 RoadGraph.AddNode(x, y, 0.5f);
+                if (Grid.GetTile(x, y).IsBorderConnection)
+                    RoadGraph.SetExternalAnchor(x, y);
                 break;
         }
     }
@@ -135,7 +145,11 @@ public class SimulationEngine
     /// </summary>
     public void EraseTile(int x, int y)
     {
-        var oldZone = Grid.GetTile(x, y).Zone;
+        var tile = Grid.GetTile(x, y);
+        if (tile.IsBorderConnection)
+            return; // border connections are permanent — cannot be erased
+
+        var oldZone = tile.Zone;
         Grid.SetZone(x, y, ZoneType.Empty);
 
         if (oldZone == ZoneType.Road || oldZone == ZoneType.Avenue)
@@ -179,7 +193,7 @@ public class SimulationEngine
         BuildingGrowthSystem.Initialize(Grid);
         BuildingGrowthSystem.TryGrow(Grid, MilestoneSystem.CurrentState);
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
-        Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem);
+        Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes(Grid);  // land-value-weighted residential tax
         Budget.CollectCommercialIncome(Grid);

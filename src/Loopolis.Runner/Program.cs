@@ -749,7 +749,7 @@ static void WriteState(
         kvp => kvp.Value.TypeId);
 
     var nonEmptyTiles = grid.AllTiles()
-        .Where(t => t.Zone != ZoneType.Empty || t.HeightLevel != 1 || t.HasForest)
+        .Where(t => t.Zone != ZoneType.Empty || t.HeightLevel != 1 || t.HasForest || t.IsBorderConnection)
         .Select(t => new TileState(
             t.X, t.Y, t.Zone.ToString(), t.HasPower, t.HasRoadAccess,
             t.Zone == ZoneType.Residential ? grid.GetPopulation(t.X, t.Y) : 0,
@@ -761,7 +761,8 @@ static void WriteState(
             t.TrafficLoad,
             t.Terrain != TerrainType.Flat ? t.Terrain.ToString() : null,
             t.HeightLevel,
-            t.HasForest))
+            t.HasForest,
+            t.IsBorderConnection))
         .ToList();
 
     // --- Enriched building info ---
@@ -1071,30 +1072,21 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
         case "generated_128":
         {
             // Procedurally generated 128×128 terrain using diamond-square.
+            // Starts with only a border connection road at center of south edge.
             var seed = terrainSeed != 0 ? terrainSeed : 42;
             var g128 = new CityGrid(128, 128);
             var heightMap128 = Loopolis.Core.Grid.HeightMapGenerator.Generate(128, 128, seed);
             var forestMap128 = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(128, 128, seed);
             g128.ApplyHeightMap(heightMap128);
             g128.ApplyForestMap(forestMap128);
-            // Place starter infrastructure near center on a flat tile
-            var cx = 64; var cy = 64;
-            // Search for a flat tile near center if exact center is water
-            var placed = false;
-            for (var dy = -10; dy <= 10 && !placed; dy++)
-            for (var dx = -10; dx <= 10 && !placed; dx++)
-            {
-                var px = cx + dx; var py = cy + dy;
-                if (g128.IsInBounds(px, py) && g128.GetHeightLevel(px, py) == 1)
-                {
-                    g128.SetZone(px - 2, py, ZoneType.CoalPlant);
-                    g128.SetZone(px - 1, py, ZoneType.Road);
-                    g128.SetZone(px,     py, ZoneType.Road);
-                    g128.SetZone(px + 1, py, ZoneType.Road);
-                    Console.WriteLine($"[generated_128] Placed starter at ({px},{py}), seed={seed}");
-                    placed = true;
-                }
-            }
+            // Border connection at center of south edge — force flat terrain so it can always be placed
+            g128.SetHeightLevel(64, 127, 1);
+            g128.PlaceBorderConnection(64, 127);
+            // Starter road spine heading north — force flat terrain on each tile
+            g128.SetHeightLevel(64, 126, 1); g128.SetZone(64, 126, ZoneType.Road);
+            g128.SetHeightLevel(64, 125, 1); g128.SetZone(64, 125, ZoneType.Road);
+            g128.SetHeightLevel(64, 124, 1); g128.SetZone(64, 124, ZoneType.Road);
+            Console.WriteLine($"[generated_128] Border connection at (64,127), starter spine (64,126–124), seed={seed}");
             var engine128 = new SimulationEngine(g128, budget, population, power, roads, demand);
             engine128.SeedRoadGraphFromGrid();
             return (g128, engine128);
@@ -1103,25 +1095,21 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
         case "generated_map":
         {
             // Procedurally generated 64×64 terrain using diamond-square. Seed from CLI --seed arg.
-            // All zone placements come from the player — this scenario starts empty with terrain.
+            // Starts with only a border connection road at center of south edge.
             var seed = terrainSeed != 0 ? terrainSeed : 42;
             var g64 = new CityGrid(64, 64);
             var heightMap = Loopolis.Core.Grid.HeightMapGenerator.Generate(64, 64, seed);
             var forestMap = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed);
             g64.ApplyHeightMap(heightMap);
             g64.ApplyForestMap(forestMap);
-            // Place a starter coal plant on the first flat non-water tile we find
-            for (var sy = 0; sy < 64; sy++)
-            for (var sx = 0; sx < 64; sx++)
-            {
-                if (g64.GetHeightLevel(sx, sy) == 1)
-                {
-                    g64.SetZone(sx, sy, ZoneType.CoalPlant);
-                    Console.WriteLine($"[generated_map] Placed starter CoalPlant at ({sx},{sy}), seed={seed}");
-                    goto doneStarter;
-                }
-            }
-            doneStarter:
+            // Border connection at center of south edge — force flat terrain so it can always be placed
+            g64.SetHeightLevel(32, 63, 1);
+            g64.PlaceBorderConnection(32, 63);
+            // Starter road spine heading north — force flat terrain on each tile
+            g64.SetHeightLevel(32, 62, 1); g64.SetZone(32, 62, ZoneType.Road);
+            g64.SetHeightLevel(32, 61, 1); g64.SetZone(32, 61, ZoneType.Road);
+            g64.SetHeightLevel(32, 60, 1); g64.SetZone(32, 60, ZoneType.Road);
+            Console.WriteLine($"[generated_map] Border connection at (32,63), starter spine (32,62–60), seed={seed}");
             var engine64 = new SimulationEngine(g64, budget, population, power, roads, demand);
             engine64.SeedRoadGraphFromGrid();
             return (g64, engine64);
@@ -1320,21 +1308,15 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             break;
 
         default:
-            // Teaching layout: plant at west end → road runs east → homes on north side → shops + factory south
+            // Empty new-game start with a border connection road from the south edge.
+            // Player must build their own infrastructure.
             grid.SetFlatTerrain();
-            grid.SetZone(5, 12, ZoneType.CoalPlant);
-            for (var x = 6; x <= 14; x++) grid.SetZone(x, 12, ZoneType.Road);
-            // Residential north of road
-            grid.SetZone(9,  11, ZoneType.Residential);
-            grid.SetZone(10, 11, ZoneType.Residential);
-            grid.SetZone(11, 11, ZoneType.Residential);
-            grid.SetZone(12, 11, ZoneType.Residential);
-            // Commercial south of road (demand boost for residential — Chebyshev ≤ 3)
-            grid.SetZone(9,  13, ZoneType.Commercial);
-            grid.SetZone(10, 13, ZoneType.Commercial);
-            // Industrial near plant, south of road
-            grid.SetZone(6,  13, ZoneType.Industrial);
-            grid.SetZone(7,  13, ZoneType.Industrial);
+            // Border connection — center of south edge, unerasable Regional Highway
+            grid.PlaceBorderConnection(16, 31);
+            // Starter spine — 3 road tiles heading north from border
+            grid.SetZone(16, 30, ZoneType.Road);
+            grid.SetZone(16, 29, ZoneType.Road);
+            grid.SetZone(16, 28, ZoneType.Road);
             break;
     }
 
@@ -1418,7 +1400,8 @@ record TileState(
     [property: JsonPropertyName("trafficLoad")] int TrafficLoad = 0,
     [property: JsonPropertyName("terrain")] string? Terrain = null,
     [property: JsonPropertyName("height")] int HeightLevel = 1,
-    [property: JsonPropertyName("hasForest")] bool HasForest = false);
+    [property: JsonPropertyName("hasForest")] bool HasForest = false,
+    [property: JsonPropertyName("isBorderConnection")] bool IsBorderConnection = false);
 
 record TerrainSummary(
     [property: JsonPropertyName("averageHeight")]    double AverageHeight,

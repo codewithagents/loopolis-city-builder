@@ -1,3 +1,4 @@
+using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Simulation;
@@ -7,6 +8,8 @@ public class PopulationSystem
     private const int ResidentsPerZone = 50;
     private const double GrowthRate    = 0.05;
     private const double DeclineRate   = 0.10; // faster than growth — losing services hurts
+    private const double BorderMigrationMultiplier = 1.2;  // R-tiles reachable from border connection get +20% growth
+    private const float  BorderMigrationMaxDistance = 12.0f; // road-graph distance threshold
 
     // Commercial constants
     private const int ActivityCapacity            = 50;
@@ -37,12 +40,22 @@ public class PopulationSystem
     /// Total Population = sum of residential tile populations only.
     /// </summary>
     public void Tick(CityGrid grid, double employmentMultiplier = 1.0, RoadTrafficSystem? trafficSystem = null,
-        PowerCapacitySystem? powerCapacitySystem = null)
+        PowerCapacitySystem? powerCapacitySystem = null, RoadGraph? roadGraph = null)
     {
         var totalPopulation = 0;
 
         // Brownout growth multiplier: throttles all zone growth when supply < demand
         var brownoutGrowthMultiplier = powerCapacitySystem?.GrowthMultiplier ?? 1.0;
+
+        // Pre-compute Dijkstra distances from each external anchor (border connection) once per tick.
+        // Only computed when the road graph has at least one external anchor, to avoid unnecessary work.
+        List<Dictionary<(int x, int y), float>>? anchorDistanceMaps = null;
+        if (roadGraph != null && roadGraph.ExternalAnchors.Count > 0)
+        {
+            anchorDistanceMaps = new List<Dictionary<(int x, int y), float>>();
+            foreach (var anchor in roadGraph.ExternalAnchors)
+                anchorDistanceMaps.Add(roadGraph.ShortestPathSourceMap(anchor.x, anchor.y));
+        }
 
         foreach (var tile in grid.TilesOfType(ZoneType.Residential))
         {
@@ -59,7 +72,28 @@ public class PopulationSystem
                 // Guarantee at least 1 unit of growth only when employment is adequate (≥40%).
                 // With severe unemployment (<40%) growth CAN stall — a real signal to build industrial.
                 var trafficMultiplier = trafficSystem?.GetGrowthMultiplier(grid, tile.X, tile.Y) ?? 1.0;
-                var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier * trafficMultiplier * brownoutGrowthMultiplier;
+
+                // Border migration multiplier: +20% growth for R-tiles within road-graph distance 12
+                // of any external anchor (border connection tile). Simulates migration pressure.
+                var borderMultiplier = 1.0;
+                if (anchorDistanceMaps != null && roadGraph != null)
+                {
+                    // Find the tile's nearest road neighbour entry node
+                    var tileNode = FindRoadNeighbour(grid, roadGraph, tile.X, tile.Y);
+                    if (tileNode.HasValue)
+                    {
+                        foreach (var distMap in anchorDistanceMaps)
+                        {
+                            if (distMap.TryGetValue(tileNode.Value, out var dist) && dist <= BorderMigrationMaxDistance)
+                            {
+                                borderMultiplier = BorderMigrationMultiplier;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier * trafficMultiplier * brownoutGrowthMultiplier * borderMultiplier;
                 var rawGrowth = GrowthRate * ResidentsPerZone * growthMultiplier;
                 var minGrowth = employmentMultiplier >= 0.4 ? 1 : 0;
                 var growth = current < ResidentsPerZone ? Math.Max(minGrowth, (int)rawGrowth) : 0;
@@ -154,4 +188,24 @@ public class PopulationSystem
 
     public void SetPopulation(int population) =>
         Population = Math.Max(0, population);
+
+    /// <summary>
+    /// Returns the road-graph entry node for a given tile: the tile itself if it is a road node,
+    /// otherwise the first cardinal neighbour that is a road node. Returns null if none found.
+    /// </summary>
+    private static (int x, int y)? FindRoadNeighbour(CityGrid grid, RoadGraph roadGraph, int x, int y)
+    {
+        if (roadGraph.IsRoadNode(x, y)) return (x, y);
+
+        int[] dx = { 0, 0, -1, 1 };
+        int[] dy = { -1, 1, 0, 0 };
+        for (var i = 0; i < 4; i++)
+        {
+            var nx = x + dx[i];
+            var ny = y + dy[i];
+            if (!grid.IsInBounds(nx, ny)) continue;
+            if (roadGraph.IsRoadNode(nx, ny)) return (nx, ny);
+        }
+        return null;
+    }
 }

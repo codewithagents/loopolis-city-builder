@@ -19,8 +19,8 @@ public static class SaveSystem
     public static SaveGame Capture(SimulationEngine engine, CityGrid grid, int terrainSeed, string taxLevel, int tick)
     {
         var tiles = grid.AllTiles()
-            .Where(t => t.Zone != ZoneType.Empty)
-            .Select(t => new SavedTile(t.X, t.Y, t.Zone.ToString(), t.Population, t.BuildingId))
+            .Where(t => t.Zone != ZoneType.Empty || t.IsBorderConnection)
+            .Select(t => new SavedTile(t.X, t.Y, t.Zone.ToString(), t.Population, t.BuildingId, t.IsBorderConnection))
             .ToArray();
 
         var buildings = grid.Buildings.Values
@@ -105,8 +105,17 @@ public static class SaveSystem
             if (!Enum.TryParse<ZoneType>(t.Zone, out var zoneType)) continue;
             if (!grid.IsInBounds(t.X, t.Y)) continue;
 
-            // Respect water blocking — if the terrain is water, skip.
-            grid.SetZone(t.X, t.Y, zoneType);
+            // Border connection tiles must be restored via PlaceBorderConnection so the
+            // IsBorderConnection flag is set before the zone, bypassing the water-block guard.
+            if (t.IsBorderConnection)
+            {
+                grid.PlaceBorderConnection(t.X, t.Y);
+            }
+            else
+            {
+                // Respect water blocking — if the terrain is water, skip.
+                grid.SetZone(t.X, t.Y, zoneType);
+            }
 
             if (t.Population > 0)
                 grid.SetPopulation(t.X, t.Y, t.Population);

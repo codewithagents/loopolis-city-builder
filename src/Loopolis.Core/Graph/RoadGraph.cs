@@ -18,6 +18,9 @@ public class RoadGraph
     // adjacency: each node maps to its neighbours + edge weight
     private readonly Dictionary<(int x, int y), Dictionary<(int x, int y), float>> _edges = new();
 
+    // external anchor nodes (border connections)
+    private readonly HashSet<(int x, int y)> _externalAnchors = new();
+
     // 4-directional offsets
     private static readonly (int dx, int dy)[] Directions = { (0, -1), (0, 1), (-1, 0), (1, 0) };
 
@@ -43,6 +46,25 @@ public class RoadGraph
             return total / 2;
         }
     }
+
+    // ── External anchors (border connections) ─────────────────────────────────
+
+    /// <summary>
+    /// Mark a node as an external anchor (border connection).
+    /// External anchors behave like ordinary road nodes for pathfinding but are tagged
+    /// so future systems can treat them as job/migration sources.
+    /// The node must already exist (call AddNode first) or be added afterward.
+    /// </summary>
+    public void SetExternalAnchor(int x, int y)
+    {
+        _externalAnchors.Add((x, y));
+    }
+
+    /// <summary>Returns true if (x,y) is an external anchor node.</summary>
+    public bool IsExternalAnchor(int x, int y) => _externalAnchors.Contains((x, y));
+
+    /// <summary>All positions tagged as external anchors.</summary>
+    public IReadOnlyCollection<(int x, int y)> ExternalAnchors => _externalAnchors;
 
     // ── Mutation ───────────────────────────────────────────────────────────────
 
@@ -88,6 +110,7 @@ public class RoadGraph
 
         _nodes.Remove(key);
         _edges.Remove(key);
+        _externalAnchors.Remove(key);
     }
 
     // ── Queries ────────────────────────────────────────────────────────────────

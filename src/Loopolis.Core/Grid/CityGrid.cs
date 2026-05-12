@@ -30,6 +30,13 @@ public record Tile(int X, int Y)
     public bool HasPower { get; init; } = false;
     public bool HasWater { get; init; } = false;
     public bool HasRoadAccess { get; init; } = false;
+
+    /// <summary>
+    /// True when this tile is the unerasable "Regional Highway" border connection.
+    /// Set via CityGrid.PlaceBorderConnection — cannot be overwritten or erased.
+    /// Provides a 1.2× migration growth multiplier to R-tiles within road-graph distance 12.
+    /// </summary>
+    public bool IsBorderConnection { get; init; } = false;
     public double DemandFactor { get; init; } = 1.0;
     public double PollutionLevel { get; init; } = 0.0;
     public double Happiness { get; init; } = 1.0;
@@ -312,9 +319,22 @@ public class CityGrid
         return _tiles[x, y];
     }
 
+    /// <summary>
+    /// Place a border connection road tile at (x, y).
+    /// Sets ZoneType to Road and marks IsBorderConnection = true.
+    /// Border connection tiles cannot subsequently be overwritten or erased.
+    /// </summary>
+    public void PlaceBorderConnection(int x, int y)
+    {
+        AssertInBounds(x, y);
+        _tiles[x, y] = _tiles[x, y] with { Zone = ZoneType.Road, IsBorderConnection = true };
+    }
+
     public void SetZone(int x, int y, ZoneType zone)
     {
         AssertInBounds(x, y);
+        if (_tiles[x, y].IsBorderConnection)
+            return; // border connection tiles are permanent — cannot be overwritten
         if (_heightLevel[x, y] <= 0)
             return; // cannot build on water
         if (zone != ZoneType.Empty && _tiles[x, y].Zone != ZoneType.Empty)

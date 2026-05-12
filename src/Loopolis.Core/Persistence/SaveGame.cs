@@ -7,7 +7,8 @@ public record SavedTile(
     [property: JsonPropertyName("y")]    int    Y,
     [property: JsonPropertyName("zone")] string Zone,
     [property: JsonPropertyName("pop")]  int    Population,
-    [property: JsonPropertyName("bid")]  string? BuildingId = null
+    [property: JsonPropertyName("bid")]  string? BuildingId = null,
+    [property: JsonPropertyName("bc")]   bool   IsBorderConnection = false
 );
 
 public record SavedBuilding(
