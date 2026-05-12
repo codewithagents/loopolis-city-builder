@@ -1004,7 +1004,8 @@ static void WriteState(
         Error:                     error,
         Power:                     powerState,
         LastCommand:               lastCommand,
-        Terrain:                   terrainSummary
+        Terrain:                   terrainSummary,
+        RoadGraphNodes:            engine.RoadGraph.NodeCount
     );
 
     var options = new JsonSerializerOptions
@@ -1408,7 +1409,8 @@ record ServerState(
     string? Error = null,
     PowerState? Power = null,
     string? LastCommand = null,
-    TerrainSummary? Terrain = null);
+    TerrainSummary? Terrain = null,
+    int RoadGraphNodes = 0);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

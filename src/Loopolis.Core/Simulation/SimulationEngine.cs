@@ -1,4 +1,5 @@
 using Loopolis.Core.Buildings;
+using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Simulation;
@@ -41,6 +42,7 @@ public class SimulationEngine
     public EmploymentSystem EmploymentSystem { get; }
     public BuildingGrowthSystem BuildingGrowthSystem { get; } = new();
     public LandValueSystem LandValueSystem { get; } = new();
+    public RoadGraph RoadGraph { get; } = new();
     public int TickCount { get; private set; }
 
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
@@ -70,6 +72,40 @@ public class SimulationEngine
         MilestoneSystem = milestoneSystem ?? new MilestoneSystem();
         EventSystem = eventSystem ?? new EventSystem();
         EmploymentSystem = employmentSystem ?? new EmploymentSystem();
+    }
+
+    // ── Tile placement helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Place a zone tile and keep the RoadGraph in sync.
+    /// Road tiles are added as nodes (weight 1.0) and Avenue tiles as nodes (weight 0.5).
+    /// </summary>
+    public void PlaceTile(int x, int y, ZoneType zone)
+    {
+        Grid.SetZone(x, y, zone);
+
+        switch (zone)
+        {
+            case ZoneType.Road:
+                RoadGraph.AddNode(x, y, 1.0f);
+                break;
+            case ZoneType.Avenue:
+                RoadGraph.AddNode(x, y, 0.5f);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Erase a tile and keep the RoadGraph in sync.
+    /// If the erased tile was Road or Avenue, its node is removed from the graph.
+    /// </summary>
+    public void EraseTile(int x, int y)
+    {
+        var oldZone = Grid.GetTile(x, y).Zone;
+        Grid.SetZone(x, y, ZoneType.Empty);
+
+        if (oldZone == ZoneType.Road || oldZone == ZoneType.Avenue)
+            RoadGraph.RemoveNode(x, y);
     }
 
     public void Tick()
