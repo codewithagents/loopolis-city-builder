@@ -160,8 +160,8 @@ public partial class TilemapRenderer : Node2D
 
     /// <summary>
     /// Draws 1–5 small filled circles in the centre of a road tile based on traffic congestion.
-    /// load / threshold: &lt;20% → 0 dots, 20-40% → 1 white, 40-60% → 2 white, 60-80% → 3 yellow,
-    /// 80-100% → 4 orange, &gt;100% → 5 red.
+    /// load / threshold: &lt;40% → 0 dots, 40-60% → 1 white, 60-75% → 2 white, 75-90% → 3 yellow,
+    /// 90-100% → 4 orange, &gt;100% → 5 red.
     /// </summary>
     private void DrawTrafficDots(int load, int threshold, float px, float py)
     {
@@ -170,10 +170,10 @@ public partial class TilemapRenderer : Node2D
 
         int dots;
         Color dotColor;
-        if (ratio < 0.2)      { dots = 0; dotColor = Colors.White; }
-        else if (ratio < 0.4) { dots = 1; dotColor = Colors.White; }
-        else if (ratio < 0.6) { dots = 2; dotColor = Colors.White; }
-        else if (ratio < 0.8) { dots = 3; dotColor = new Color(1f, 0.95f, 0.2f); }
+        if (ratio < 0.4)      { dots = 0; dotColor = Colors.White; }
+        else if (ratio < 0.6) { dots = 1; dotColor = Colors.White; }
+        else if (ratio < 0.75){ dots = 2; dotColor = Colors.White; }
+        else if (ratio < 0.9) { dots = 3; dotColor = new Color(1f, 0.95f, 0.2f); }
         else if (ratio < 1.0) { dots = 4; dotColor = new Color(1f, 0.55f, 0.1f); }
         else                   { dots = 5; dotColor = new Color(1f, 0.2f,  0.2f); }
 
@@ -320,7 +320,7 @@ public partial class TilemapRenderer : Node2D
                     }
 
                     // Traffic load dots: show congestion level on road/avenue tiles
-                    DrawTrafficDots(tile.TrafficLoad, tile.Zone == ZoneType.Avenue ? 16 : 8, px, py);
+                    DrawTrafficDots(tile.TrafficLoad, tile.Zone == ZoneType.Avenue ? 10 : 6, px, py);
 
                     continue;
                 }

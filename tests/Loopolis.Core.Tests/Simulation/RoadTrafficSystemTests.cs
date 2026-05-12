@@ -27,7 +27,7 @@ public class RoadTrafficSystemTests
     [Test]
     public void RoadWith4AdjacentZones_NotOverloaded()
     {
-        // 4 zone tiles within Chebyshev distance 2 — below Road threshold of 8
+        // 4 zone tiles directly adjacent (Chebyshev-1) — below Road threshold of 6
         var grid = new CityGrid(10, 10);
         grid.SetZone(5, 5, ZoneType.Road);
         grid.SetZone(5, 4, ZoneType.Residential);
@@ -42,81 +42,60 @@ public class RoadTrafficSystemTests
     }
 
     [Test]
-    public void RoadWith10AdjacentZones_IsOverloaded()
+    public void RoadWith7AdjacentZones_IsOverloaded()
     {
-        // Pack 10 zone tiles within Chebyshev distance 2 of road at (5,5)
+        // Pack 7 zone tiles within Chebyshev distance 1 of road at (5,5) — exceeds threshold of 6
         var grid = new CityGrid(15, 15);
         grid.SetZone(5, 5, ZoneType.Road);
 
-        // Place 10 residential tiles around the road (within Chebyshev 2 = 5x5 minus road tile itself)
+        // All 8 Chebyshev-1 neighbours; place 7 as zones (one left as Road)
         var positions = new[] {
             (4, 4), (5, 4), (6, 4),
             (4, 5), (6, 5),
-            (4, 6), (5, 6), (6, 6),
-            (3, 5), (7, 5)
+            (4, 6), (5, 6)
         };
         foreach (var (x, y) in positions)
             grid.SetZone(x, y, ZoneType.Residential);
 
         _traffic.Propagate(grid);
 
-        Assert.That(_traffic.GetTrafficLoad(5, 5), Is.EqualTo(10));
+        Assert.That(_traffic.GetTrafficLoad(5, 5), Is.EqualTo(7));
         Assert.That(_traffic.IsOverloaded(5, 5), Is.True);
     }
 
     [Test]
-    public void AvenueWith10AdjacentZones_IsNotOverloaded()
+    public void AvenueWith8AdjacentZones_IsNotOverloaded()
     {
-        // Avenue threshold is 16 — 10 zones should not overload it
+        // Avenue threshold is 10 — filling all 8 Chebyshev-1 neighbours (max possible) still does not overload it
         var grid = new CityGrid(15, 15);
         grid.SetZone(5, 5, ZoneType.Avenue);
 
+        // All 8 Chebyshev-1 neighbours as zones
         var positions = new[] {
             (4, 4), (5, 4), (6, 4),
             (4, 5), (6, 5),
-            (4, 6), (5, 6), (6, 6),
-            (3, 5), (7, 5)
+            (4, 6), (5, 6), (6, 6)
         };
         foreach (var (x, y) in positions)
             grid.SetZone(x, y, ZoneType.Residential);
 
         _traffic.Propagate(grid);
 
-        Assert.That(_traffic.GetTrafficLoad(5, 5), Is.EqualTo(10));
+        Assert.That(_traffic.GetTrafficLoad(5, 5), Is.EqualTo(8));
         Assert.That(_traffic.IsOverloaded(5, 5), Is.False);
     }
 
     [Test]
-    public void AvenueWith17AdjacentZones_IsOverloaded()
+    public void Avenue_NeverOverloads_MaxChebyshev1Load()
     {
-        // Avenue overloads at > 16
+        // Avenue threshold (10) exceeds the maximum possible Chebyshev-1 load (8),
+        // so an avenue can never be marked overloaded no matter how dense the surrounding city is.
         var grid = new CityGrid(15, 15);
-        grid.SetZone(5, 5, ZoneType.Avenue);
+        grid.SetZone(7, 7, ZoneType.Avenue);
 
-        // Place 17 residential tiles within Chebyshev 2 (5x5 = 25 tiles minus 1 for road = 24 max)
-        var count = 0;
-        for (var dx = -2; dx <= 2 && count < 17; dx++)
-        for (var dy = -2; dy <= 2 && count < 17; dy++)
-        {
-            if (dx == 0 && dy == 0) continue; // skip the avenue tile itself
-            grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
-            count++;
-        }
-
-        _traffic.Propagate(grid);
-
-        Assert.That(_traffic.IsOverloaded(5, 5), Is.True);
-    }
-
-    [Test]
-    public void ChebyshevDistance2_CountsAllZonesInSquare()
-    {
-        // Fill the entire 5×5 square (excluding center road) with residential
-        var grid = new CityGrid(15, 15);
-        grid.SetZone(7, 7, ZoneType.Road);
-
-        for (var dx = -2; dx <= 2; dx++)
-        for (var dy = -2; dy <= 2; dy++)
+        // Fill all 8 directly-adjacent tiles with zones
+        for (var dx = -1; dx <= 1; dx++)
+        for (var dy = -1; dy <= 1; dy++)
         {
             if (dx == 0 && dy == 0) continue;
             grid.SetZone(7 + dx, 7 + dy, ZoneType.Residential);
@@ -124,8 +103,46 @@ public class RoadTrafficSystemTests
 
         _traffic.Propagate(grid);
 
-        // 5x5 = 25 tiles minus road = 24 zone tiles
-        Assert.That(_traffic.GetTrafficLoad(7, 7), Is.EqualTo(24));
+        Assert.That(_traffic.GetTrafficLoad(7, 7), Is.EqualTo(8));
+        Assert.That(_traffic.IsOverloaded(7, 7), Is.False);
+    }
+
+    [Test]
+    public void ChebyshevDistance1_CountsAllZonesInSquare()
+    {
+        // Fill the entire 3×3 square (excluding center road) with residential
+        var grid = new CityGrid(15, 15);
+        grid.SetZone(7, 7, ZoneType.Road);
+
+        for (var dx = -1; dx <= 1; dx++)
+        for (var dy = -1; dy <= 1; dy++)
+        {
+            if (dx == 0 && dy == 0) continue;
+            grid.SetZone(7 + dx, 7 + dy, ZoneType.Residential);
+        }
+
+        _traffic.Propagate(grid);
+
+        // 3x3 = 9 tiles minus road = 8 zone tiles
+        Assert.That(_traffic.GetTrafficLoad(7, 7), Is.EqualTo(8));
+    }
+
+    [Test]
+    public void ZonesAtChebyshev2Distance_NotCounted()
+    {
+        // Zones that are 2 tiles away (Chebyshev-2 but not Chebyshev-1) must NOT be counted
+        var grid = new CityGrid(15, 15);
+        grid.SetZone(7, 7, ZoneType.Road);
+
+        // Place zones at Chebyshev distance 2 only (not 1)
+        grid.SetZone(7, 5, ZoneType.Residential); // 2 above
+        grid.SetZone(7, 9, ZoneType.Residential); // 2 below
+        grid.SetZone(5, 7, ZoneType.Residential); // 2 left
+        grid.SetZone(9, 7, ZoneType.Residential); // 2 right
+
+        _traffic.Propagate(grid);
+
+        Assert.That(_traffic.GetTrafficLoad(7, 7), Is.EqualTo(0));
     }
 
     [Test]
@@ -193,12 +210,11 @@ public class RoadTrafficSystemTests
         var grid = new CityGrid(15, 15);
         grid.SetZone(5, 5, ZoneType.Road);
 
-        // Add 10 zones to overload the road
+        // Add 7 directly-adjacent zones (Chebyshev-1) to overload the road (threshold = 6)
         var positions = new[] {
             (4, 4), (5, 4), (6, 4),
             (4, 5), (6, 5),
-            (4, 6), (5, 6), (6, 6),
-            (3, 5), (7, 5)
+            (4, 6), (5, 6)
         };
         foreach (var (x, y) in positions)
             grid.SetZone(x, y, ZoneType.Residential);
@@ -228,11 +244,11 @@ public class RoadTrafficSystemTests
         var grid = new CityGrid(15, 15);
         grid.SetZone(5, 5, ZoneType.Road);
 
+        // 7 directly-adjacent zones (Chebyshev-1) — overloads road (threshold = 6)
         var positions = new[] {
             (4, 4), (5, 4), (6, 4),
             (4, 5), (6, 5),
-            (4, 6), (5, 6), (6, 6),
-            (3, 5), (7, 5)
+            (4, 6), (5, 6)
         };
         foreach (var (x, y) in positions)
             grid.SetZone(x, y, ZoneType.Residential);
@@ -292,13 +308,12 @@ public class RoadTrafficSystemTests
     public void OverloadedRoadCount_CountsOnlyOverloadedTiles()
     {
         var grid = new CityGrid(15, 15);
-        // Overloaded road at (5,5)
+        // Overloaded road at (5,5) — 7 directly-adjacent zones exceeds threshold of 6
         grid.SetZone(5, 5, ZoneType.Road);
         var positions = new[] {
             (4, 4), (5, 4), (6, 4),
             (4, 5), (6, 5),
-            (4, 6), (5, 6), (6, 6),
-            (3, 5), (7, 5)
+            (4, 6), (5, 6)
         };
         foreach (var (x, y) in positions)
             grid.SetZone(x, y, ZoneType.Residential);

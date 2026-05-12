@@ -6,24 +6,24 @@ namespace Loopolis.Core.Simulation;
 /// Calculates traffic density pressure on road and avenue tiles.
 ///
 /// For each road/avenue tile, counts the number of R/C/I zone tiles within
-/// Chebyshev distance 2 (a 5×5 square centred on the tile, excluding the tile itself).
+/// Chebyshev distance 1 (the 8 tiles immediately surrounding the road tile).
 /// This count is the tile's TrafficLoad, written back to the grid each tick.
 ///
 /// Overload thresholds:
-///   Road:   overloaded if TrafficLoad > 8
-///   Avenue: overloaded if TrafficLoad > 16
+///   Road:   overloaded if TrafficLoad > 6  (all 6 non-road adjacent tiles packed = real congestion)
+///   Avenue: overloaded if TrafficLoad > 10 (wider road handles more direct adjacency)
 ///
 /// When a road tile is overloaded, adjacent R/C/I zones receive:
 ///   - Growth multiplier: ×0.7
 ///   - Happiness modifier: −0.10
 ///
-/// Avenue tiles have double the capacity, rewarding the player's higher upfront
+/// Avenue tiles have higher capacity, rewarding the player's higher upfront
 /// cost ($50 placement, $2/tick maintenance vs Road's $25/$1).
 /// </summary>
 public class RoadTrafficSystem
 {
-    private const int RoadOverloadThreshold   = 8;
-    private const int AvenueOverloadThreshold = 16;
+    private const int RoadOverloadThreshold   = 6;
+    private const int AvenueOverloadThreshold = 10;
     private const double OverloadGrowthMultiplier  = 0.7;
     private const double OverloadHappinessPenalty  = -0.10;
 
@@ -72,7 +72,7 @@ public class RoadTrafficSystem
 
         foreach (var (rx, ry, zone) in roadTiles)
         {
-            var load = CountZonesInChebyshev2(grid, rx, ry);
+            var load = CountZonesInChebyshev1(grid, rx, ry);
             grid.SetTrafficLoad(rx, ry, load);
             _loadCache[(rx, ry)] = load;
             totalLoad += load;
@@ -127,11 +127,11 @@ public class RoadTrafficSystem
     // Separate set tracking overloaded road coordinates — avoids having to re-lookup zone type.
     private readonly HashSet<(int x, int y)> _overloaded = new();
 
-    private static int CountZonesInChebyshev2(CityGrid grid, int cx, int cy)
+    private static int CountZonesInChebyshev1(CityGrid grid, int cx, int cy)
     {
         var count = 0;
-        for (var dx = -2; dx <= 2; dx++)
-        for (var dy = -2; dy <= 2; dy++)
+        for (var dx = -1; dx <= 1; dx++)
+        for (var dy = -1; dy <= 1; dy++)
         {
             if (dx == 0 && dy == 0) continue; // exclude the road tile itself
             var nx = cx + dx;
