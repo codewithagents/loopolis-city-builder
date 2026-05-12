@@ -18,6 +18,7 @@ public partial class World : Node2D
     private float _ticksPerSecond = 2.0f;
 
     private TilemapRenderer _renderer = null!;
+    private Camera _camera = null!;
     private HudOverlay _hud = null!;
     private HintOverlay _hintOverlay = null!;
     private CityHealthPanel _cityHealth = null!;
@@ -81,6 +82,7 @@ public partial class World : Node2D
     public override void _Ready()
     {
         _renderer      = GetNode<TilemapRenderer>("TilemapRenderer");
+        _camera        = GetNode<Camera>("Camera");
         _hud           = GetNode<HudOverlay>("HudOverlay");
         _hintOverlay   = GetNode<HintOverlay>("HintOverlay");
         _cityHealth    = GetNode<CityHealthPanel>("CityHealthPanel");
@@ -130,7 +132,8 @@ public partial class World : Node2D
         {
             GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
             _reader = new SharedStateReader();
-            _reader.BuildingBorn += (typeId, ax, ay) => SpawnBuildingBirthLabel(typeId, ax, ay);
+            _reader.BuildingBorn  += (typeId, ax, ay) => SpawnBuildingBirthLabel(typeId, ax, ay);
+            _reader.FirstGridReady += (w, h) => _camera.FitToMap(w, h);
             AddChild(_reader);
             _viewerMode = true;
             return;
@@ -141,9 +144,11 @@ public partial class World : Node2D
         SetupStandaloneSimulation();
     }
 
+    private const int StandaloneMapSize = 64; // standalone default — 64×64 grid
+
     private void SetupStandaloneSimulation()
     {
-        _grid = new CityGrid(32, 32);
+        _grid = new CityGrid(StandaloneMapSize, StandaloneMapSize);
         _terrainSeed = (int)(GD.Randi() % int.MaxValue); // random seed this run
         GenerateTerrain(_grid, _terrainSeed);
         SeedStarterCity(_grid);
@@ -158,6 +163,8 @@ public partial class World : Node2D
         _gameOver = false;
 
         _renderer.Refresh(_grid);
+        // Fit the camera to show the full map on startup
+        _camera.FitToMap(StandaloneMapSize, StandaloneMapSize);
         PushStandaloneHudUpdate();
     }
 
@@ -270,8 +277,8 @@ public partial class World : Node2D
         var tileY = (int)(localPos.Y / TilemapRenderer.TileSize);
 
         var grid = _viewerMode ? _reader?.LastGrid : _grid;
-        var gridW = grid?.Width ?? 32;
-        var gridH = grid?.Height ?? 32;
+        var gridW = grid?.Width ?? StandaloneMapSize;
+        var gridH = grid?.Height ?? StandaloneMapSize;
         if (grid == null || tileX < 0 || tileX >= gridW || tileY < 0 || tileY >= gridH)
         {
             _tooltip.Hide();
@@ -329,8 +336,8 @@ public partial class World : Node2D
         _lastCoverageHoverY = tileY;
 
         var coverageGrid = _viewerMode ? _reader?.LastGrid : _grid;
-        var cgW = coverageGrid?.Width ?? 32;
-        var cgH = coverageGrid?.Height ?? 32;
+        var cgW = coverageGrid?.Width ?? StandaloneMapSize;
+        var cgH = coverageGrid?.Height ?? StandaloneMapSize;
         if (tileX < 0 || tileX >= cgW || tileY < 0 || tileY >= cgH)
         {
             _renderer.ClearCoverageHighlight();
@@ -619,7 +626,7 @@ public partial class World : Node2D
 
         if (_viewerMode)
         {
-            // Bounds-check against the viewer grid (server uses 32×32; standalone uses 64×64)
+            // Bounds-check against the viewer grid (size determined by server, may be 32×32–128×128)
             var viewerGrid = _reader?.LastGrid;
             if (viewerGrid == null) return;
             if (tileX < 0 || tileX >= viewerGrid.Width || tileY < 0 || tileY >= viewerGrid.Height) return;
@@ -801,8 +808,10 @@ public partial class World : Node2D
             var save = SaveSystem.Deserialize(json);
             if (save == null) { _eventLog.AddEntry("Save file corrupted."); return; }
 
-            // Rebuild the city from the save
-            _grid        = new CityGrid(32, 32);
+            // Rebuild the city from the save, using the persisted grid size
+            var savedW   = save.GridWidth  > 0 ? save.GridWidth  : StandaloneMapSize;
+            var savedH   = save.GridHeight > 0 ? save.GridHeight : StandaloneMapSize;
+            _grid        = new CityGrid(savedW, savedH);
             _terrainSeed = save.TerrainSeed;
             GenerateTerrain(_grid, _terrainSeed);
             SaveSystem.RestoreGrid(_grid, save);
@@ -824,6 +833,7 @@ public partial class World : Node2D
             _toolbar.SetTaxRate(save.TaxLevel);
             _gameOverPanel.Hide();
             _renderer.Refresh(_grid);
+            _camera.FitToMap(savedW, savedH);
             PushStandaloneHudUpdate();
 
             _eventLog.AddEntry($"Game loaded ✓ (tick {save.Tick})");

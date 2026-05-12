@@ -45,6 +45,15 @@ public partial class SharedStateReader : Node
     /// </summary>
     public event Action<string, int, int>? BuildingBorn;
 
+    /// <summary>
+    /// Fired once when the first grid is received from the server.
+    /// Parameters: gridWidth, gridHeight.
+    /// Used to fit the camera to the actual server map size.
+    /// </summary>
+    public event Action<int, int>? FirstGridReady;
+
+    private bool _firstGridFired = false;
+
     /// <summary>Last grid received from the server. World.cs uses this for optimistic tile placement.</summary>
     public CityGrid? LastGrid { get; private set; }
 
@@ -124,6 +133,14 @@ public partial class SharedStateReader : Node
             var (grid, heightMap, forestMap) = RebuildGrid(state);
             LastGrid  = grid;
             LastState = state;
+
+            // Notify camera to fit to map on first tick
+            if (!_firstGridFired)
+            {
+                _firstGridFired = true;
+                FirstGridReady?.Invoke(grid.Width, grid.Height);
+            }
+
             DetectBuildingBirths(state);
             _renderer.RefreshWithHeight(grid, heightMap, forestMap);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
@@ -210,13 +227,25 @@ public partial class SharedStateReader : Node
 
     private static (CityGrid grid, int[,] heightMap, bool[,] forestMap) RebuildGrid(SharedState state)
     {
-        var grid = new CityGrid(32, 32);
-        var heightMap = new int[32, 32];
-        var forestMap = new bool[32, 32];
+        // Infer grid dimensions from the tile data: find the max X and Y coordinates
+        // present in the tile list (Runner omits empty flat tiles, so we derive size
+        // from the largest coordinate seen, then round up to the next power-of-two or
+        // use the GridWidth/GridHeight fields when present).
+        int inferredW = state.GridWidth  > 0 ? state.GridWidth  : 32;
+        int inferredH = state.GridHeight > 0 ? state.GridHeight : 32;
+        foreach (var t in state.Tiles)
+        {
+            if (t.X + 1 > inferredW) inferredW = t.X + 1;
+            if (t.Y + 1 > inferredH) inferredH = t.Y + 1;
+        }
+
+        var grid = new CityGrid(inferredW, inferredH);
+        var heightMap = new int[inferredW, inferredH];
+        var forestMap = new bool[inferredW, inferredH];
 
         // Default to height=1 (lowland) so pre-height state.json looks like flat terrain
-        for (var x = 0; x < 32; x++)
-        for (var y = 0; y < 32; y++)
+        for (var x = 0; x < inferredW; x++)
+        for (var y = 0; y < inferredH; y++)
             heightMap[x, y] = 1;
 
         foreach (var tile in state.Tiles)
@@ -294,6 +323,8 @@ public record SharedState(
     string GameState,
     SharedTile[] Tiles,
     BuildingInfo[]? Buildings = null,
+    int GridWidth  = 0,   // optional: explicit grid width from server (0 = infer from tile coords)
+    int GridHeight = 0,   // optional: explicit grid height from server (0 = infer from tile coords)
     string? NextMilestoneName = null,
     int NextMilestoneTarget = 0,
     string? ActiveEventName = null,
