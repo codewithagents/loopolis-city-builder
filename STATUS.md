@@ -46,10 +46,12 @@
 | Avenue (ZoneType) | ✅ Done | (in RoadTrafficSystemTests) |
 | CoalPlant/NuclearPlant (ZoneType) | ✅ Done | (in PowerCapacitySystemTests) |
 | PowerCapacitySystem | ✅ Done | 27 |
-| LandValueSystem | ✅ Done | 18 |
+| LandValueSystem | ✅ Done | 21 |
 | CommutePenalty (HappinessSystem) | ✅ Done | 14 |
+| HeightMapGenerator (diamond-square) | ✅ Done | 17 |
+| CityGrid HeightLevel/Forest/Plateau/Cliff | ✅ Done | 13 (added) |
 
-**Total: 304 tests · 0 failures · ~0.36s runtime**
+**Total: 342 tests · 0 failures · ~0.30s runtime**
 
 ---
 
@@ -191,5 +193,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-11 | default | M8 Phase 3 land value: flat-terrain residential gets 0.8× tax multiplier → 12.24→9.79/tick at pop 102. LandValue avg=0.16, max=0.25 on default grid (no hills, minimal power at tick 1). landValueAvg/landValueMax in coverageSummary confirmed. res_villa_hillside_3x3 in catalog, HillTerrain+MinLandValue conditions working. | Working correctly |
 | 2026-05-11 | town | Commute penalty + Chebyshev-3 mixed-use: town scenario avg happiness 0.537 at tick 0 (down from 0.6 baseline) — industrial at y=16-24 is ~10+ tiles from residential y=10-14, triggering −0.10 commute tier. happinessBreakdown.commutePenalty = −0.0462 in live state.json. default scenario: commutePenalty = 0.0 (no industrial). | Working correctly |
+| 2026-05-12 | generated_map seed=99 | Height system: 63 water tiles (6.1%), 50 elevated, 42 plateaus on 32×32 grid. TerrainSummary in state.json (averageHeight=1.01). All existing scenarios (default/town/mixed/no_power/no_roads) unchanged — SetFlatTerrain() ensures immunity to procedural terrain. Cliff road constraint rejects height diff >1. | Working correctly |
 
-*Last updated: 2026-05-11 — M8 Phase 3: LandValueSystem + hillside villa + tax modifiers*
+*Last updated: 2026-05-12 — Height Level System: diamond-square terrain, plateau/cliff classification, v3 saves*
