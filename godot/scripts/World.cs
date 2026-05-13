@@ -26,6 +26,8 @@ public partial class World : Node2D
 	private TileTooltip _tooltip = null!;
 	private GameOverPanel _gameOverPanel = null!;
 	private EventLog _eventLog = null!;
+	private TopBar _topBar = null!;
+	private ToastSystem _toastSystem = null!;
 	private bool _viewerMode = false;
 	private string _sharedDir = "";
 	private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
@@ -53,6 +55,20 @@ public partial class World : Node2D
 	private bool _loggedCapacity = false;
 	private string? _lastLoggedMilestone;
 	private string? _lastLoggedBanner;
+
+	// Toast deduplication flags
+	private bool _brownoutToastShown = false;
+	private bool _employmentToastShown = false;
+
+	// Tutorial hint progression
+	private int _tutorialHintIndex = 0;
+	private static readonly string[] TutorialHints =
+	{
+		"💡 Zone homes along roads to attract residents. Power unlocks bigger buildings.",
+		"💡 Connect a Coal Plant with Power Lines — powered zones grow faster.",
+		"💡 Build Fire Station, Police, and School — happiness keeps your city growing.",
+		"💡 Milestones: 500 pop = Town · 5k = City · 25k = Metropolis · 100k = Loopolis"
+	};
 
 	// Server process tracking (static — survives scene changes)
 	private static long _serverPid = -1;
@@ -95,6 +111,13 @@ public partial class World : Node2D
 		_gameOverPanel = GetNode<GameOverPanel>("GameOverPanel");
 		_eventLog      = GetNode<EventLog>("EventLog");
 
+		// Instantiate TopBar and ToastSystem
+		_topBar = new TopBar();
+		AddChild(_topBar);
+
+		_toastSystem = new ToastSystem();
+		AddChild(_toastSystem);
+
 		// Wire toolbar signals
 		_toolbar.ZoneSelected       += OnZoneSelected;
 		_toolbar.PauseToggled       += OnPauseToggled;
@@ -106,6 +129,8 @@ public partial class World : Node2D
 			KillServerIfRunning();
 			GetTree().ChangeSceneToFile("res://scenes/MainMenu.tscn");
 		};
+		_toolbar.StatsToggled   += () => _hud.Toggle();
+		_toolbar.OverlayChanged += mode => ToggleOverlay((OverlayMode)mode);
 
 		// Wire game-over panel
 		_gameOverPanel.NewGameRequested += OnNewGameRequested;
@@ -308,6 +333,7 @@ public partial class World : Node2D
 				_toolbar.SetPaused(true);
 				_gameOverPanel.ShowBankrupt(_standaloneTick, _budget!.Balance, _population!.Population);
 				_hintOverlay.SetGameOver();
+				_toastSystem.SetGameOver();
 			}
 
 			// Abandoned check
@@ -319,6 +345,7 @@ public partial class World : Node2D
 				var happiness = _engine.HappinessSystem.AverageHappiness(_grid);
 				_gameOverPanel.ShowAbandoned(_standaloneTick, _population!.Population, happiness);
 				_hintOverlay.SetGameOver();
+				_toastSystem.SetGameOver();
 			}
 
 			// Win condition — Loopolis (100k population)
@@ -329,6 +356,7 @@ public partial class World : Node2D
 				_toolbar.SetPaused(true);
 				_gameOverPanel.ShowWin(_standaloneTick, _population!.Population, _budget!.Balance);
 				_hintOverlay.SetGameOver();
+				_toastSystem.SetGameOver();
 			}
 		}
 	}
@@ -502,13 +530,14 @@ public partial class World : Node2D
 				if (speedChanged) return;
 			}
 
-			// Tab switches: Z = Zones tab, U = Utilities tab, S = Services tab
+			// Tab switches: Z = Zones, S = Services, U = Utilities
+			// (New sidebar: 0=Zones, 1=Services, 2=Utilities, 3=Overlays)
 			// Guard against Ctrl combinations (Ctrl+S = Save)
 			if (!key.CtrlPressed)
 			{
 				if (key.Keycode == Key.Z) { _toolbar.SwitchToTab(0); return; }
-				if (key.Keycode == Key.U) { _toolbar.SwitchToTab(1); return; }
-				if (key.Keycode == Key.S) { _toolbar.SwitchToTab(2); return; }
+				if (key.Keycode == Key.S) { _toolbar.SwitchToTab(1); return; }
+				if (key.Keycode == Key.U) { _toolbar.SwitchToTab(2); return; }
 			}
 
 			var zone = key.Keycode switch
@@ -617,7 +646,6 @@ public partial class World : Node2D
 					WriteCommand("{\"cmd\":\"pause\"}");
 			}
 			_toolbar.SetBuildMode(true);
-			_hud.SetBuildModePaused(true);
 			if (!_viewerMode) PushStandaloneHudUpdate();
 		}
 		else
@@ -634,7 +662,6 @@ public partial class World : Node2D
 					WriteCommand("{\"cmd\":\"resume\"}");
 			}
 			_toolbar.SetBuildMode(false);
-			_hud.SetBuildModePaused(false);
 			if (!_viewerMode) PushStandaloneHudUpdate();
 		}
 
@@ -668,7 +695,6 @@ public partial class World : Node2D
 				_buildModePaused = false;
 				_toolbar.DeselectAll();
 				_toolbar.SetBuildMode(false);
-				_hud.SetBuildModePaused(false);
 				WriteCommand("{\"cmd\":\"resume\"}");
 			}
 			else
@@ -690,7 +716,6 @@ public partial class World : Node2D
 				_toolbar.DeselectAll();
 				_toolbar.SetBuildMode(false);
 				_toolbar.SetPaused(false);
-				_hud.SetBuildModePaused(false);
 				PushStandaloneHudUpdate();
 			}
 			else
@@ -718,7 +743,6 @@ public partial class World : Node2D
 			_toolbar.DeselectAll();
 			_toolbar.SetBuildMode(false);
 			_toolbar.SetPaused(false);
-			_hud.SetBuildModePaused(false);
 			_gameOverPanel.Hide();
 		}
 	}
@@ -1079,7 +1103,6 @@ public partial class World : Node2D
 			_toolbar.SetBuildMode(false);
 			_toolbar.SetPaused(false);
 			_toolbar.SetTaxRate(save.TaxLevel);
-			_hud.SetBuildModePaused(false);
 			_gameOverPanel.Hide();
 			_renderer.Refresh(_grid);
 			_camera.FitToMap(savedW, savedH);
@@ -1155,6 +1178,11 @@ public partial class World : Node2D
 		var milestone     = _engine.MilestoneSystem.LatestMilestone?.Name;
 		var residentialCount = System.Linq.Enumerable.Count(_grid.TilesOfType(Loopolis.Core.Grid.ZoneType.Residential));
 		var maxCapacity   = residentialCount * 50;
+
+		// Zone counts for TopBar
+		var resZones = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Residential);
+		var comZones = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Commercial);
+		var indZones = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Industrial);
 
 		var gameStateName = _engine.MilestoneSystem.CurrentState.ToString();
 
@@ -1266,16 +1294,79 @@ public partial class World : Node2D
 			Employment:                employmentDto,
 			CoverageSummary:           coverageSummary,
 			PauseReason:               pauseReason,
-			Power:                     powerState
+			Power:                     powerState,
+			ResZones:                  resZones,
+			ComZones:                  comZones,
+			IndZones:                  indZones
 		);
 		_lastState = state;
 		_hud.UpdateStats(state);
+		_topBar.UpdateStats(state);
 		_hintOverlay.UpdateHints(state);
 		_cityHealth.UpdateWarnings(state);
 		_renderer.SetBrownout(pcs.IsBrownout);
 		_renderer.SetFireTile(_engine.EventSystem.FireTileX, _engine.EventSystem.FireTileY);
 		_toolbar.UpdateMilestoneLocks(_population.Population);
 		UpdateEventLog(state, milestone);
+
+		// ── Toast routing ──────────────────────────────────────────────────────
+
+		// Brownout alert (deduplicated — cleared when brownout resolves)
+		if (pcs.IsBrownout)
+		{
+			if (!_brownoutToastShown)
+			{
+				_brownoutToastShown = true;
+				_toastSystem.AddAlert("⚡ Power brownout — add more power plants");
+			}
+		}
+		else
+		{
+			_brownoutToastShown = false;
+		}
+
+		// Employment gap alert (deduplicated)
+		if (_engine.EmploymentSystem.EmploymentRatio < 0.7 && _population.Population > 50)
+		{
+			if (!_employmentToastShown)
+			{
+				_employmentToastShown = true;
+				_toastSystem.AddAlert("⚠ Jobs shortage — build more Industrial zones");
+			}
+		}
+		else
+		{
+			_employmentToastShown = false;
+		}
+
+		// Milestone toast
+		if (!string.IsNullOrEmpty(milestone) && milestone != _lastLoggedMilestone)
+			_toastSystem.AddMilestone($"🏆 {milestone} reached!");
+
+		// Event banner toast
+		if (!string.IsNullOrEmpty(state.LatestEventBanner) && state.LatestEventBanner != _lastLoggedBanner)
+			_toastSystem.AddEvent(state.LatestEventBanner);
+
+		// Tutorial hints
+		UpdateTutorialHint(state);
+	}
+
+	private void UpdateTutorialHint(SharedState state)
+	{
+		if (_tutorialHintIndex >= TutorialHints.Length) return;
+		var shouldShow = _tutorialHintIndex switch
+		{
+			0 => state.Tick > 10,
+			1 => state.Population > 5,
+			2 => state.Happiness < 0.7 || state.Tick > 150,
+			3 => state.Tick > 300,
+			_ => false
+		};
+		if (shouldShow)
+		{
+			_toastSystem.AddHint(TutorialHints[_tutorialHintIndex]);
+			_tutorialHintIndex++;
+		}
 	}
 
 	private void UpdateEventLog(SharedState state, string? milestone)

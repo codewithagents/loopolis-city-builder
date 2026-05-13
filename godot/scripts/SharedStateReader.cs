@@ -396,7 +396,10 @@ public record SharedState(
     string[]? LastDegradedBuildings = null, // typeIds of buildings demolished by degradation this tick
     int EventTileX = -1,                    // X of tile currently on fire (-1 = none)
     int EventTileY = -1,                    // Y of tile currently on fire (-1 = none)
-    bool HasPowerPlant = false              // true when any CoalPlant/NuclearPlant/PowerPlant tile exists
+    bool HasPowerPlant = false,             // true when any CoalPlant/NuclearPlant/PowerPlant tile exists
+    int ResZones = 0,                       // count of Residential zone tiles
+    int ComZones = 0,                       // count of Commercial zone tiles
+    int IndZones = 0                        // count of Industrial zone tiles
 )
 {
     /// <summary>

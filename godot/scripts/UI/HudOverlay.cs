@@ -4,179 +4,62 @@ using Godot;
 
 namespace LoopolisGodot;
 
-
 /// <summary>
-/// Stats HUD shown in the top-left corner as a semi-transparent dark panel.
-/// Displays tick, population, balance, net income, happiness, selected tool, pause state, and milestone banners.
+/// Detail Stats panel — shown/hidden via Toggle(). Defaults to hidden.
+/// Position: bottom-left floating panel, grows upward.
+/// The error banner is a separate element always rendered regardless of stats visibility.
+/// Layer = 10.
 /// </summary>
 public partial class HudOverlay : CanvasLayer
 {
-    private Label _tickLabel          = null!;
-    private Label _popLabel           = null!;
-    private Label _nextMilestoneLabel = null!;
-    private Label _capacityNudge      = null!;
+    // ── Detail stats panel ─────────────────────────────────────────────────
+    private PanelContainer _statsPanel = null!;
+
     private Label _balanceLabel   = null!;
-    private Label _netLabel       = null!;
-    private Label _taxCostLabel   = null!;
-    private Label _happyLabel     = null!;
     private Label _jobsLabel      = null!;
-    private Label _commerceLabel  = null!;
-    private Label _industryLabel  = null!;
     private Label _schoolLabel    = null!;
     private Label _policeLabel    = null!;
     private Label _fireLabel      = null!;
     private Label _hospitalLabel  = null!;
     private Label _commuteLabel   = null!;
-    private Label _powerLabel     = null!;
     private Label _eventLabel     = null!;
     private Label _selectedLabel  = null!;
-    private Label _pausedLabel    = null!;
+
+    private double _balanceWarningTimer = 0;
+    private const double BalanceWarningDuration = 0.8;
+
+    // ── Milestone banner (floating, centered, timed) ───────────────────────
     private Label _milestoneLabel = null!;
     private double _milestoneTimer = 0;
-    private double _balanceWarningTimer = 0;
     private string? _lastShownMilestone;
-    private const double MilestoneDuration = 3.0; // seconds
-    private const double BalanceWarningDuration = 0.8; // seconds
+    private const double MilestoneDuration = 3.0;
 
-    // Tutorial banner — shown until a power plant is placed
-    private Label _tutorialBanner = null!;
-    private bool _tutorialDismissed = false;
-
-    // Error banner — shown when the simulation throws an unhandled exception
+    // ── Error banner — always visible, independent of stats panel ─────────
     private PanelContainer _errorBannerPanel = null!;
     private Label _errorBannerLabel = null!;
 
-    // Overlay legend panel — shown in bottom-right when an overlay is active
+    // ── Overlay legend panel ───────────────────────────────────────────────
     private PanelContainer _overlayLegendPanel = null!;
     private Label _overlayLegendTitle = null!;
-    private Label[] _overlayLegendRows = System.Array.Empty<Label>();
-    private ColorRect[] _overlayLegendSwatches = System.Array.Empty<ColorRect>();
+    private Label[] _overlayLegendRows = Array.Empty<Label>();
+    private ColorRect[] _overlayLegendSwatches = Array.Empty<ColorRect>();
 
     public override void _Ready()
     {
         Layer = 10;
 
-        // Root panel: dark semi-transparent background in top-left
-        var panel = new PanelContainer();
-        panel.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
-        panel.Position = new Vector2(8, 8);
-        panel.AddThemeStyleboxOverride("panel", MakePanelStyle());
-        AddChild(panel);
-
-        var vbox = new VBoxContainer();
-        vbox.AddThemeConstantOverride("separation", 2);
-        panel.AddChild(vbox);
-
-        _tickLabel     = MakeLabel("Tick: 0");
-        _popLabel      = MakeLabel("Pop: 0");
-
-        _nextMilestoneLabel = new Label();
-        _nextMilestoneLabel.Text = "";
-        _nextMilestoneLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.85f, 1f));
-        _nextMilestoneLabel.AddThemeFontSizeOverride("font_size", 14);
-
-        _capacityNudge = new Label();
-        _capacityNudge.Text = "⚡ At capacity — build more zones!";
-        _capacityNudge.Visible = false;
-        _capacityNudge.AddThemeColorOverride("font_color", new Color(1f, 0.75f, 0.1f));
-        _capacityNudge.AddThemeFontSizeOverride("font_size", 13);
-
-        _balanceLabel  = MakeLabel("Balance: $0");
-        _netLabel      = MakeLabel("Net: $0/tick");
-        _taxCostLabel  = MakeLabel("Tax: $0/tick | Costs: $0/tick");
-        _happyLabel    = MakeLabel("Happiness: 0%");
-
-        _jobsLabel = MakeLabel("Jobs: ✓ 0 available");
-
-        _commerceLabel = MakeLabel("Commerce: 0 zones | $0/tick | Demand: ░░░░░░░░░░ 0%");
-        _industryLabel = MakeLabel("Industry: 0 zones | 0 jobs | Utilization: ░░░░░░░░░░ 0%");
-
-        _schoolLabel   = MakeServiceLabel();
-        _policeLabel   = MakeServiceLabel();
-        _fireLabel     = MakeServiceLabel();
-        _hospitalLabel = MakeServiceLabel();
-        _commuteLabel  = MakeServiceLabel();
-
-        _powerLabel = new Label();
-        _powerLabel.Text = "";
-        _powerLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
-        _powerLabel.AddThemeFontSizeOverride("font_size", 16);
-
-        _eventLabel = new Label();
-        _eventLabel.Text = "";
-        _eventLabel.Visible = false;
-        _eventLabel.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
-        _eventLabel.AddThemeFontSizeOverride("font_size", 14);
-
-        _selectedLabel = MakeLabel("[Selected: Road]");
-        _pausedLabel   = MakeLabel("[Paused]");
-
-        vbox.AddChild(_tickLabel);
-        vbox.AddChild(_popLabel);
-        vbox.AddChild(_nextMilestoneLabel);
-        vbox.AddChild(_capacityNudge);
-        vbox.AddChild(_balanceLabel);
-        vbox.AddChild(_netLabel);
-        vbox.AddChild(_taxCostLabel);
-        vbox.AddChild(_happyLabel);
-        vbox.AddChild(_jobsLabel);
-        vbox.AddChild(_commerceLabel);
-        vbox.AddChild(_industryLabel);
-        vbox.AddChild(_schoolLabel);
-        vbox.AddChild(_policeLabel);
-        vbox.AddChild(_fireLabel);
-        vbox.AddChild(_hospitalLabel);
-        vbox.AddChild(_commuteLabel);
-        vbox.AddChild(_powerLabel);
-        vbox.AddChild(_eventLabel);
-        vbox.AddChild(_selectedLabel);
-        vbox.AddChild(_pausedLabel);
-
-        _pausedLabel.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.1f));
-        _pausedLabel.Visible = false;
-
-        // Milestone banner — centered near the top
+        // ── Milestone banner (top-center, always rendered) ─────────────────
         _milestoneLabel = new Label();
         _milestoneLabel.Text = "";
         _milestoneLabel.Visible = false;
         _milestoneLabel.SetAnchorsPreset(Control.LayoutPreset.TopWide);
-        _milestoneLabel.Position = new Vector2(0, 8);
+        _milestoneLabel.Position = new Vector2(0, 56); // below TopBar
         _milestoneLabel.HorizontalAlignment = HorizontalAlignment.Center;
         _milestoneLabel.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.2f));
         _milestoneLabel.AddThemeFontSizeOverride("font_size", 22);
         AddChild(_milestoneLabel);
 
-        // Tutorial banner — top-center, semi-transparent dark background
-        var tutorialPanel = new PanelContainer();
-        tutorialPanel.SetAnchorsPreset(Control.LayoutPreset.TopWide);
-        tutorialPanel.Position = new Vector2(0, 40);
-        tutorialPanel.MouseFilter = Control.MouseFilterEnum.Ignore;
-        var tutorialStyle = new StyleBoxFlat();
-        tutorialStyle.BgColor = new Color(0f, 0f, 0f, 0.60f);
-        tutorialStyle.ContentMarginLeft   = 12;
-        tutorialStyle.ContentMarginRight  = 12;
-        tutorialStyle.ContentMarginTop    = 5;
-        tutorialStyle.ContentMarginBottom = 5;
-        tutorialStyle.CornerRadiusTopLeft     = 4;
-        tutorialStyle.CornerRadiusTopRight    = 4;
-        tutorialStyle.CornerRadiusBottomLeft  = 4;
-        tutorialStyle.CornerRadiusBottomRight = 4;
-        tutorialPanel.AddThemeStyleboxOverride("panel", tutorialStyle);
-
-        _tutorialBanner = new Label();
-        _tutorialBanner.Text = "💡 Zone homes along the road to attract residents. Build a power plant to unlock larger buildings.";
-        _tutorialBanner.HorizontalAlignment = HorizontalAlignment.Center;
-        _tutorialBanner.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f, 1f));
-        _tutorialBanner.AddThemeFontSizeOverride("font_size", 16);
-        _tutorialBanner.MouseFilter = Control.MouseFilterEnum.Ignore;
-        tutorialPanel.AddChild(_tutorialBanner);
-        tutorialPanel.Visible = false;
-        AddChild(tutorialPanel);
-
-        // Keep a reference to the panel so we can show/hide it via the label's parent
-        _tutorialBanner.SetMeta("panel", tutorialPanel);
-
-        // Error banner — full-width red panel at the very top, hidden by default
+        // ── Error banner — top-center, ALWAYS rendered ─────────────────────
         _errorBannerPanel = new PanelContainer();
         _errorBannerPanel.SetAnchorsPreset(Control.LayoutPreset.TopWide);
         _errorBannerPanel.Position = new Vector2(0, 0);
@@ -198,7 +81,7 @@ public partial class HudOverlay : CanvasLayer
         _errorBannerPanel.Visible = false;
         AddChild(_errorBannerPanel);
 
-        // ── Overlay legend panel — bottom-right, hidden until an overlay is active ──
+        // ── Overlay legend — bottom-right ──────────────────────────────────
         _overlayLegendPanel = new PanelContainer();
         _overlayLegendPanel.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         _overlayLegendPanel.GrowHorizontal = Control.GrowDirection.Begin;
@@ -211,10 +94,8 @@ public partial class HudOverlay : CanvasLayer
         legendStyle.ContentMarginRight  = 8;
         legendStyle.ContentMarginTop    = 6;
         legendStyle.ContentMarginBottom = 6;
-        legendStyle.CornerRadiusTopLeft     = 4;
-        legendStyle.CornerRadiusTopRight    = 4;
-        legendStyle.CornerRadiusBottomLeft  = 4;
-        legendStyle.CornerRadiusBottomRight = 4;
+        legendStyle.CornerRadiusTopLeft = legendStyle.CornerRadiusTopRight =
+            legendStyle.CornerRadiusBottomLeft = legendStyle.CornerRadiusBottomRight = 4;
         _overlayLegendPanel.AddThemeStyleboxOverride("panel", legendStyle);
 
         var legendVbox = new VBoxContainer();
@@ -230,9 +111,8 @@ public partial class HudOverlay : CanvasLayer
         _overlayLegendTitle.MouseFilter = Control.MouseFilterEnum.Ignore;
         legendVbox.AddChild(_overlayLegendTitle);
 
-        // Three swatch+label rows (high / medium / low or covered / partial / none etc.)
         _overlayLegendSwatches = new ColorRect[3];
-        _overlayLegendRows     = new Label[4]; // 3 legend rows + 1 dismiss hint
+        _overlayLegendRows     = new Label[4];
         for (int i = 0; i < 3; i++)
         {
             var row = new HBoxContainer();
@@ -255,7 +135,6 @@ public partial class HudOverlay : CanvasLayer
             _overlayLegendRows[i] = rowLabel;
         }
 
-        // Dismiss hint label
         var dismissLabel = new Label();
         dismissLabel.Text = "[press again to hide]";
         dismissLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -264,11 +143,10 @@ public partial class HudOverlay : CanvasLayer
         dismissLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
         legendVbox.AddChild(dismissLabel);
         _overlayLegendRows[3] = dismissLabel;
-
         _overlayLegendPanel.Visible = false;
         AddChild(_overlayLegendPanel);
 
-        // ── Hotkey hints row — bottom of screen, always visible ─────────────
+        // ── Hotkey hints strip — bottom of screen ──────────────────────────
         var hintsPanel = new PanelContainer();
         hintsPanel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
         hintsPanel.GrowVertical = Control.GrowDirection.Begin;
@@ -283,13 +161,82 @@ public partial class HudOverlay : CanvasLayer
         hintsPanel.AddThemeStyleboxOverride("panel", hintsStyle);
 
         var hintsLabel = new Label();
-        hintsLabel.Text = "[F1] Happiness  [F2] Traffic  [F3] Coverage  [F4] Land Value  [F5] Pollution";
+        hintsLabel.Text = "[F1] Happiness  [F2] Traffic  [F3] Coverage  [F4] Land Value  [F5] Pollution  [📊 Stats in sidebar]";
         hintsLabel.HorizontalAlignment = HorizontalAlignment.Center;
         hintsLabel.AddThemeColorOverride("font_color", new Color(0.65f, 0.65f, 0.65f, 0.85f));
         hintsLabel.AddThemeFontSizeOverride("font_size", 10);
         hintsLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
         hintsPanel.AddChild(hintsLabel);
         AddChild(hintsPanel);
+
+        // ── Detail stats panel — bottom-left, HIDDEN by default ────────────
+        _statsPanel = new PanelContainer();
+        _statsPanel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        _statsPanel.GrowVertical = Control.GrowDirection.Begin;
+        _statsPanel.Position = new Vector2(8, -36); // above the hotkey hint strip
+        _statsPanel.MouseFilter = Control.MouseFilterEnum.Stop;
+        _statsPanel.AddThemeStyleboxOverride("panel", MakePanelStyle());
+        _statsPanel.Visible = false; // hidden by default
+        AddChild(_statsPanel);
+
+        var vbox = new VBoxContainer();
+        vbox.AddThemeConstantOverride("separation", 2);
+        _statsPanel.AddChild(vbox);
+
+        // Header row: title + close button
+        var headerRow = new HBoxContainer();
+        headerRow.AddThemeConstantOverride("separation", 4);
+        vbox.AddChild(headerRow);
+
+        var titleLabel = new Label();
+        titleLabel.Text = "📊 DETAIL STATS";
+        titleLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 1f));
+        titleLabel.AddThemeFontSizeOverride("font_size", 14);
+        headerRow.AddChild(titleLabel);
+
+        var closeBtn = new Button();
+        closeBtn.FocusMode = Control.FocusModeEnum.None;
+        closeBtn.Text = "×";
+        closeBtn.CustomMinimumSize = new Vector2(22, 22);
+        closeBtn.AddThemeFontSizeOverride("font_size", 14);
+        var closeBtnStyle = new StyleBoxFlat();
+        closeBtnStyle.BgColor = new Color(0f, 0f, 0f, 0f);
+        closeBtn.AddThemeStyleboxOverride("normal",  closeBtnStyle);
+        closeBtn.AddThemeStyleboxOverride("hover",   closeBtnStyle);
+        closeBtn.AddThemeStyleboxOverride("pressed", closeBtnStyle);
+        closeBtn.AddThemeStyleboxOverride("focus",   closeBtnStyle);
+        closeBtn.Pressed += Toggle;
+        headerRow.AddChild(closeBtn);
+
+        vbox.AddChild(MakeHSep());
+
+        _balanceLabel  = MakeLabel("Budget: Tax $0/tk | Costs $0/tk");
+        _jobsLabel     = MakeLabel("Jobs: —");
+        _schoolLabel   = MakeServiceLabel("🏫 School: — (none built)");
+        _policeLabel   = MakeServiceLabel("🚔 Police: — (none built)");
+        _fireLabel     = MakeServiceLabel("🔥 Fire: — (none built)");
+        _hospitalLabel = MakeServiceLabel("🏥 Hospital: — (none built)");
+        _commuteLabel  = MakeServiceLabel("🚗 Commute: no workers yet");
+        _eventLabel    = MakeLabel("");
+        _selectedLabel = MakeLabel("[No tool selected]");
+
+        vbox.AddChild(_balanceLabel);
+        vbox.AddChild(MakeHSep());
+        vbox.AddChild(_jobsLabel);
+        vbox.AddChild(MakeHSep());
+        vbox.AddChild(_schoolLabel);
+        vbox.AddChild(_policeLabel);
+        vbox.AddChild(_fireLabel);
+        vbox.AddChild(_hospitalLabel);
+        vbox.AddChild(MakeHSep());
+        vbox.AddChild(_commuteLabel);
+        vbox.AddChild(MakeHSep());
+        vbox.AddChild(_eventLabel);
+        vbox.AddChild(_selectedLabel);
+
+        _eventLabel.AddThemeColorOverride("font_color", new Color(1f, 0.5f, 0.2f));
+        _eventLabel.Visible = false;
     }
 
     public override void _Process(double delta)
@@ -297,7 +244,6 @@ public partial class HudOverlay : CanvasLayer
         if (_milestoneTimer > 0)
         {
             _milestoneTimer -= delta;
-            // Fade out in last 0.5 seconds
             var alpha = _milestoneTimer < 0.5 ? (float)(_milestoneTimer / 0.5) : 1f;
             _milestoneLabel.Modulate = new Color(1f, 1f, 1f, alpha);
             if (_milestoneTimer <= 0)
@@ -313,33 +259,34 @@ public partial class HudOverlay : CanvasLayer
         }
     }
 
+    // ── Public API ─────────────────────────────────────────────────────────
+
+    /// <summary>Toggle the stats panel visibility.</summary>
+    public void Toggle()
+    {
+        _statsPanel.Visible = !_statsPanel.Visible;
+    }
+
     /// <summary>Flash the balance label red briefly to signal insufficient funds.</summary>
     public void FlashBalanceWarning()
     {
         _balanceWarningTimer = BalanceWarningDuration;
     }
 
-    /// <summary>
-    /// Shows a full-width red error banner at the top of the screen.
-    /// The simulation should be paused before calling this.
-    /// Press F12 to dismiss.
-    /// </summary>
+    /// <summary>Shows a full-width red error banner at the top. Always visible regardless of stats panel state.</summary>
     public void ShowErrorBanner(string message)
     {
         _errorBannerLabel.Text = $"SIMULATION ERROR: {message}    [Press F12 to dismiss]";
         _errorBannerPanel.Visible = true;
     }
 
-    /// <summary>Hides the error banner (called when the player presses F12).</summary>
+    /// <summary>Hides the error banner.</summary>
     public void DismissErrorBanner()
     {
         _errorBannerPanel.Visible = false;
     }
 
-    /// <summary>
-    /// Shows or hides the overlay legend panel in the bottom-right corner.
-    /// Called by World.cs when the active overlay changes.
-    /// </summary>
+    /// <summary>Shows or hides the overlay legend in the bottom-right corner.</summary>
     public void ShowOverlayLegend(OverlayMode mode)
     {
         if (mode == OverlayMode.None)
@@ -348,7 +295,6 @@ public partial class HudOverlay : CanvasLayer
             return;
         }
 
-        // Configure title and three color swatch rows based on the active overlay
         string title;
         (Color swatchColor, string rowText)[] rows;
 
@@ -367,36 +313,36 @@ public partial class HudOverlay : CanvasLayer
                 title = "TRAFFIC [F2]";
                 rows = new[]
                 {
-                    (new Color(1f, 0f, 0f),           "Heavy (60+)"),
-                    (new Color(1f, 1f, 0f),            "Moderate (10–60)"),
-                    (new Color(0.5f, 0.5f, 0.5f),      "Light (<10)"),
+                    (new Color(1f, 0f, 0f),          "Heavy (60+)"),
+                    (new Color(1f, 1f, 0f),           "Moderate (10–60)"),
+                    (new Color(0.5f, 0.5f, 0.5f),     "Light (<10)"),
                 };
                 break;
             case OverlayMode.Coverage:
                 title = "COVERAGE [F3]";
                 rows = new[]
                 {
-                    (new Color(0f, 0.6f, 1f),          "Fully covered"),
-                    (new Color(1f, 0.55f, 0f),          "Road, no power"),
-                    (new Color(0.15f, 0.15f, 0.15f),    "No road access"),
+                    (new Color(0f, 0.6f, 1f),         "Fully covered"),
+                    (new Color(1f, 0.55f, 0f),         "Road, no power"),
+                    (new Color(0.15f, 0.15f, 0.15f),   "No road access"),
                 };
                 break;
             case OverlayMode.LandValue:
                 title = "LAND VALUE [F4]";
                 rows = new[]
                 {
-                    (new Color(1f, 0.843f, 0f),         "High value"),
-                    (new Color(0.6f, 0.5f, 0.1f),       "Medium value"),
-                    (new Color(0.239f, 0.125f, 0f),      "Low value"),
+                    (new Color(1f, 0.843f, 0f),        "High value"),
+                    (new Color(0.6f, 0.5f, 0.1f),      "Medium value"),
+                    (new Color(0.239f, 0.125f, 0f),     "Low value"),
                 };
                 break;
             case OverlayMode.Pollution:
                 title = "POLLUTION [F5]";
                 rows = new[]
                 {
-                    (new Color(0.545f, 0f, 0f),          "Heavy"),
-                    (new Color(1f, 0.5f, 0f),             "Moderate"),
-                    (new Color(0.5f, 0.5f, 0.5f),         "None"),
+                    (new Color(0.545f, 0f, 0f),         "Heavy"),
+                    (new Color(1f, 0.5f, 0f),            "Moderate"),
+                    (new Color(0.5f, 0.5f, 0.5f),        "None"),
                 };
                 break;
             default:
@@ -413,181 +359,48 @@ public partial class HudOverlay : CanvasLayer
         _overlayLegendPanel.Visible = true;
     }
 
-    /// <summary>Called by SharedStateReader (viewer mode) and World (standalone mode) each tick.</summary>
+    /// <summary>Update the detail stats panel content from the latest SharedState.</summary>
     public void UpdateStats(SharedState state)
     {
-        _tickLabel.Text    = $"Tick: {state.Tick:N0}";
-        if (state.MaxCapacity > 0)
-            _popLabel.Text = $"Pop: {state.Population:N0} / {state.MaxCapacity:N0}";
-        else
-            _popLabel.Text = $"Pop: {state.Population:N0}";
+        // Budget row
+        var taxModStr = state.TaxModifier > 0.001  ? " [↓Tax]" :
+                        state.TaxModifier < -0.001 ? " [↑Tax]" : "";
+        _balanceLabel.Text = $"Budget: Tax ${state.TaxPerTick:F1}/tk | Costs ${state.MaintenancePerTick:F1}/tk{taxModStr}";
 
-        if (!string.IsNullOrEmpty(state.NextMilestoneName) && state.NextMilestoneTarget > 0)
+        // Jobs row
+        if (state.RequiredJobs > 0 && state.EmploymentRatio < 1.0)
         {
-            UpdateMilestoneProgressLabel(_nextMilestoneLabel, state.NextMilestoneName, state.NextMilestoneTarget, state.Population);
-            _nextMilestoneLabel.Visible = true;
-        }
-        else
-        {
-            _nextMilestoneLabel.Visible = false;
-        }
-
-        var nearCapacity = state.MaxCapacity > 0 && state.Population >= state.MaxCapacity - 5;
-        _capacityNudge.Visible = nearCapacity;
-
-        _balanceLabel.Text = $"Balance: ${state.Balance:N0}";
-
-        var netSign = state.NetPerTick >= 0 ? "+" : "";
-        _netLabel.Text = $"Net: {netSign}${state.NetPerTick:F1}/tick";
-        _netLabel.AddThemeColorOverride("font_color",
-            state.NetPerTick >= 0 ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.3f, 0.3f));
-
-        var taxModStr = state.TaxModifier > 0.001  ? " [↓Tax +happy]" :
-                        state.TaxModifier < -0.001 ? " [↑Tax -happy]" : "";
-        if (state.CommercialIncomePerTick > 0)
-            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1} | Shops: ${state.CommercialIncomePerTick:F1} | Costs: ${state.MaintenancePerTick:F1}/tick{taxModStr}";
-        else
-            _taxCostLabel.Text = $"Tax: ${state.TaxPerTick:F1}/tick | Costs: ${state.MaintenancePerTick:F1}/tick{taxModStr}";
-
-        _taxCostLabel.AddThemeColorOverride("font_color",
-            state.TaxModifier > 0.001  ? new Color(0.3f, 1f, 0.3f) :
-            state.TaxModifier < -0.001 ? new Color(1f, 0.3f, 0.3f) :
-                                         new Color(0.9f, 0.9f, 0.9f));
-
-        var happyPct = (int)(state.Happiness * 100);
-        _happyLabel.Text = $"Happiness: {happyPct}%";
-
-        if (state.EmploymentRatio < 1.0 && state.RequiredJobs > 0)
-        {
-            var unemploymentPct = (int)((1.0 - state.EmploymentRatio) * 100);
-            _jobsLabel.Text = $"Jobs: {state.AvailableJobs}/{state.RequiredJobs} (⚠️ {unemploymentPct}% gap)";
+            var gapPct = (int)((1.0 - state.EmploymentRatio) * 100);
+            _jobsLabel.Text = $"Jobs: {state.AvailableJobs}/{state.RequiredJobs} ⚠ {gapPct}% gap";
             _jobsLabel.AddThemeColorOverride("font_color", new Color(1f, 0.6f, 0.1f));
         }
         else
         {
-            _jobsLabel.Text = $"Jobs: ✓ {state.AvailableJobs} available";
+            _jobsLabel.Text = $"Jobs: {state.AvailableJobs} available";
             _jobsLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
         }
 
-        // Commerce row
-        {
-            var commerceTiles   = state.Tiles.Count(t => t.Zone == "Commercial");
-            var commerceBoost   = state.Tiles.Count(t => t.Zone == "Commercial" && t.HasDemandBoost);
-            var demandPct       = commerceTiles > 0 ? (int)((double)commerceBoost / commerceTiles * 100) : 0;
-            var demandBar       = MakeBar(demandPct);
-            var demandColor     = demandPct >= 70 ? new Color(0.3f, 1f, 0.3f)
-                                : demandPct >= 40 ? new Color(1f, 0.85f, 0.1f)
-                                                  : new Color(1f, 0.35f, 0.35f);
-            if (commerceTiles > 0)
-            {
-                _commerceLabel.Text = $"Commerce: {commerceTiles} zones | ${state.CommercialIncomePerTick:F1}/tick | Demand: {demandBar} {demandPct}%";
-                _commerceLabel.AddThemeColorOverride("font_color", demandColor);
-                _commerceLabel.Visible = true;
-            }
-            else
-            {
-                _commerceLabel.Visible = false;
-            }
-        }
-
-        // Industry row
-        {
-            var industrialTiles = state.Tiles.Count(t => t.Zone == "Industrial");
-            // max theoretical jobs = tiles * 20 (50 pop-units * 0.4 jobs/unit)
-            var maxJobs         = industrialTiles * 20;
-            var jobs            = state.Employment?.Jobs ?? state.AvailableJobs;
-            var utilPct         = maxJobs > 0 ? (int)((double)jobs / maxJobs * 100) : 0;
-            utilPct             = Math.Min(utilPct, 100);
-            var utilBar         = MakeBar(utilPct);
-            var utilColor       = utilPct >= 60 ? new Color(0.3f, 1f, 0.3f)
-                                : utilPct >= 30 ? new Color(1f, 0.85f, 0.1f)
-                                               : new Color(1f, 0.35f, 0.35f);
-            if (industrialTiles > 0)
-            {
-                _industryLabel.Text = $"Industry: {industrialTiles} zones | {jobs:N0} jobs | Utilization: {utilBar} {utilPct}%";
-                _industryLabel.AddThemeColorOverride("font_color", utilColor);
-                _industryLabel.Visible = true;
-            }
-            else
-            {
-                _industryLabel.Visible = false;
-            }
-        }
-
-        // Service capacity rows (G4)
+        // Service rows
         if (state.CoverageSummary != null)
         {
             var cov = state.CoverageSummary;
 
-            // School
-            if (cov.SchoolSeatsTotal == 0)
-            {
-                _schoolLabel.Text = "🏫 School: — (none built)";
-                _schoolLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
-            }
-            else
-            {
-                var pct    = (int)(cov.SchoolCoveragePercent * 100);
-                var bar    = MakeBar(pct);
-                _schoolLabel.Text = $"🏫 School:   {cov.SchoolSeatsUsed}/{cov.SchoolSeatsTotal} seats  {bar}  {pct}%";
-                _schoolLabel.AddThemeColorOverride("font_color", CapacityColor(cov.SchoolSeatsUsed, cov.SchoolSeatsTotal));
-            }
-            _schoolLabel.Visible = true;
-
-            // Police
-            if (cov.PoliceCapacityTotal == 0)
-            {
-                _policeLabel.Text = "👮 Police: — (none built)";
-                _policeLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
-            }
-            else
-            {
-                var pct    = (int)(cov.PoliceCoveragePercent * 100);
-                var bar    = MakeBar(pct);
-                _policeLabel.Text = $"👮 Police:   {cov.PoliceCapacityUsed}/{cov.PoliceCapacityTotal}        {bar}  {pct}%";
-                _policeLabel.AddThemeColorOverride("font_color", CapacityColor(cov.PoliceCapacityUsed, cov.PoliceCapacityTotal));
-            }
-            _policeLabel.Visible = true;
-
-            // Fire
-            if (cov.FireCapacityTotal == 0)
-            {
-                _fireLabel.Text = "🚒 Fire: — (none built)";
-                _fireLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
-            }
-            else
-            {
-                var pct    = (int)(cov.FireCoveragePercent * 100);
-                var bar    = MakeBar(pct);
-                _fireLabel.Text = $"🚒 Fire:     {cov.FireCapacityUsed}/{cov.FireCapacityTotal}        {bar}  {pct}%";
-                _fireLabel.AddThemeColorOverride("font_color", CapacityColor(cov.FireCapacityUsed, cov.FireCapacityTotal));
-            }
-            _fireLabel.Visible = true;
-
-            // Hospital
-            if (cov.HospitalBedsTotal == 0)
-            {
-                _hospitalLabel.Text = "🏥 Hospital: — (none built)";
-                _hospitalLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
-            }
-            else
-            {
-                var pct    = (int)(cov.HospitalCoveragePercent * 100);
-                var bar    = MakeBar(pct);
-                _hospitalLabel.Text = $"🏥 Hospital: {cov.HospitalBedsUsed}/{cov.HospitalBedsTotal} beds   {bar}  {pct}%";
-                _hospitalLabel.AddThemeColorOverride("font_color", CapacityColor(cov.HospitalBedsUsed, cov.HospitalBedsTotal));
-            }
-            _hospitalLabel.Visible = true;
+            UpdateServiceLabel(_schoolLabel,   "🏫 School",   cov.SchoolSeatsUsed,     cov.SchoolSeatsTotal,     "seats");
+            UpdateServiceLabel(_policeLabel,   "🚔 Police",   cov.PoliceCapacityUsed,  cov.PoliceCapacityTotal,  "units");
+            UpdateServiceLabel(_fireLabel,     "🔥 Fire",     cov.FireCapacityUsed,    cov.FireCapacityTotal,    "bldgs");
+            UpdateServiceLabel(_hospitalLabel, "🏥 Hospital", cov.HospitalBedsUsed,    cov.HospitalBedsTotal,    "beds");
         }
         else
         {
-            _schoolLabel.Visible   = false;
-            _policeLabel.Visible   = false;
-            _fireLabel.Visible     = false;
-            _hospitalLabel.Visible = false;
+            _schoolLabel.Text   = "🏫 School: — (none built)";
+            _policeLabel.Text   = "🚔 Police: — (none built)";
+            _fireLabel.Text     = "🔥 Fire: — (none built)";
+            _hospitalLabel.Text = "🏥 Hospital: — (none built)";
+            foreach (var l in new[] { _schoolLabel, _policeLabel, _fireLabel, _hospitalLabel })
+                l.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
         }
 
-        // Commute row (G4)
+        // Commute row
         if (state.WorkerFlow != null)
         {
             var wf = state.WorkerFlow;
@@ -598,54 +411,26 @@ public partial class HudOverlay : CanvasLayer
             }
             else
             {
-                var jamStr     = wf.OverloadedEdges > 0  ? $" | {wf.OverloadedEdges} jammed roads" : "";
-                var unrStr     = wf.UnroutedWorkers > 0  ? $" | {wf.UnroutedWorkers} unrouted" : "";
+                var jamStr = wf.OverloadedEdges > 0 ? $" | {wf.OverloadedEdges} jammed" : "";
+                var unrStr = wf.UnroutedWorkers > 0 ? $" | {wf.UnroutedWorkers} unrouted" : "";
                 _commuteLabel.Text = $"🚗 Commute: avg {wf.AverageCommuteDistance:F1} tiles{unrStr}{jamStr}";
-                var commuteColor = wf.OverloadedEdges > 0  ? new Color(1f, 0.5f, 0.15f)
-                                 : wf.UnroutedWorkers > 10 ? new Color(1f, 0.8f, 0.2f)
-                                                           : new Color(0.75f, 0.9f, 0.75f);
-                _commuteLabel.AddThemeColorOverride("font_color", commuteColor);
+                _commuteLabel.AddThemeColorOverride("font_color",
+                    wf.OverloadedEdges > 0 ? new Color(1f, 0.5f, 0.15f) :
+                    wf.UnroutedWorkers > 10 ? new Color(1f, 0.8f, 0.2f) :
+                                              new Color(0.75f, 0.9f, 0.75f));
             }
-            _commuteLabel.Visible = true;
         }
         else
         {
             _commuteLabel.Text = "🚗 Commute: no workers yet";
             _commuteLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
-            _commuteLabel.Visible = true;
         }
 
-        // Power row
-        if (state.Power != null)
-        {
-            var pwr = state.Power;
-            var pct = pwr.DemandMW > 0 ? (int)(pwr.CapacityRatio * 100) : 100;
-            if (pwr.IsBrownout)
-            {
-                _powerLabel.Text = $"⚡ {pwr.SupplyMW:N0} / {pwr.DemandMW:N0} MW  ({pct}%) ⚠ BROWNOUT";
-                _powerLabel.AddThemeColorOverride("font_color", new Color(1f, 0.6f, 0.1f)); // amber
-            }
-            else if (pwr.CapacityRatio >= 1.5)
-            {
-                _powerLabel.Text = $"⚡ {pwr.SupplyMW:N0} / {pwr.DemandMW:N0} MW  ({pct}%)";
-                _powerLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.4f)); // green surplus
-            }
-            else
-            {
-                _powerLabel.Text = $"⚡ {pwr.SupplyMW:N0} / {pwr.DemandMW:N0} MW  ({pct}%)";
-                _powerLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
-            }
-            _powerLabel.Visible = true;
-        }
-        else
-        {
-            _powerLabel.Visible = false;
-        }
-
+        // Active event row
         if (!string.IsNullOrEmpty(state.ActiveEventName))
         {
             var penaltyPct = (int)(Mathf.Abs((float)state.EventHappinessPenalty) * 100);
-            _eventLabel.Text = $"! {state.ActiveEventName} — happiness -{penaltyPct}%";
+            _eventLabel.Text = $"! Active Event: {state.ActiveEventName} — -{penaltyPct}% happiness";
             _eventLabel.Visible = true;
         }
         else
@@ -653,69 +438,15 @@ public partial class HudOverlay : CanvasLayer
             _eventLabel.Visible = false;
         }
 
-        _pausedLabel.Visible = state.Paused;
-
+        // Milestone banner (floating)
         if (!string.IsNullOrEmpty(state.MilestoneReached) && state.MilestoneReached != _lastShownMilestone)
         {
             _lastShownMilestone = state.MilestoneReached;
             ShowMilestone(state.MilestoneReached);
         }
-
-        // Tutorial banner: show when tick > 5 and no power plant exists yet; hide once placed
-        UpdateTutorialBanner(state);
     }
 
-    /// <summary>
-    /// Shows the tutorial banner when tick > 5 and no power plant is on the map.
-    /// Permanently dismisses it once a power plant is detected.
-    /// </summary>
-    private void UpdateTutorialBanner(SharedState state)
-    {
-        if (_tutorialDismissed) return;
-
-        var panel = (Control)_tutorialBanner.GetMeta("panel").As<GodotObject>();
-
-        // Check if a power plant exists on the map
-        var hasPowerPlant = state.HasPowerPlant;
-
-        if (hasPowerPlant)
-        {
-            _tutorialDismissed = true;
-            panel.Visible = false;
-            return;
-        }
-
-        // Only show after tick 5 so the very first few frames don't clutter the screen
-        panel.Visible = state.Tick > 5;
-    }
-
-    /// <summary>Called by World.cs (standalone mode) to update the next milestone display directly.</summary>
-    public void UpdateNextMilestone(string? name, int target, int currentPop)
-    {
-        if (!string.IsNullOrEmpty(name) && target > 0)
-        {
-            UpdateMilestoneProgressLabel(_nextMilestoneLabel, name, target, currentPop);
-            _nextMilestoneLabel.Visible = true;
-        }
-        else
-        {
-            _nextMilestoneLabel.Visible = false;
-        }
-    }
-
-    /// <summary>
-    /// Updates a label with a visual milestone progress bar.
-    /// Format: "🥉 Town  ███████░░░  72%  (360/500)"
-    /// </summary>
-    private static void UpdateMilestoneProgressLabel(Label label, string milestoneName, int target, int currentPop)
-    {
-        var pct  = target > 0 ? Math.Clamp((int)((double)currentPop / target * 100), 0, 100) : 0;
-        var bar  = MakeBar8(pct);
-        label.Text = $"→ {milestoneName}  {bar}  {pct}%  ({currentPop:N0}/{target:N0})";
-        label.AddThemeColorOverride("font_color", GetMilestoneColor(milestoneName));
-    }
-
-    /// <summary>Called by Toolbar when the player changes the selected zone.</summary>
+    /// <summary>Called by World.cs when a tool is selected/deselected.</summary>
     public void SetSelectedZone(string zoneName)
     {
         if (string.IsNullOrEmpty(zoneName) || zoneName == "Empty")
@@ -724,27 +455,41 @@ public partial class HudOverlay : CanvasLayer
             _selectedLabel.Text = $"[Selected: {zoneName}]";
     }
 
-    /// <summary>
-    /// Updates the paused label text to reflect build-mode vs manual pause.
-    /// Call from World.cs whenever build-mode state changes.
-    /// </summary>
+    /// <summary>Kept for compatibility — sets the paused display text in the stats panel.</summary>
     public void SetBuildModePaused(bool buildMode)
     {
-        _pausedLabel.Text = buildMode ? "⏸ PAUSED — Build mode (Esc or Resume to continue)" : "[Paused]";
-        _pausedLabel.AddThemeColorOverride("font_color",
-            buildMode ? new Color(1f, 0.85f, 0.1f) : new Color(0.9f, 0.9f, 0.9f));
+        // No-op: build mode is now shown in Toolbar's sidebar indicator.
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+
+    private static void UpdateServiceLabel(Label lbl, string prefix, int used, int total, string unit)
+    {
+        if (total == 0)
+        {
+            lbl.Text = $"{prefix}: — (none built)";
+            lbl.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        }
+        else
+        {
+            var ratio = (double)used / total;
+            lbl.Text = $"{prefix}: {used}/{total} {unit}";
+            lbl.AddThemeColorOverride("font_color",
+                ratio >= 0.9 ? new Color(1f, 0.3f, 0.3f) :
+                ratio >= 0.7 ? new Color(1f, 0.85f, 0.15f) :
+                               new Color(0.3f, 1f, 0.3f));
+        }
     }
 
     private void ShowMilestone(string milestone)
     {
-        // Tier-specific styling: size and color differ by milestone
         var (emoji, color, size, duration) = milestone switch
         {
             "Town"       => ("🥉", new Color(0.85f, 0.60f, 0.15f), 28, 3.0),
             "City"       => ("🥈", new Color(0.80f, 0.85f, 0.90f), 32, 3.5),
             "Metropolis" => ("🥇", new Color(1.0f,  0.85f, 0.10f), 38, 4.0),
             "Loopolis"   => ("🏆", new Color(0.20f, 1.0f,  0.90f), 44, 5.0),
-            _            => ("★", new Color(1f, 0.9f, 0.2f),       26, 3.0),
+            _            => ("★",  new Color(1f,    0.9f,  0.2f),  26, 3.0),
         };
 
         _milestoneLabel.Text = $"  {emoji}  {milestone.ToUpperInvariant()} REACHED!  {emoji}  ";
@@ -755,71 +500,37 @@ public partial class HudOverlay : CanvasLayer
         _milestoneTimer = duration;
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-
-    /// <summary>Builds a 10-character unicode block bar for a 0–100% value.</summary>
-    private static string MakeBar(int percent)
-    {
-        var filled = Math.Clamp(percent, 0, 100) / 10;
-        return new string('█', filled) + new string('░', 10 - filled);
-    }
-
-    /// <summary>Builds an 8-character unicode block bar for a 0–100% value (compact variant).</summary>
-    private static string MakeBar8(int percent)
-    {
-        var filled = Math.Clamp(percent, 0, 100) * 8 / 100;
-        return new string('█', filled) + new string('░', 8 - filled);
-    }
-
-    /// <summary>Returns tier-specific color for a milestone name (e.g. "Town 🥉" or "Town").</summary>
-    private static Color GetMilestoneColor(string name) => name switch
-    {
-        var n when n.Contains("Town")       => new Color(0.85f, 0.60f, 0.15f), // bronze
-        var n when n.Contains("City")       => new Color(0.78f, 0.82f, 0.88f), // silver
-        var n when n.Contains("Metropolis") => new Color(1.0f,  0.85f, 0.10f), // gold
-        var n when n.Contains("Loopolis")   => new Color(0.20f, 1.0f,  0.90f), // teal/win
-        _                                   => new Color(0.70f, 0.85f, 1.0f),  // default blue
-    };
-
-    /// <summary>Creates a hidden, monospace-friendly service-capacity label.</summary>
-    private static Label MakeServiceLabel()
-    {
-        var label = new Label();
-        label.Text = "";
-        label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
-        label.AddThemeFontSizeOverride("font_size", 14);
-        label.Visible = false;
-        return label;
-    }
-
-    /// <summary>
-    /// Returns green/yellow/red based on how full a service capacity is.
-    /// ≥90% → red (near capacity), ≥70% → yellow, else green.
-    /// </summary>
-    private static Color CapacityColor(int used, int total)
-    {
-        if (total == 0) return new Color(0.6f, 0.6f, 0.6f);
-        var ratio = (double)used / total;
-        return ratio >= 0.9 ? new Color(1f, 0.3f, 0.3f)
-             : ratio >= 0.7 ? new Color(1f, 0.85f, 0.15f)
-                            : new Color(0.3f, 1f, 0.3f);
-    }
-
     private static Label MakeLabel(string text)
     {
-        var label = new Label();
-        label.Text = text;
-        label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
-        label.AddThemeFontSizeOverride("font_size", 16);
-        return label;
+        var lbl = new Label();
+        lbl.Text = text;
+        lbl.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        lbl.AddThemeFontSizeOverride("font_size", 13);
+        return lbl;
+    }
+
+    private static Label MakeServiceLabel(string text)
+    {
+        var lbl = new Label();
+        lbl.Text = text;
+        lbl.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.6f));
+        lbl.AddThemeFontSizeOverride("font_size", 13);
+        return lbl;
+    }
+
+    private static Control MakeHSep()
+    {
+        var sep = new HSeparator();
+        sep.AddThemeColorOverride("color", new Color(0.25f, 0.25f, 0.25f, 0.7f));
+        return sep;
     }
 
     private static StyleBoxFlat MakePanelStyle()
     {
         var style = new StyleBoxFlat();
-        style.BgColor = new Color(0f, 0f, 0f, 0.65f);
-        style.ContentMarginLeft   = 8;
-        style.ContentMarginRight  = 8;
+        style.BgColor = new Color(0.05f, 0.05f, 0.05f, 0.88f);
+        style.ContentMarginLeft   = 10;
+        style.ContentMarginRight  = 10;
         style.ContentMarginTop    = 6;
         style.ContentMarginBottom = 6;
         style.CornerRadiusTopLeft     = 4;
