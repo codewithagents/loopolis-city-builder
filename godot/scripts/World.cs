@@ -59,6 +59,8 @@ public partial class World : Node2D
 	// Toast deduplication flags
 	private bool _brownoutToastShown = false;
 	private bool _employmentToastShown = false;
+	private bool _happinessWarnedLow = false;      // warned at <40%
+	private bool _happinessWarnedCritical = false; // warned at <30% (close to abandonment)
 
 	// Tutorial hint progression
 	private int _tutorialHintIndex = 0;
@@ -1256,12 +1258,14 @@ public partial class World : Node2D
 		);
 
 		// PauseReason: derive from game state for standalone (Runner sets this explicitly)
-		string? pauseReason = gameStateName switch
-		{
-			"BankruptcyWarning" => "BankruptcyWarning",
-			"AbandonmentWarning" => "AbandonmentWarning",
-			_ => null
-		};
+		string? pauseReason = _buildModePaused ? "BuildMode"
+			: _standalonePaused ? "Paused"
+			: gameStateName switch
+			{
+				"BankruptcyWarning" => "BankruptcyWarning",
+				"AbandonmentWarning" => "AbandonmentWarning",
+				_ => null
+			};
 
 		// Power capacity summary for HUD
 		var pcs = _engine.PowerCapacitySystem;
@@ -1349,6 +1353,21 @@ public partial class World : Node2D
 		{
 			_employmentToastShown = false;
 		}
+
+		// Happiness warnings (fire before abandonment kicks in at 25%)
+		if (state.Happiness < 0.40 && !_happinessWarnedLow)
+		{
+			_happinessWarnedLow = true;
+			_toastSystem.AddAlert($"⚠️ Happiness at {(int)(state.Happiness * 100)}% — reduce industry or add services");
+		}
+		if (state.Happiness >= 0.45) _happinessWarnedLow = false; // reset when recovered
+
+		if (state.Happiness < 0.30 && !_happinessWarnedCritical)
+		{
+			_happinessWarnedCritical = true;
+			_toastSystem.AddAlert($"🚨 Happiness critical ({(int)(state.Happiness * 100)}%) — city may be abandoned soon!");
+		}
+		if (state.Happiness >= 0.35) _happinessWarnedCritical = false;
 
 		// Milestone toast
 		if (!string.IsNullOrEmpty(milestone) && milestone != _lastLoggedMilestone)

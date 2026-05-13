@@ -23,6 +23,11 @@ public partial class TopBar : CanvasLayer
     private Label _happinessLabel = null!;
     private Label _tickLabel      = null!;
 
+    // ── Pause / build-mode banner ──────────────────────────────────────────
+    private PanelContainer _pauseBanner = null!;
+    private Label _pauseBannerLabel = null!;
+    private StyleBoxFlat _bannerStyle = null!;
+
     // ── Hamburger dropdown ─────────────────────────────────────────────────
     private PanelContainer _dropdownPanel = null!;
 
@@ -44,6 +49,29 @@ public partial class TopBar : CanvasLayer
         panelStyle.ContentMarginBottom = 4;
         panel.AddThemeStyleboxOverride("panel", panelStyle);
         AddChild(panel);
+
+        // ── Pause/Build-mode banner (below top bar, hidden by default) ──────
+        _pauseBanner = new PanelContainer();
+        _pauseBanner.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+        _pauseBanner.GrowVertical = Control.GrowDirection.End;
+        _pauseBanner.Position = new Vector2(0, 48); // just below the 48px top bar
+        _pauseBanner.CustomMinimumSize = new Vector2(0, 36);
+        _pauseBanner.MouseFilter = Control.MouseFilterEnum.Ignore; // don't block map clicks
+        _pauseBanner.Visible = false;
+
+        _bannerStyle = new StyleBoxFlat();
+        _bannerStyle.BgColor = new Color(0.80f, 0.55f, 0.02f, 0.85f); // amber for build mode
+        _bannerStyle.ContentMarginTop = 6;
+        _bannerStyle.ContentMarginBottom = 6;
+        _pauseBanner.AddThemeStyleboxOverride("panel", _bannerStyle);
+        AddChild(_pauseBanner);
+
+        _pauseBannerLabel = new Label();
+        _pauseBannerLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _pauseBannerLabel.VerticalAlignment = VerticalAlignment.Center;
+        _pauseBannerLabel.AddThemeFontSizeOverride("font_size", 16);
+        _pauseBannerLabel.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f));
+        _pauseBanner.AddChild(_pauseBannerLabel);
 
         var hbox = new HBoxContainer();
         hbox.AddThemeConstantOverride("separation", 0);
@@ -247,6 +275,26 @@ public partial class TopBar : CanvasLayer
 
         // Tick
         _tickLabel.Text = $"T:{state.Tick}";
+
+        // Pause / build-mode banner
+        if (state.Paused && !state.GameState.StartsWith("Bankrupt") && !state.GameState.StartsWith("Abandon") && state.GameState != "Loopolis")
+        {
+            _pauseBanner.Visible = true;
+            if (state.PauseReason == "BuildMode")
+            {
+                _bannerStyle.BgColor = new Color(0.80f, 0.45f, 0.02f, 0.85f); // amber
+                _pauseBannerLabel.Text = "⏸  BUILD MODE  —  Space to resume";
+            }
+            else
+            {
+                _bannerStyle.BgColor = new Color(0.10f, 0.10f, 0.15f, 0.90f); // dark grey for manual pause
+                _pauseBannerLabel.Text = "⏸  GAME PAUSED  —  Space to resume";
+            }
+        }
+        else
+        {
+            _pauseBanner.Visible = false;
+        }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
