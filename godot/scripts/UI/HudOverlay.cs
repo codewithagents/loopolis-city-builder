@@ -146,34 +146,11 @@ public partial class HudOverlay : CanvasLayer
         _overlayLegendPanel.Visible = false;
         AddChild(_overlayLegendPanel);
 
-        // ── Hotkey hints strip — bottom of screen ──────────────────────────
-        var hintsPanel = new PanelContainer();
-        hintsPanel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
-        hintsPanel.GrowVertical = Control.GrowDirection.Begin;
-        hintsPanel.Position = new Vector2(0, -28);
-        hintsPanel.MouseFilter = Control.MouseFilterEnum.Ignore;
-        var hintsStyle = new StyleBoxFlat();
-        hintsStyle.BgColor = new Color(0f, 0f, 0f, 0.45f);
-        hintsStyle.ContentMarginLeft   = 8;
-        hintsStyle.ContentMarginRight  = 8;
-        hintsStyle.ContentMarginTop    = 2;
-        hintsStyle.ContentMarginBottom = 2;
-        hintsPanel.AddThemeStyleboxOverride("panel", hintsStyle);
-
-        var hintsLabel = new Label();
-        hintsLabel.Text = "[F1] Happiness  [F2] Traffic  [F3] Coverage  [F4] Land Value  [F5] Pollution  [📊 Stats in sidebar]";
-        hintsLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        hintsLabel.AddThemeColorOverride("font_color", new Color(0.65f, 0.65f, 0.65f, 0.85f));
-        hintsLabel.AddThemeFontSizeOverride("font_size", 10);
-        hintsLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
-        hintsPanel.AddChild(hintsLabel);
-        AddChild(hintsPanel);
-
         // ── Detail stats panel — bottom-left, HIDDEN by default ────────────
         _statsPanel = new PanelContainer();
         _statsPanel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         _statsPanel.GrowVertical = Control.GrowDirection.Begin;
-        _statsPanel.Position = new Vector2(8, -36); // above the hotkey hint strip
+        _statsPanel.Position = new Vector2(8, -8);
         _statsPanel.MouseFilter = Control.MouseFilterEnum.Stop;
         _statsPanel.AddThemeStyleboxOverride("panel", MakePanelStyle());
         _statsPanel.Visible = false; // hidden by default
@@ -301,7 +278,7 @@ public partial class HudOverlay : CanvasLayer
         switch (mode)
         {
             case OverlayMode.Happiness:
-                title = "HAPPINESS [F1]";
+                title = "HAPPINESS";
                 rows = new[]
                 {
                     (new Color(0.267f, 1f, 0.267f), "High  (>70%)"),
@@ -310,7 +287,7 @@ public partial class HudOverlay : CanvasLayer
                 };
                 break;
             case OverlayMode.Traffic:
-                title = "TRAFFIC [F2]";
+                title = "TRAFFIC";
                 rows = new[]
                 {
                     (new Color(1f, 0f, 0f),          "Heavy (60+)"),
@@ -319,7 +296,7 @@ public partial class HudOverlay : CanvasLayer
                 };
                 break;
             case OverlayMode.Coverage:
-                title = "COVERAGE [F3]";
+                title = "COVERAGE";
                 rows = new[]
                 {
                     (new Color(0f, 0.6f, 1f),         "Fully covered"),
@@ -328,7 +305,7 @@ public partial class HudOverlay : CanvasLayer
                 };
                 break;
             case OverlayMode.LandValue:
-                title = "LAND VALUE [F4]";
+                title = "LAND VALUE";
                 rows = new[]
                 {
                     (new Color(1f, 0.843f, 0f),        "High value"),
@@ -337,7 +314,7 @@ public partial class HudOverlay : CanvasLayer
                 };
                 break;
             case OverlayMode.Pollution:
-                title = "POLLUTION [F5]";
+                title = "POLLUTION";
                 rows = new[]
                 {
                     (new Color(0.545f, 0f, 0f),         "Heavy"),

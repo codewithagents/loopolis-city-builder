@@ -6,16 +6,25 @@ namespace LoopolisGodot;
 /// <summary>
 /// Full-width top bar showing key city stats: balance, population/milestone,
 /// power, zone counts, happiness, and tick counter.
+/// A hamburger menu (☰) on the left provides New Game / Main Menu actions.
 /// Layer = 12 (above all other UI layers).
 /// </summary>
 public partial class TopBar : CanvasLayer
 {
+    // ── Signals ────────────────────────────────────────────────────────────
+    [Signal] public delegate void NewGameRequestedEventHandler();
+    [Signal] public delegate void MainMenuRequestedEventHandler();
+
+    // ── Stat labels ────────────────────────────────────────────────────────
     private Label _balanceLabel   = null!;
     private Label _popLabel       = null!;
     private Label _powerLabel     = null!;
     private Label _zonesLabel     = null!;
     private Label _happinessLabel = null!;
     private Label _tickLabel      = null!;
+
+    // ── Hamburger dropdown ─────────────────────────────────────────────────
+    private PanelContainer _dropdownPanel = null!;
 
     public override void _Ready()
     {
@@ -40,6 +49,27 @@ public partial class TopBar : CanvasLayer
         hbox.AddThemeConstantOverride("separation", 0);
         hbox.SizeFlagsVertical = Control.SizeFlags.Fill;
         panel.AddChild(hbox);
+
+        // ── Hamburger button (left-most) ───────────────────────────────────
+        var hamburgerBtn = new Button();
+        hamburgerBtn.FocusMode = Control.FocusModeEnum.None;
+        hamburgerBtn.Text = "☰";
+        hamburgerBtn.CustomMinimumSize = new Vector2(44, 44);
+        hamburgerBtn.AddThemeFontSizeOverride("font_size", 18);
+        hamburgerBtn.TooltipText = "Menu";
+        var hbNormal = new StyleBoxFlat();
+        hbNormal.BgColor = new Color(0f, 0f, 0f, 0f);
+        hamburgerBtn.AddThemeStyleboxOverride("normal",  hbNormal);
+        hamburgerBtn.AddThemeStyleboxOverride("focus",   hbNormal);
+        var hbHover = new StyleBoxFlat();
+        hbHover.BgColor = new Color(1f, 1f, 1f, 0.08f);
+        hamburgerBtn.AddThemeStyleboxOverride("hover",   hbHover);
+        hamburgerBtn.AddThemeStyleboxOverride("pressed", hbHover);
+        hamburgerBtn.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        hamburgerBtn.Pressed += ToggleDropdown;
+        hbox.AddChild(hamburgerBtn);
+
+        AddSep(hbox);
 
         _balanceLabel   = MakeLabel("💰 $0  +$0/tk");
         _popLabel       = MakeLabel("👥 0  →Town  [░░░░░░░░]  0%");
@@ -82,6 +112,81 @@ public partial class TopBar : CanvasLayer
         _tickLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
         _tickLabel.AddThemeColorOverride("font_color", new Color(0.55f, 0.55f, 0.55f));
         hbox.AddChild(_tickLabel);
+
+        // ── Dropdown panel (below hamburger, hidden by default) ────────────
+        _dropdownPanel = new PanelContainer();
+        _dropdownPanel.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
+        _dropdownPanel.Position = new Vector2(0, 48);
+        _dropdownPanel.CustomMinimumSize = new Vector2(180, 0);
+        _dropdownPanel.MouseFilter = Control.MouseFilterEnum.Stop;
+        _dropdownPanel.Visible = false;
+        var dropStyle = new StyleBoxFlat();
+        dropStyle.BgColor = new Color(0.08f, 0.08f, 0.08f, 0.94f);
+        dropStyle.BorderColor = new Color(0.3f, 0.3f, 0.35f);
+        dropStyle.BorderWidthBottom = dropStyle.BorderWidthTop =
+            dropStyle.BorderWidthLeft = dropStyle.BorderWidthRight = 1;
+        dropStyle.CornerRadiusBottomLeft = dropStyle.CornerRadiusBottomRight =
+            dropStyle.CornerRadiusTopLeft = dropStyle.CornerRadiusTopRight = 4;
+        dropStyle.ContentMarginLeft   = 4;
+        dropStyle.ContentMarginRight  = 4;
+        dropStyle.ContentMarginTop    = 4;
+        dropStyle.ContentMarginBottom = 4;
+        _dropdownPanel.AddThemeStyleboxOverride("panel", dropStyle);
+        AddChild(_dropdownPanel);
+
+        var dropVbox = new VBoxContainer();
+        dropVbox.AddThemeConstantOverride("separation", 2);
+        _dropdownPanel.AddChild(dropVbox);
+
+        dropVbox.AddChild(MakeDropdownButton("▶  Continue",  () => _dropdownPanel.Visible = false));
+        dropVbox.AddChild(MakeDropdownButton("🆕  New Game",  () =>
+        {
+            _dropdownPanel.Visible = false;
+            EmitSignal(SignalName.NewGameRequested);
+        }));
+        dropVbox.AddChild(MakeDropdownButton("🚪  Main Menu", () =>
+        {
+            _dropdownPanel.Visible = false;
+            EmitSignal(SignalName.MainMenuRequested);
+        }));
+    }
+
+    private void ToggleDropdown()
+    {
+        _dropdownPanel.Visible = !_dropdownPanel.Visible;
+    }
+
+    private static Button MakeDropdownButton(string text, Action onPressed)
+    {
+        var btn = new Button();
+        btn.FocusMode = Control.FocusModeEnum.None;
+        btn.Text = text;
+        btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        btn.CustomMinimumSize = new Vector2(0, 36);
+        btn.AddThemeFontSizeOverride("font_size", 13);
+        btn.Alignment = HorizontalAlignment.Left;
+
+        var normalStyle = new StyleBoxFlat();
+        normalStyle.BgColor = new Color(0f, 0f, 0f, 0f);
+        normalStyle.ContentMarginLeft   = 12;
+        normalStyle.ContentMarginRight  = 8;
+        normalStyle.ContentMarginTop    = 4;
+        normalStyle.ContentMarginBottom = 4;
+        btn.AddThemeStyleboxOverride("normal", normalStyle);
+        btn.AddThemeStyleboxOverride("focus",  normalStyle);
+
+        var hoverStyle = new StyleBoxFlat();
+        hoverStyle.BgColor = new Color(1f, 1f, 1f, 0.10f);
+        hoverStyle.ContentMarginLeft   = 12;
+        hoverStyle.ContentMarginRight  = 8;
+        hoverStyle.ContentMarginTop    = 4;
+        hoverStyle.ContentMarginBottom = 4;
+        btn.AddThemeStyleboxOverride("hover",   hoverStyle);
+        btn.AddThemeStyleboxOverride("pressed", hoverStyle);
+
+        btn.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        btn.Pressed += () => onPressed();
+        return btn;
     }
 
     /// <summary>Update all labels from the latest SharedState.</summary>

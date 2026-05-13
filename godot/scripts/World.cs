@@ -119,18 +119,20 @@ public partial class World : Node2D
 		AddChild(_toastSystem);
 
 		// Wire toolbar signals
-		_toolbar.ZoneSelected       += OnZoneSelected;
-		_toolbar.PauseToggled       += OnPauseToggled;
-		_toolbar.NewGameRequested   += OnNewGameRequested;
-		_toolbar.TaxRateChanged     += OnTaxRateChanged;
-		_toolbar.SpeedChanged       += OnSpeedChanged;
-		_toolbar.MainMenuRequested  += () =>
+		_toolbar.ZoneSelected   += OnZoneSelected;
+		_toolbar.PauseToggled   += OnPauseToggled;
+		_toolbar.TaxRateChanged += OnTaxRateChanged;
+		_toolbar.SpeedChanged   += OnSpeedChanged;
+		_toolbar.StatsToggled   += () => _hud.Toggle();
+		_toolbar.OverlayChanged += mode => ToggleOverlay((OverlayMode)mode);
+
+		// Wire TopBar hamburger signals
+		_topBar.NewGameRequested  += OnNewGameRequested;
+		_topBar.MainMenuRequested += () =>
 		{
 			KillServerIfRunning();
 			GetTree().ChangeSceneToFile("res://scenes/MainMenu.tscn");
 		};
-		_toolbar.StatsToggled   += () => _hud.Toggle();
-		_toolbar.OverlayChanged += mode => ToggleOverlay((OverlayMode)mode);
 
 		// Wire game-over panel
 		_gameOverPanel.NewGameRequested += OnNewGameRequested;
@@ -207,6 +209,15 @@ public partial class World : Node2D
 	{
 		// Procedural terrain — hills, water, forests based on random seed
 		GenerateTerrain(_grid, _terrainSeed);
+
+		// Ensure south-centre has land for border road + starter roads
+		var bx = StandaloneMapSize / 2;
+		for (var lx = bx - 2; lx <= bx + 2; lx++)
+		for (var ly = StandaloneMapSize - 8; ly < StandaloneMapSize; ly++)
+		{
+			_grid.SetHeightLevel(lx, ly, 1);
+			_grid.SetForest(lx, ly, false);
+		}
 
 		// Border connection — centre of south edge, unerasable Regional Highway
 		_grid.PlaceBorderConnection(StandaloneMapSize / 2, StandaloneMapSize - 1);

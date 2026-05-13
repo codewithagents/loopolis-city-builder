@@ -14,8 +14,6 @@ public partial class Toolbar : CanvasLayer
 
     [Signal] public delegate void ZoneSelectedEventHandler(string zoneName);
     [Signal] public delegate void PauseToggledEventHandler();
-    [Signal] public delegate void NewGameRequestedEventHandler();
-    [Signal] public delegate void MainMenuRequestedEventHandler();
     [Signal] public delegate void TaxRateChangedEventHandler(string level);
     [Signal] public delegate void SpeedChangedEventHandler(float ticksPerSecond);
     [Signal] public delegate void StatsToggledEventHandler();
@@ -254,14 +252,6 @@ public partial class Toolbar : CanvasLayer
         var statsBtn = MakeActionButton("📊 Stats");
         statsBtn.Pressed += () => EmitSignal(SignalName.StatsToggled);
         outerVBox.AddChild(statsBtn);
-
-        var newGameBtn = MakeActionButton("New Game");
-        newGameBtn.Pressed += () => EmitSignal(SignalName.NewGameRequested);
-        outerVBox.AddChild(newGameBtn);
-
-        var menuBtn = MakeActionButton("Menu");
-        menuBtn.Pressed += () => EmitSignal(SignalName.MainMenuRequested);
-        outerVBox.AddChild(menuBtn);
 
         // Apply initial milestone locks and tab highlights
         UpdateMilestoneLocks(0);
