@@ -71,7 +71,7 @@ public partial class EventResponsePanel : CanvasLayer
     public new void Hide() => Visible = false;
 
     /// <summary>Whether the panel is currently shown.</summary>
-    public bool IsVisible => Visible;
+    public new bool IsVisible => Visible;
 
     // ── Internal helpers ───────────────────────────────────────────────────────
 

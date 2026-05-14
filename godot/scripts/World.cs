@@ -274,8 +274,12 @@ public partial class World : Node2D
 		var projectDir = ProjectSettings.GlobalizePath("res://");
 		_sharedDir = Path.Combine(projectDir, "shared");
 
+		// If the user explicitly launched a new game from MainMenu (PendingScenarioId is set),
+		// always run standalone — never attach to a lingering server from a previous session.
+		var forceStandalone = PendingScenarioId != null;
+
 		// Clean up stale state files (older than 5 seconds) left by previous sessions
-		if (Directory.Exists(_sharedDir))
+		if (Directory.Exists(_sharedDir) && !forceStandalone)
 		{
 			foreach (var f in Directory.GetFiles(_sharedDir, "state-*.json"))
 			{
@@ -287,8 +291,9 @@ public partial class World : Node2D
 			}
 		}
 
-		// Check for a live state file (written within the last 2 seconds) to enter viewer mode
-		var liveStateFile = FindLiveStateFile(_sharedDir);
+		// Check for a live state file (written within the last 2 seconds) to enter viewer mode.
+		// Skipped when user starts a fresh game from the MainMenu.
+		var liveStateFile = forceStandalone ? null : FindLiveStateFile(_sharedDir);
 		if (liveStateFile != null)
 		{
 			GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
@@ -582,11 +587,11 @@ public partial class World : Node2D
 
 			try
 			{
-				_engine.Tick();
+				_engine!.Tick();
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[Loopolis] Tick crash at tick {_engine.TickCount}: {ex.GetType().Name}: {ex.Message}");
+				GD.PrintErr($"[Loopolis] Tick crash at tick {_engine!.TickCount}: {ex.GetType().Name}: {ex.Message}");
 				GD.PrintErr(ex.StackTrace);
 
 				// Pause immediately so the player sees the error
@@ -699,12 +704,12 @@ public partial class World : Node2D
 					population:    _population!.Population,
 					targetPop:     _engine.ActiveScenario.Goal.TargetPopulation,
 					ticksUsed:     _standaloneTick,
-					activeScenarioId: _engine.ActiveScenario.Id);
+					activeScenarioId: _engine.ActiveScenario!.Id);
 				// Save personal best to leaderboard
 				try
 				{
 					LeaderboardSystem.Save(
-						_engine.ActiveScenario.Id,
+						_engine.ActiveScenario!.Id,
 						_engine.MedalEarned ?? "Bronze",
 						_standaloneTick,
 						_population!.Population,
