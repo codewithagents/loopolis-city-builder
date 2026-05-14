@@ -13,6 +13,95 @@ public partial class TilemapRenderer : Node2D
 	private CityGrid? _grid;
 	public const int TileSize = 32;
 
+	// ── Building spawn animation ─────────────────────────────────────────────
+	// Maps anchor tile → progress [0..>1.0]; removed when progress > 1.0
+	private readonly Dictionary<Vector2I, float> _buildingSpawn = new();
+	private const float SpawnSpeed = 3.5f; // full travel in ~0.29 s
+
+	/// <summary>
+	/// Starts a bounce-in spawn animation for a building.
+	/// Call this as soon as the building is placed (anchor tile + footprint size).
+	/// </summary>
+	public void AnimateBuildingSpawn(Vector2I anchorTile, int w, int h)
+	{
+		for (var dx = 0; dx < w; dx++)
+		for (var dy = 0; dy < h; dy++)
+			_buildingSpawn[new Vector2I(anchorTile.X + dx, anchorTile.Y + dy)] = 0f;
+		QueueRedraw();
+	}
+
+	/// <summary>
+	/// Simple ease-out-bounce curve.
+	/// Returns a scale factor: 0 → grows fast → overshoots to 1.15 → settles at 1.0
+	/// </summary>
+	private static float SpawnBounceScale(float progress)
+	{
+		// progress in [0,1]
+		if (progress < 0.7f)
+			return (progress / 0.7f) * 1.15f;
+		// overshoot settle: scale from 1.15 → 1.0 over remaining 0.3
+		return 1.0f + (1.0f - progress) / 0.3f * 0.15f;
+	}
+
+	// ── Smoke particles ──────────────────────────────────────────────────────
+	private record SmokeParticle(Vector2 WorldPos, float Age, float MaxAge, float BaseRadius);
+	private readonly List<SmokeParticle> _smoke = new();
+	private float _smokeSpawnTimer = 0f;
+	private const float SmokeSpawnInterval = 1.0f; // spawn wave every 1 second
+
+	/// <summary>World-space chimney positions for all powered factory/quarry/ind_park tiles.</summary>
+	private readonly List<Vector2> _chimneyPositions = new();
+
+	/// <summary>
+	/// Recomputes chimney positions from the current grid.
+	/// Called from Refresh() so smoke always spawns at the right tiles.
+	/// </summary>
+	private void RebuildChimneyPositions()
+	{
+		_chimneyPositions.Clear();
+		if (_grid == null) return;
+		foreach (var building in _grid.Buildings.Values)
+		{
+			// Only powered buildings emit smoke
+			var anchorTile = _grid.GetTile(building.AnchorX, building.AnchorY);
+			if (!anchorTile.HasPower) continue;
+
+			switch (building.TypeId)
+			{
+				case "ind_factory_1x1":
+					// Chimney at pixel (23, 4) relative to anchor (spec above)
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + 23f,
+						building.AnchorY * TileSize + 4f));
+					break;
+				case "ind_quarry_2x2":
+					// Crane/equipment in corner — place smoke above top-right area
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + TileSize * 1.5f,
+						building.AnchorY * TileSize + TileSize * 0.3f));
+					break;
+				case "ind_park_4x2":
+					// Two chimneys: unit 1 and unit 3
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + TileSize * 0.75f,
+						building.AnchorY * TileSize + 4f));
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + TileSize * 2.75f,
+						building.AnchorY * TileSize + 4f));
+					break;
+				case "ind_park_2x4":
+					// Two chimneys: top unit and third unit
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + TileSize * 0.75f,
+						building.AnchorY * TileSize + 4f));
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + TileSize * 0.75f,
+						building.AnchorY * TileSize + TileSize * 2f + 4f));
+					break;
+			}
+		}
+	}
+
 	// ── Overlay system ──────────────────────────────────────────────────────
 	public OverlayMode ActiveOverlay = OverlayMode.None;
 
@@ -116,23 +205,82 @@ public partial class TilemapRenderer : Node2D
 
 	public override void _Process(double delta)
 	{
-		if (_roadPulse.Count == 0) return;
-
 		var dt = (float)delta;
-		// Collect keys in a snapshot array so we can safely modify the dictionary while iterating
-		var keys = new Vector2I[_roadPulse.Count];
-		_roadPulse.Keys.CopyTo(keys, 0);
+		var needsRedraw = false;
 
-		foreach (var key in keys)
+		// ── Road pulse ───────────────────────────────────────────────────────
+		if (_roadPulse.Count > 0)
 		{
-			var remaining = _roadPulse[key] - dt;
-			if (remaining <= 0f)
-				_roadPulse.Remove(key);
-			else
-				_roadPulse[key] = remaining;
+			var roadKeys = new Vector2I[_roadPulse.Count];
+			_roadPulse.Keys.CopyTo(roadKeys, 0);
+			foreach (var key in roadKeys)
+			{
+				var remaining = _roadPulse[key] - dt;
+				if (remaining <= 0f)
+					_roadPulse.Remove(key);
+				else
+					_roadPulse[key] = remaining;
+			}
+			needsRedraw = true;
 		}
 
-		QueueRedraw(); // keep animating until all pulses expire
+		// ── Spawn animation ──────────────────────────────────────────────────
+		if (_buildingSpawn.Count > 0)
+		{
+			var spawnKeys = new Vector2I[_buildingSpawn.Count];
+			_buildingSpawn.Keys.CopyTo(spawnKeys, 0);
+			foreach (var key in spawnKeys)
+			{
+				var progress = _buildingSpawn[key] + dt * SpawnSpeed;
+				if (progress > 1.0f)
+					_buildingSpawn.Remove(key);
+				else
+					_buildingSpawn[key] = progress;
+			}
+			needsRedraw = true;
+		}
+
+		// ── Smoke particles ──────────────────────────────────────────────────
+		if (_smoke.Count > 0 || _chimneyPositions.Count > 0)
+		{
+			// Age and move existing particles
+			for (var i = _smoke.Count - 1; i >= 0; i--)
+			{
+				var p = _smoke[i];
+				var newAge = p.Age + dt;
+				if (newAge >= p.MaxAge)
+				{
+					_smoke.RemoveAt(i);
+					continue;
+				}
+				// Drift upward and slightly right each frame
+				var newPos = p.WorldPos + new Vector2(0.5f, -12f) * dt;
+				_smoke[i] = p with { WorldPos = newPos, Age = newAge };
+			}
+
+			// Spawn new waves at chimney positions
+			if (_chimneyPositions.Count > 0 && ActiveOverlay == OverlayMode.None)
+			{
+				_smokeSpawnTimer += dt;
+				if (_smokeSpawnTimer >= SmokeSpawnInterval)
+				{
+					_smokeSpawnTimer = 0f;
+					foreach (var pos in _chimneyPositions)
+					{
+						// Slight randomness so smoke looks organic
+						var jitter = new Vector2(
+							(float)(GD.Randf() - 0.5f) * 3f,
+							(float)(GD.Randf() - 0.5f) * 2f);
+						_smoke.Add(new SmokeParticle(pos + jitter, 0f, 1.5f, 3f));
+					}
+				}
+			}
+
+			needsRedraw = true;
+		}
+
+		if (needsRedraw)
+			QueueRedraw();
 	}
 
 	// Fire tile — on-fire overlay for FireBreak event
@@ -181,6 +329,7 @@ public partial class TilemapRenderer : Node2D
 			_heightMap[x, y] = grid.GetHeightLevel(x, y);
 			_forestMap[x, y] = grid.HasForestAt(x, y);
 		}
+		RebuildChimneyPositions();
 		QueueRedraw();
 	}
 
@@ -192,6 +341,7 @@ public partial class TilemapRenderer : Node2D
 		_grid      = grid;
 		_heightMap = heightMap;
 		_forestMap = forestMap;
+		RebuildChimneyPositions();
 		QueueRedraw();
 	}
 
@@ -608,6 +758,523 @@ public partial class TilemapRenderer : Node2D
 		return _grid.GetTile(x, y).Zone == zone;
 	}
 
+	// ── Procedural building detail drawing ───────────────────────────────────
+
+	/// <summary>
+	/// Draws procedural geometric detail for a single building.
+	/// <paramref name="ox"/> / <paramref name="oy"/> are the world-pixel origin of the anchor tile.
+	/// <paramref name="scale"/> is applied around the tile centre for the spawn animation (normally 1.0).
+	/// </summary>
+	private void DrawBuildingDetail(Building building, float ox, float oy, float scale)
+	{
+		// Helper: draw a rect whose coords are given relative to the building's pixel origin,
+		// with the spawn scale transform applied.
+		void R(float rx, float ry, float rw, float rh, Color c)
+		{
+			if (scale < 0.99f)
+			{
+				// Scale each tile's detail around its own tile centre (not the building centre)
+				// to keep the pop-in look per-tile. We use building-relative coords here,
+				// so we just scale relative to (0,0) = anchor origin for simplicity.
+				var fullW = building.Width  * TileSize;
+				var fullH = building.Height * TileSize;
+				var cx = fullW * 0.5f;
+				var cy = fullH * 0.5f;
+				rx = cx + (rx - cx) * scale;
+				ry = cy + (ry - cy) * scale;
+				rw *= scale;
+				rh *= scale;
+			}
+			DrawRect(new Rect2(ox + rx, oy + ry, rw, rh), c);
+		}
+
+		// Helper: draw a triangle
+		void T(float ax, float ay, float bx, float by, float cx2, float cy2, Color c)
+		{
+			if (scale < 0.99f)
+			{
+				var fullW = building.Width  * TileSize;
+				var fullH = building.Height * TileSize;
+				var centreX = fullW * 0.5f; var centreY = fullH * 0.5f;
+				ax = centreX + (ax - centreX) * scale; ay = centreY + (ay - centreY) * scale;
+				bx = centreX + (bx - centreX) * scale; by = centreY + (by - centreY) * scale;
+				cx2 = centreX + (cx2 - centreX) * scale; cy2 = centreY + (cy2 - centreY) * scale;
+			}
+			DrawTriangle(
+				new Vector2(ox + ax, oy + ay),
+				new Vector2(ox + bx, oy + by),
+				new Vector2(ox + cx2, oy + cy2), c);
+		}
+
+		// Helper: draw a line
+		void L(float ax, float ay, float bx, float by, Color c, float w = 1f)
+		{
+			if (scale < 0.99f)
+			{
+				var fullW = building.Width  * TileSize;
+				var fullH = building.Height * TileSize;
+				var cx = fullW * 0.5f; var cy = fullH * 0.5f;
+				ax = cx + (ax - cx) * scale; ay = cy + (ay - cy) * scale;
+				bx = cx + (bx - cx) * scale; by = cy + (by - cy) * scale;
+			}
+			DrawLine(new Vector2(ox + ax, oy + ay), new Vector2(ox + bx, oy + by), c, w);
+		}
+
+		// Helper: draw a circle
+		void C(float cx2, float cy2, float r, Color c)
+		{
+			if (scale < 0.99f)
+			{
+				var fullW = building.Width  * TileSize;
+				var fullH = building.Height * TileSize;
+				var centreX = fullW * 0.5f; var centreY = fullH * 0.5f;
+				cx2 = centreX + (cx2 - centreX) * scale;
+				cy2 = centreY + (cy2 - centreY) * scale;
+				r *= scale;
+			}
+			DrawCircle(new Vector2(ox + cx2, oy + cy2), r, c);
+		}
+
+		switch (building.TypeId)
+		{
+			case "res_house_1x1":
+			{
+				// Body — cream
+				R(4, 14, 24, 14, new Color(0.93f, 0.89f, 0.82f));
+				// Roof — dark brown triangle [(1,14),(31,14),(16,3)]
+				T(1, 14, 31, 14, 16, 3, new Color(0.52f, 0.28f, 0.12f));
+				// Door — brown rect
+				R(12, 20, 8, 8, new Color(0.38f, 0.22f, 0.10f));
+				// Windows — light blue
+				R(4,  16, 6, 5, new Color(0.75f, 0.88f, 1.0f, 0.9f));
+				R(22, 16, 6, 5, new Color(0.75f, 0.88f, 1.0f, 0.9f));
+				break;
+			}
+
+			case "res_townhouse_2x2":
+			{
+				// Two side-by-side townhouse units (64×64 px footprint)
+				var bodyColor  = new Color(0.85f, 0.78f, 0.68f);
+				var roofColor  = new Color(0.72f, 0.38f, 0.18f);
+				var winColor   = new Color(0.75f, 0.88f, 1.0f, 0.85f);
+				var doorColor  = new Color(0.38f, 0.22f, 0.10f);
+				var divColor   = new Color(0.25f, 0.18f, 0.12f, 0.8f);
+
+				// Left unit body
+				R(4, 24, 24, 36, bodyColor);
+				// Left unit roof (peaked triangle)
+				T(2, 24, 30, 24, 16, 8, roofColor);
+				// Left unit door
+				R(13, 44, 8, 16, doorColor);
+				// Left unit windows — floor 1
+				R(5, 27, 7, 6, winColor);
+				R(20, 27, 7, 6, winColor);
+				// Left unit windows — floor 2
+				R(5, 37, 7, 6, winColor);
+				R(20, 37, 7, 6, winColor);
+
+				// Right unit body (mirrored at x=32)
+				R(36, 24, 24, 36, bodyColor);
+				// Right unit roof
+				T(34, 24, 62, 24, 48, 8, roofColor);
+				// Right unit door
+				R(45, 44, 8, 16, doorColor);
+				// Right unit windows — floor 1
+				R(37, 27, 7, 6, winColor);
+				R(52, 27, 7, 6, winColor);
+				// Right unit windows — floor 2
+				R(37, 37, 7, 6, winColor);
+				R(52, 37, 7, 6, winColor);
+
+				// Dividing wall
+				R(30, 20, 4, 40, divColor);
+				break;
+			}
+
+			case "res_villa_2x3":
+			{
+				// 2w×3h = 64×96 px. Wide sprawling house.
+				var bodyColor   = new Color(0.95f, 0.92f, 0.85f);
+				var roofColor   = new Color(0.42f, 0.55f, 0.28f); // green — forest setting
+				var winColor    = new Color(0.75f, 0.88f, 1.0f, 0.85f);
+				var doorColor   = new Color(0.38f, 0.22f, 0.10f);
+				var gardenColor = new Color(0.30f, 0.68f, 0.22f, 0.85f);
+
+				// Garden at top (north edge)
+				R(8, 4, 48, 10, gardenColor);
+				// Body
+				R(5, 16, 54, 68, bodyColor);
+				// Roof — low-pitch triangle covering full width
+				T(2, 16, 62, 16, 32, 4, roofColor);
+				// Door
+				R(24, 64, 12, 20, doorColor);
+				// Windows — 2 columns × 2 rows
+				R(8,  22, 10, 8, winColor);
+				R(46, 22, 10, 8, winColor);
+				R(8,  40, 10, 8, winColor);
+				R(46, 40, 10, 8, winColor);
+				break;
+			}
+
+			case "res_villa_3x2":
+			{
+				// 3w×2h = 96×64 px. Wide sprawling house.
+				var bodyColor   = new Color(0.95f, 0.92f, 0.85f);
+				var roofColor   = new Color(0.42f, 0.55f, 0.28f);
+				var winColor    = new Color(0.75f, 0.88f, 1.0f, 0.85f);
+				var doorColor   = new Color(0.38f, 0.22f, 0.10f);
+				var gardenColor = new Color(0.30f, 0.68f, 0.22f, 0.85f);
+
+				// Garden strip at left edge
+				R(4, 8, 10, 48, gardenColor);
+				// Body
+				R(16, 8, 72, 48, bodyColor);
+				// Roof — low-pitch wide triangle
+				T(14, 8, 90, 8, 52, 0, roofColor);
+				// Door
+				R(42, 40, 12, 16, doorColor);
+				// Windows — 3 columns × 1 row
+				R(20, 14, 12, 9, winColor);
+				R(42, 14, 12, 9, winColor);
+				R(64, 14, 12, 9, winColor);
+				break;
+			}
+
+			case "res_apartment_4x4":
+			{
+				// 4w×4h = 128×128 px. Concrete slab apartment block.
+				var bodyColor   = new Color(0.72f, 0.74f, 0.78f); // concrete grey
+				var lobbyColor  = new Color(0.60f, 0.62f, 0.66f);
+				var winColor    = new Color(1.0f, 0.95f, 0.80f, 0.85f);
+				var roofTopColor= new Color(0.58f, 0.60f, 0.64f);
+
+				// Main building body with small setback
+				R(6, 10, 116, 110, bodyColor);
+				// Ground floor lobby — slightly darker
+				R(6, 94, 116, 26, lobbyColor);
+				// Wide lobby windows
+				R(10, 97, 24, 18, winColor);
+				R(40, 97, 24, 18, winColor);
+				R(70, 97, 24, 18, winColor);
+				R(100, 97, 18, 18, winColor);
+				// Rooftop structure
+				R(40, 4, 48, 8, roofTopColor);
+				// Window grid: 4 columns × 4 rows (upper floors only)
+				for (var col = 0; col < 4; col++)
+				for (var row = 0; row < 4; row++)
+					R(10 + col * 28, 14 + row * 18, 18, 12, winColor);
+				break;
+			}
+
+			case "com_shop_1x1":
+			{
+				// Glass shopfront, awning, sign band
+				var glassColor  = new Color(0.82f, 0.90f, 0.96f, 0.85f);
+				var awningColor = new Color(0.22f, 0.48f, 0.82f);
+				var signColor   = new Color(0.92f, 0.78f, 0.15f);
+				var doorBorder  = new Color(0.15f, 0.10f, 0.05f, 0.9f);
+
+				// Glass façade
+				R(3, 10, 26, 18, glassColor);
+				// Awning strip
+				R(2, 10, 28, 4, awningColor);
+				// Sign band
+				R(4, 14, 24, 4, signColor);
+				// Door outline (thin lines instead of fill)
+				L(12, 20, 12, 28, doorBorder, 1.5f);
+				L(20, 20, 20, 28, doorBorder, 1.5f);
+				L(12, 20, 20, 20, doorBorder, 1.5f);
+				break;
+			}
+
+			case "com_strip_1x3":
+			{
+				// Three shopfronts side by side in a 32×96px column
+				var awningColors = new[]
+				{
+					new Color(0.22f, 0.48f, 0.82f),  // blue
+					new Color(0.82f, 0.30f, 0.18f),  // terracotta
+					new Color(0.18f, 0.60f, 0.35f),  // green
+				};
+				var glassColor = new Color(0.82f, 0.90f, 0.96f, 0.80f);
+				var signColor  = new Color(0.92f, 0.78f, 0.15f);
+
+				for (var i = 0; i < 3; i++)
+				{
+					float sy = i * 32f;
+					// Glass
+					R(3, sy + 10, 26, 16, glassColor);
+					// Awning
+					R(2, sy + 10, 28, 4, awningColors[i]);
+					// Sign at slightly different height to add variety
+					R(4, sy + 14 + i * 1, 24, 4, signColor);
+				}
+				break;
+			}
+
+			case "com_strip_3x1":
+			{
+				// Three shopfronts side by side in a 96×32px row
+				var awningColors = new[]
+				{
+					new Color(0.22f, 0.48f, 0.82f),
+					new Color(0.82f, 0.30f, 0.18f),
+					new Color(0.18f, 0.60f, 0.35f),
+				};
+				var glassColor = new Color(0.82f, 0.90f, 0.96f, 0.80f);
+				var signColor  = new Color(0.92f, 0.78f, 0.15f);
+
+				for (var i = 0; i < 3; i++)
+				{
+					float sx = i * 32f;
+					// Glass
+					R(sx + 3, 10, 26, 16, glassColor);
+					// Awning
+					R(sx + 2, 10, 28, 4, awningColors[i]);
+					// Sign
+					R(sx + 4, 14 + i * 1, 24, 4, signColor);
+				}
+				break;
+			}
+
+			case "com_shopping_3x3":
+			{
+				// 96×96 px shopping centre — glass-and-steel look
+				var frameColor   = new Color(0.68f, 0.70f, 0.74f);
+				var glassStrip   = new Color(0.82f, 0.90f, 0.96f, 0.80f);
+				var entryColor   = new Color(0.55f, 0.58f, 0.62f);
+				var winColor     = new Color(0.82f, 0.90f, 0.96f, 0.70f);
+				var parkingColor = new Color(0.30f, 0.30f, 0.30f, 0.80f);
+				var lineColor    = new Color(0.65f, 0.65f, 0.65f, 0.6f);
+
+				// Building body
+				R(4, 4, 88, 80, frameColor);
+				// Upper window band (near top)
+				R(6, 8, 84, 16, glassStrip);
+				// Window rows — 3 columns × 2 rows of glass panels
+				for (var col = 0; col < 3; col++)
+				for (var row = 0; row < 2; row++)
+					R(8 + col * 28, 28 + row * 18, 22, 14, winColor);
+				// Ground floor entrance
+				R(20, 66, 56, 18, entryColor);
+				// Entry doors (glass)
+				R(30, 66, 16, 18, new Color(0.82f, 0.90f, 0.96f, 0.60f));
+				R(50, 66, 16, 18, new Color(0.82f, 0.90f, 0.96f, 0.60f));
+				// Parking area at bottom strip
+				R(4, 84, 88, 8, parkingColor);
+				// Parking space lines (2×3 grid of dots)
+				for (var col = 0; col < 3; col++)
+				for (var row = 0; row < 2; row++)
+					C(18f + col * 26f, 87f + row * 3f, 2f, lineColor);
+				break;
+			}
+
+			case "ind_factory_1x1":
+			{
+				// Industrial body
+				R(3, 12, 26, 16, new Color(0.52f, 0.50f, 0.46f));
+				// Chimney shaft
+				R(21, 4, 4, 10, new Color(0.40f, 0.38f, 0.35f));
+				// Chimney cap
+				C(23, 4, 3, new Color(0.35f, 0.33f, 0.30f));
+				// 3 orange glow windows
+				R(4,  16, 4, 5, new Color(1.0f, 0.65f, 0.15f, 0.85f));
+				R(11, 16, 4, 5, new Color(1.0f, 0.65f, 0.15f, 0.85f));
+				R(18, 16, 4, 5, new Color(1.0f, 0.65f, 0.15f, 0.85f));
+				break;
+			}
+
+			case "ind_mill_2x2":
+			{
+				// 64×64px Timber Mill — warm wood tone
+				var woodColor  = new Color(0.62f, 0.42f, 0.22f);
+				var logColor   = new Color(0.45f, 0.30f, 0.18f);
+				var roofColor  = new Color(0.50f, 0.34f, 0.18f);
+				var sawColor   = new Color(0.75f, 0.72f, 0.68f, 0.9f);
+
+				// Mill body (central ~50% of footprint)
+				R(14, 16, 36, 40, woodColor);
+				// Low-pitch roof
+				T(12, 16, 52, 16, 32, 8, roofColor);
+				// Log stack along left side — 3 circular log ends
+				C(8f,  28f, 5f, logColor);
+				C(8f,  38f, 5f, logColor);
+				C(8f,  48f, 5f, logColor);
+				// Log highlights (lighter circle inside each)
+				C(8f, 28f, 3f, new Color(0.55f, 0.38f, 0.22f));
+				C(8f, 38f, 3f, new Color(0.55f, 0.38f, 0.22f));
+				C(8f, 48f, 3f, new Color(0.55f, 0.38f, 0.22f));
+				// Saw blade hint at bottom-right corner: circle outline + radial tick lines
+				C(52f, 52f, 7f, sawColor);
+				for (var i = 0; i < 6; i++)
+				{
+					var angle = i * Mathf.Pi / 3f;
+					L(52f + Mathf.Cos(angle) * 5f, 52f + Mathf.Sin(angle) * 5f,
+					  52f + Mathf.Cos(angle) * 7f, 52f + Mathf.Sin(angle) * 7f,
+					  sawColor, 1f);
+				}
+				break;
+			}
+
+			case "ind_quarry_2x2":
+			{
+				// 64×64px Quarry — open pit with concentric arcs
+				var pitFloor = new Color(0.35f, 0.33f, 0.30f);
+				var pitWall  = new Color(0.58f, 0.55f, 0.50f);
+				var equipColor = new Color(0.42f, 0.40f, 0.38f);
+
+				// Outermost ring (pit wall)
+				C(32f, 36f, 24f, pitWall);
+				// Mid ring
+				C(32f, 36f, 16f, new Color(0.46f, 0.44f, 0.40f));
+				// Pit floor (centre)
+				C(32f, 36f, 8f, pitFloor);
+				// Crane/excavator silhouette — L-shape in upper-right
+				R(44, 6, 4, 18, equipColor); // vertical arm
+				R(44, 6, 16, 4, equipColor); // horizontal arm
+				// Hanging cable
+				L(60f, 10f, 60f, 22f, equipColor, 1f);
+				break;
+			}
+
+			case "ind_warehouse_2x2":
+			{
+				// 64×64px Warehouse — wide flat-roofed building
+				var wallColor  = new Color(0.68f, 0.65f, 0.60f);
+				var roofColor  = new Color(0.58f, 0.55f, 0.52f);
+				var bayColor   = new Color(0.25f, 0.23f, 0.20f, 0.9f);
+				var hatchColor = new Color(0.52f, 0.50f, 0.46f, 0.6f);
+
+				// Building body
+				R(4, 20, 56, 40, wallColor);
+				// Flat roof area
+				R(4, 12, 56, 10, roofColor);
+				// Corrugated roof hint — thin horizontal lines
+				for (var i = 0; i < 4; i++)
+					L(4f, 13f + i * 2.2f, 60f, 13f + i * 2.2f, hatchColor, 0.8f);
+				// Loading bay doors (3 dark rectangles along bottom edge)
+				R(5,  44, 14, 16, bayColor);
+				R(25, 44, 14, 16, bayColor);
+				R(45, 44, 14, 16, bayColor);
+				// Bay door highlights (single line)
+				L(5f, 52f,  19f, 52f, new Color(0.45f, 0.42f, 0.38f, 0.5f), 1f);
+				L(25f, 52f, 39f, 52f, new Color(0.45f, 0.42f, 0.38f, 0.5f), 1f);
+				L(45f, 52f, 59f, 52f, new Color(0.45f, 0.42f, 0.38f, 0.5f), 1f);
+				break;
+			}
+
+			case "ind_park_4x2":
+			{
+				// 128×64px Industrial Park — 2 factory units + pipes + parking
+				var wallColor  = new Color(0.52f, 0.50f, 0.46f);
+				var chimneyCol = new Color(0.40f, 0.38f, 0.35f);
+				var glowColor  = new Color(1.0f, 0.65f, 0.15f, 0.85f);
+				var pipeColor  = new Color(0.45f, 0.43f, 0.40f);
+				var parkColor  = new Color(0.30f, 0.30f, 0.30f, 0.7f);
+
+				// Unit 1 (left)
+				R(4,  16, 52, 40, wallColor);
+				// Unit 2 (right)
+				R(72, 16, 52, 40, wallColor);
+				// Chimney unit 1
+				R(21, 4, 6, 14, chimneyCol);
+				C(24f, 4f, 4f, chimneyCol);
+				// Chimney unit 2
+				R(89, 4, 6, 14, chimneyCol);
+				C(92f, 4f, 4f, chimneyCol);
+				// Glow windows unit 1
+				R(6,  24, 6, 6, glowColor);
+				R(16, 24, 6, 6, glowColor);
+				R(26, 24, 6, 6, glowColor);
+				// Glow windows unit 2
+				R(74, 24, 6, 6, glowColor);
+				R(84, 24, 6, 6, glowColor);
+				R(94, 24, 6, 6, glowColor);
+				// Connecting pipe between units
+				L(56f, 36f, 72f, 36f, pipeColor, 3f);
+				L(56f, 28f, 72f, 28f, pipeColor, 2f);
+				// Parking area at bottom-right
+				R(60, 50, 64, 10, parkColor);
+				break;
+			}
+
+			case "ind_park_2x4":
+			{
+				// 64×128px Industrial Park — 2 factory units stacked + pipes + parking
+				var wallColor  = new Color(0.52f, 0.50f, 0.46f);
+				var chimneyCol = new Color(0.40f, 0.38f, 0.35f);
+				var glowColor  = new Color(1.0f, 0.65f, 0.15f, 0.85f);
+				var pipeColor  = new Color(0.45f, 0.43f, 0.40f);
+				var parkColor  = new Color(0.30f, 0.30f, 0.30f, 0.7f);
+
+				// Unit 1 (top)
+				R(8,  4,  48, 52, wallColor);
+				// Unit 2 (bottom)
+				R(8,  72, 48, 52, wallColor);
+				// Chimney unit 1
+				R(21, 4, 6, 0, chimneyCol); // shaft (zero height — at rooftop)
+				C(24f, 4f, 4f, chimneyCol);
+				// Chimney unit 2
+				R(21, 72, 6, 0, chimneyCol);
+				C(24f, 72f, 4f, chimneyCol);
+				// Glow windows unit 1
+				R(10, 20, 6, 6, glowColor);
+				R(20, 20, 6, 6, glowColor);
+				R(30, 20, 6, 6, glowColor);
+				// Glow windows unit 2
+				R(10, 88, 6, 6, glowColor);
+				R(20, 88, 6, 6, glowColor);
+				R(30, 88, 6, 6, glowColor);
+				// Connecting pipe
+				L(32f, 56f, 32f, 72f, pipeColor, 3f);
+				L(20f, 56f, 20f, 72f, pipeColor, 2f);
+				// Parking area on right side
+				R(58, 40, 4, 48, parkColor);
+				break;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Runs the building detail pass — draws procedural building geometry for all buildings
+	/// in the grid. Only runs when <see cref="ActiveOverlay"/> is <see cref="OverlayMode.None"/>.
+	/// Spawn animation: tiles in <see cref="_buildingSpawn"/> get a scale transform.
+	/// </summary>
+	private void DrawAllBuildingDetails()
+	{
+		if (_grid == null) return;
+		if (ActiveOverlay != OverlayMode.None) return;
+
+		foreach (var building in _grid.Buildings.Values)
+		{
+			float ox = building.AnchorX * TileSize;
+			float oy = building.AnchorY * TileSize;
+
+			// Determine spawn animation scale.
+			// Use the anchor tile's progress; if absent, scale = 1.0 (fully shown).
+			var anchorKey = new Vector2I(building.AnchorX, building.AnchorY);
+			var scale = _buildingSpawn.TryGetValue(anchorKey, out var progress)
+				? SpawnBounceScale(Mathf.Clamp(progress, 0f, 1f))
+				: 1.0f;
+
+			DrawBuildingDetail(building, ox, oy, scale);
+		}
+	}
+
+	/// <summary>
+	/// Draws fading smoke particles at their current world positions.
+	/// </summary>
+	private void DrawSmokeParticles()
+	{
+		foreach (var p in _smoke)
+		{
+			var alpha = 1.0f - (p.Age / p.MaxAge);
+			var radius = p.BaseRadius + p.Age * 4f;
+			var color = new Color(0.55f, 0.52f, 0.50f, alpha * 0.75f);
+			DrawCircle(p.WorldPos, radius, color);
+		}
+	}
+
 	public override void _Draw()
 	{
 		if (_grid == null) return;
@@ -863,6 +1530,11 @@ public partial class TilemapRenderer : Node2D
 			DrawRect(rect, color);
 		}
 
+		// ── Procedural building detail pass ─────────────────────────────────
+		// Drawn after all base fills so geometry sits on top of the zone background.
+		// Skipped when any overlay is active (details would be obscured anyway).
+		DrawAllBuildingDetails();
+
 		// Brownout overlay: amber tint on all BFS-powered tiles when capacity < demand.
 		// This is a different/weaker signal than the existing unpowered dark tint.
 		if (_isBrownout && _grid != null)
@@ -922,6 +1594,11 @@ public partial class TilemapRenderer : Node2D
 				DrawRect(new Rect2(bx + bw - outlineW, by,                outlineW, bh), borderColor);    // right
 			}
 		}
+
+		// ── Smoke particles ──────────────────────────────────────────────────
+		// Drawn above building detail and outlines, below UI overlays.
+		if (ActiveOverlay == OverlayMode.None)
+			DrawSmokeParticles();
 
 		// ── Overlay mode pass ────────────────────────────────────────────────
 		// Drawn after all base tiles so the overlay tint covers everything uniformly.
