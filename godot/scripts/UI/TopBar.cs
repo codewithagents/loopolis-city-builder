@@ -315,8 +315,10 @@ public partial class TopBar : CanvasLayer
                 surplus >= 0 ? new Color(0.3f, 1f, 0.4f) : new Color(1f, 0.5f, 0.1f));
         }
 
-        // Zone counts
-        _zonesLabel.Text = $"R:{state.ResZones}  C:{state.ComZones}  I:{state.IndZones}";
+        // Zone counts — show park count only when parks are present (avoids early-game clutter)
+        _zonesLabel.Text = state.ParkTiles > 0
+            ? $"R:{state.ResZones}  C:{state.ComZones}  I:{state.IndZones}  \U0001f333:{state.ParkTiles}"
+            : $"R:{state.ResZones}  C:{state.ComZones}  I:{state.IndZones}";
         _zonesLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.8f, 0.8f));
 
         // Happiness

@@ -88,6 +88,9 @@ public partial class TilemapRenderer : Node2D
 	private static readonly Color ColorHospital     = new Color(0.647f, 0.839f, 0.647f); // #a5d6a7 soft green-white
 	private static readonly Color ColorCoalPlant    = new Color(0.259f, 0.259f, 0.259f); // #424242 dark grey
 	private static readonly Color ColorNuclearPlant = new Color(0.976f, 0.659f, 0.145f); // #f9a825 yellow-green
+	// Park — vibrant grass green, distinct from forest terrain (darker) and Timber Mill (earthy brown-green)
+	private static readonly Color ColorPark         = new Color(0.30f,  0.72f,  0.25f);
+	private static readonly Color ColorParkOutline  = new Color(0.55f,  0.90f,  0.45f);
 	// Unpowered zones get a dark overlay — show the mechanic visually
 	private static readonly Color UnpoweredTint     = new Color(0f, 0f, 0f, 0.45f);
 	// Brownout overlay — amber tint on BFS-powered tiles when capacity < demand
@@ -821,6 +824,34 @@ public partial class TilemapRenderer : Node2D
 				case ZoneType.Hospital:
 					color = ColorHospital;
 					break;
+				case ZoneType.Park:
+				{
+					// Vibrant grass green fill — no building density rect, no unpowered tint.
+					// Parks never develop buildings and never need power or road access.
+					var parkFull = new Rect2(px, py, TileSize, TileSize);
+					DrawRect(parkFull, ColorPark);
+
+					// Outline only on edges that face a different zone (cluster boundary)
+					bool pLeft  = IsSameZone(ZoneType.Park, tile.X - 1, tile.Y);
+					bool pRight = IsSameZone(ZoneType.Park, tile.X + 1, tile.Y);
+					bool pUp    = IsSameZone(ZoneType.Park, tile.X,     tile.Y - 1);
+					bool pDown  = IsSameZone(ZoneType.Park, tile.X,     tile.Y + 1);
+					const int parkBorderW = 2;
+					if (!pLeft)  DrawRect(new Rect2(px,                          py, parkBorderW, TileSize), ColorParkOutline);
+					if (!pRight) DrawRect(new Rect2(px + TileSize - parkBorderW, py, parkBorderW, TileSize), ColorParkOutline);
+					if (!pUp)    DrawRect(new Rect2(px, py,                          TileSize, parkBorderW), ColorParkOutline);
+					if (!pDown)  DrawRect(new Rect2(px, py + TileSize - parkBorderW, TileSize, parkBorderW), ColorParkOutline);
+
+					// Small tree dot in center to distinguish parks from empty grass terrain
+					var treeDotSize = 6f;
+					DrawRect(new Rect2(
+						px + (TileSize - treeDotSize) * 0.5f,
+						py + (TileSize - treeDotSize) * 0.5f,
+						treeDotSize, treeDotSize), ColorParkOutline);
+
+					DrawZonedCliffEdges(tile.X, tile.Y, px, py);
+					continue;
+				}
 				default:
 					// Empty tile: height-based gradient rendering with cliff edges, plateau highlight, forest overlay
 					DrawHeightTile(tile.X, tile.Y, px, py);
@@ -839,9 +870,10 @@ public partial class TilemapRenderer : Node2D
 			foreach (var tile in _grid.AllTiles())
 			{
 				if (!tile.HasPower) continue;
-				// Only overlay zoned tiles — roads/plants/terrain don't get the tint
+				// Only overlay zoned tiles — roads/plants/terrain/parks don't get the tint
 				if (tile.Zone is ZoneType.Empty or ZoneType.Road or ZoneType.PowerLine
-					or ZoneType.PowerPlant or ZoneType.CoalPlant or ZoneType.NuclearPlant)
+					or ZoneType.PowerPlant or ZoneType.CoalPlant or ZoneType.NuclearPlant
+					or ZoneType.Park)
 					continue;
 				var rect = new Rect2(tile.X * TileSize, tile.Y * TileSize, TileSize, TileSize);
 				DrawRect(rect, BrownoutTint);
@@ -901,10 +933,14 @@ public partial class TilemapRenderer : Node2D
 				// Traffic overlay only meaningful for road tiles; skip zone tiles
 				if (ActiveOverlay == OverlayMode.Traffic &&
 					t.Zone != ZoneType.Road && t.Zone != ZoneType.Avenue) continue;
-				// Coverage overlay only meaningful for zoned (R/C/I) tiles
+				// Coverage overlay only meaningful for zoned (R/C/I) tiles; skip parks
 				if (ActiveOverlay == OverlayMode.Coverage &&
 					t.Zone != ZoneType.Residential && t.Zone != ZoneType.Commercial && t.Zone != ZoneType.Industrial)
 					continue;
+				// Happiness overlay: skip parks (they boost others but have no happiness of their own)
+				if (ActiveOverlay == OverlayMode.Happiness && t.Zone == ZoneType.Park) continue;
+				// Pollution overlay: parks are always clean — skip them entirely (no tint)
+				if (ActiveOverlay == OverlayMode.Pollution && t.Zone == ZoneType.Park) continue;
 				// Land value: skip water, roads, utilities
 				if (ActiveOverlay == OverlayMode.LandValue &&
 					(t.Zone == ZoneType.Road || t.Zone == ZoneType.Avenue ||

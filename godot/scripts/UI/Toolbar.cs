@@ -53,6 +53,7 @@ public partial class Toolbar : CanvasLayer
         ("Ind",     "Industrial",  new Color(0.9f,  0.8f,  0.1f),  "Industrial — Place: $75 · Maint: $0.25/tick",           0, 0),
         ("Road",    "Road",        new Color(0.5f,  0.5f,  0.5f),  "Road — Place: $25 · Maint: $1.00/tick",                 0, 0),
         ("Avenue",  "Avenue",      new Color(0.62f, 0.62f, 0.62f), "Avenue — Place: $60 · Maint: $2.00/tick\nHigher capacity road — Requires Town (500 pop)", 500, 0),
+        ("Park",    "Park",        new Color(0.30f, 0.72f, 0.25f), "Place parks to boost nearby residential happiness (+0.08 per tile, max +0.20)", 0, 0),
         ("Erase",   "Erase",       new Color(0.6f,  0.15f, 0.15f), "Erase — no cost",                                       0, 0),
 
         // Tab 1 — Services

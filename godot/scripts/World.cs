@@ -34,6 +34,7 @@ public partial class World : Node2D
 	private EventLog _eventLog = null!;
 	private TopBar _topBar = null!;
 	private ToastSystem _toastSystem = null!;
+	private Minimap _minimap = null!;
 	private bool _viewerMode = false;
 	private string _sharedDir = "";
 	private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
@@ -130,6 +131,11 @@ public partial class World : Node2D
 
 		_toastSystem = new ToastSystem();
 		AddChild(_toastSystem);
+
+		// Minimap — bottom-right corner, press M to toggle
+		_minimap = new Minimap();
+		AddChild(_minimap);
+		_minimap.SetCamera(_camera);
 
 		// Scenario result panel (shown on complete/failed)
 		_scenarioResultPanel = new ScenarioResultPanel();
@@ -243,6 +249,7 @@ public partial class World : Node2D
 		SetupDefaultNewGame(mapSize, mapHeight);
 
 		_renderer.Refresh(_grid);
+		_minimap.UpdateFromGrid(_grid);
 		_camera.FitToMap(mapSize, mapHeight);
 		PushStandaloneHudUpdate();
 	}
@@ -309,7 +316,16 @@ public partial class World : Node2D
 		// Coverage radius overlay: update whenever mouse moves to a new tile
 		UpdateCoverageHighlight();
 
-		if (_viewerMode) return; // SharedStateReader handles everything else
+		if (_viewerMode)
+		{
+			// Update minimap from the latest viewer grid (reader polls at 20 Hz; we update every frame
+			// but minimap skips redraw when nothing changed via its own _Process QueueRedraw gate)
+			var viewerGrid  = _reader?.LastGrid;
+			var viewerState = _reader?.LastState;
+			if (viewerGrid != null && viewerState != null)
+				_minimap.UpdateFromState(viewerState, viewerGrid);
+			return;
+		}
 
 		if (_standalonePaused) return;
 		if (_gameOver) return;
@@ -386,6 +402,7 @@ public partial class World : Node2D
 				_cityHealth.NotifyDegradation();
 
 			_renderer.Refresh(_grid);
+			_minimap.UpdateFromGrid(_grid);
 			UpdateNeglectMap();
 			PushStandaloneHudUpdate();
 
@@ -901,6 +918,7 @@ public partial class World : Node2D
 			"FireStation" => new Color(1.0f,  0.4f,  0.1f,  0.40f),
 			"PoliceStation"=> new Color(0.2f, 0.4f,  1.0f,  0.40f),
 			"School"      => new Color(0.7f,  0.3f,  0.9f,  0.40f),
+			"Park"        => new Color(0.30f, 0.72f, 0.25f, 0.40f),
 			"Erase"       => new Color(0.6f,  0.15f, 0.15f, 0.40f),
 			_             => new Color(1f,    1f,    1f,    0.25f),
 		};
@@ -1280,6 +1298,7 @@ public partial class World : Node2D
 			_toolbar.SetTaxRate(save.TaxLevel);
 			_gameOverPanel.Hide();
 			_renderer.Refresh(_grid);
+			_minimap.UpdateFromGrid(_grid);
 			_camera.FitToMap(savedW, savedH);
 			PushStandaloneHudUpdate();
 
@@ -1355,9 +1374,10 @@ public partial class World : Node2D
 		var maxCapacity   = residentialCount * 50;
 
 		// Zone counts for TopBar
-		var resZones = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Residential);
-		var comZones = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Commercial);
-		var indZones = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Industrial);
+		var resZones  = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Residential);
+		var comZones  = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Commercial);
+		var indZones  = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Industrial);
+		var parkTiles = System.Linq.Enumerable.Count(_grid.AllTiles(), t => t.Zone == Loopolis.Core.Grid.ZoneType.Park);
 
 		var gameStateName = _engine.MilestoneSystem.CurrentState.ToString();
 
@@ -1475,6 +1495,7 @@ public partial class World : Node2D
 			ResZones:                  resZones,
 			ComZones:                  comZones,
 			IndZones:                  indZones,
+			ParkTiles:                 parkTiles,
 			ActiveScenarioId:          _engine.ActiveScenario?.Id,
 			ActiveScenarioName:        _engine.ActiveScenario?.Name,
 			ScenarioTargetPopulation:  _engine.ActiveScenario?.Goal.TargetPopulation ?? 0,
