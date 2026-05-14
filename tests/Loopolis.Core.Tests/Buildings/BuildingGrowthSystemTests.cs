@@ -597,6 +597,144 @@ public class UnpoweredSystemsTests
         Assert.DoesNotThrow(() => system.TryGrow(grid, GameState.Active),
             "TryGrow should not crash when a building has tiles partially out of bounds");
     }
+
+    // ── Bug-hunt edge case tests ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Concurrent growth collision: two adjacent 1×1 buildings that both qualify to grow
+    /// and whose 2×2 footprints overlap must not produce a corrupted grid state.
+    /// The first building wins; the second is absorbed and skipped via the guard.
+    /// </summary>
+    [Test]
+    public void TwoAdjacentBuildings_BothAtCapacity_OnlyOneGrows_NoCorruption()
+    {
+        // 2×2 residential block — all tiles powered + road-accessible + at 100% capacity.
+        // Both (5,5) and (6,5) will try to grow a 2×2 townhouse with overlapping footprints.
+        var grid = new CityGrid(10, 10);
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
+            grid.SetPower(5 + dx, 5 + dy, true);
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+            grid.SetPopulation(5 + dx, 5 + dy, 50); // 100% capacity
+        }
+
+        var system = new BuildingGrowthSystem();
+        system.Initialize(grid);
+        Assert.That(grid.Buildings.Count, Is.EqualTo(4), "Should start with 4 separate 1×1 buildings");
+
+        // All at full capacity — both (5,5) and (6,5) will try to grow simultaneously
+        Assert.DoesNotThrow(() => system.TryGrow(grid, GameState.Active),
+            "TryGrow must not crash when two buildings compete for overlapping footprints");
+
+        // Exactly one 2×2 townhouse should have formed (not two — they share tiles)
+        var townhouses = grid.Buildings.Values.Where(b => b.TypeId == "res_townhouse_2x2").ToList();
+        Assert.That(townhouses.Count, Is.EqualTo(1),
+            "Only one 2×2 townhouse should form when two buildings compete for overlapping footprints");
+
+        // All four tiles in the townhouse should point to the same building ID — no dangling references
+        var tileIds = new[]
+        {
+            grid.GetTile(5, 5).BuildingId,
+            grid.GetTile(6, 5).BuildingId,
+            grid.GetTile(5, 6).BuildingId,
+            grid.GetTile(6, 6).BuildingId,
+        };
+        Assert.That(tileIds.Distinct().Count(), Is.EqualTo(1),
+            "All four tiles of the townhouse must reference the same building ID — no split BuildingId state");
+        Assert.That(tileIds[0], Is.Not.Null,
+            "Townhouse tiles must have a non-null BuildingId");
+        Assert.That(grid.Buildings.ContainsKey(tileIds[0]!),
+            "The BuildingId on townhouse tiles must reference a building that actually exists in grid.Buildings");
+    }
+
+    /// <summary>
+    /// Population preservation during absorption: when a growing building absorbs smaller
+    /// buildings, their tile populations must be retained (not zeroed). The new building
+    /// inherits the total population.
+    /// </summary>
+    [Test]
+    public void GrowingBuilding_PreservesPopulationFromAbsorbedBuildings()
+    {
+        // 2×2 residential zone — all tiles initialized as 1×1 buildings.
+        // Each tile has 30 population. When one building grows to 2×2 and absorbs the others,
+        // the populations on the absorbed tiles must remain (not be zeroed out).
+        var grid = new CityGrid(10, 10);
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
+            grid.SetPower(5 + dx, 5 + dy, true);
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+        }
+
+        var system = new BuildingGrowthSystem();
+        system.Initialize(grid);
+
+        // Set all tiles to 30 population; only (5,5) will trigger growth (≥80% of 50 capacity)
+        grid.SetPopulation(5, 5, 45); // 90% — triggers growth
+        grid.SetPopulation(6, 5, 30);
+        grid.SetPopulation(5, 6, 30);
+        grid.SetPopulation(6, 6, 30);
+
+        system.TryGrow(grid, GameState.Active);
+
+        // Townhouse should have formed
+        var townhouse = grid.Buildings.Values.FirstOrDefault(b => b.TypeId == "res_townhouse_2x2");
+        Assert.That(townhouse, Is.Not.Null, "2×2 townhouse should have formed");
+
+        // Each absorbed tile must still have its population (GrowBuilding does NOT clear population)
+        var totalPop = townhouse!.Tiles().Sum(t => grid.GetTile(t.X, t.Y).Population);
+        Assert.That(totalPop, Is.EqualTo(135),
+            "Townhouse total population should be 45+30+30+30=135 — absorbed tiles keep their population");
+    }
+
+    /// <summary>
+    /// Service condition for apartment: once res_apartment_4x4 is built, demolishing the
+    /// fire station does NOT cause the building to be immediately removed. Only power/road
+    /// loss triggers degradation (via BuildingDegradationSystem). Service conditions are
+    /// checked only at upgrade time.
+    /// </summary>
+    [Test]
+    public void Apartment_PersistsAfterFireStationDemolished_ServiceNotCheckedOngoing()
+    {
+        // Set up a 4×4 apartment with all services in range.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Residential);
+            grid.SetPower(5 + dx, 5 + dy, true);
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+        }
+        grid.SetZone(1, 1, ZoneType.School);
+        grid.SetZone(1, 2, ZoneType.PoliceStation);
+        grid.SetZone(1, 3, ZoneType.FireStation);
+
+        var system = new BuildingGrowthSystem();
+        system.Initialize(grid);
+
+        // Seed anchor tile to full capacity to trigger apartment growth
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+            grid.SetPopulation(5 + dx, 5 + dy, 50);
+
+        system.TryGrow(grid, GameState.City);
+
+        var apartment = grid.Buildings.Values.FirstOrDefault(b => b.TypeId == "res_apartment_4x4");
+        Assert.That(apartment, Is.Not.Null, "Apartment should have formed with all services present");
+
+        // Now demolish the fire station
+        grid.SetZone(1, 3, ZoneType.Empty);
+
+        // Run TryGrow again — apartment must NOT be removed by BuildingGrowthSystem
+        // (degradation is handled by BuildingDegradationSystem, not BuildingGrowthSystem)
+        system.TryGrow(grid, GameState.City);
+
+        Assert.That(grid.Buildings.ContainsKey(apartment!.Id),
+            "Apartment must persist after fire station is demolished — service conditions are not rechecked on existing buildings");
+    }
 }
 
 /// <summary>

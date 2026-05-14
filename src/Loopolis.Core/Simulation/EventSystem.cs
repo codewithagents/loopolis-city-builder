@@ -185,19 +185,21 @@ public class EventSystem
             duration = isCovered ? 20 : 60; // covered cities resolve faster
         }
 
-        // For FireBreak: pick a random occupied residential or commercial tile to catch fire
+        // For FireBreak: pick a random occupied residential or commercial tile to catch fire.
+        // If no occupied tiles exist, skip the event entirely — a FireBreak with no buildings
+        // to burn is a no-op that only unfairly penalises the player's happiness and wallet.
         if (type == CityEventType.FireBreak)
         {
             FireTileX = FireTileY = -1; // reset previous fire tile
             var candidates = grid.AllTiles()
                 .Where(t => t.Zone is ZoneType.Residential or ZoneType.Commercial && t.Population > 0)
                 .ToArray();
-            if (candidates.Length > 0)
-            {
-                var chosen = candidates[_rng.Next(candidates.Length)];
-                FireTileX = chosen.X;
-                FireTileY = chosen.Y;
-            }
+            if (candidates.Length == 0)
+                return null; // no building to burn — skip this event roll entirely
+
+            var chosen = candidates[_rng.Next(candidates.Length)];
+            FireTileX = chosen.X;
+            FireTileY = chosen.Y;
         }
 
         _activeEvent = type switch

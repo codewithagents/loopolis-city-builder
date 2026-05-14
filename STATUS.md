@@ -78,7 +78,27 @@
 | M11-P4 City era charters (InnovationHub/GreenCanopy/TradeCorridors) | ✅ Done | 26 new (CityCharterSystemTests) |
 | M11-P5 Metropolis era charters (NexusCity/GreenUtopia/EmpireOfSteel) | ✅ Done | 29 new (MetropolisCharterSystemTests) |
 
-**Total: 923 tests · 0 failures · ~9s runtime**   *(+ 70 UI tests = 993 combined)*
+| SaveSystem audit + fix: CharterSystem/MilestoneSystem/ServiceFatigue | ✅ Done | 32 new (SaveSystemRoundTripTests) |
+
+**Total: 955 tests · 0 failures · ~10s runtime**   *(+ 70 UI tests = 1025 combined)*
+
+### Save/Load Audit Findings (2026-05-14)
+
+| System | Captured? | Serialized? | Restored? | Gap severity | Status |
+|---|---|---|---|---|---|
+| PolicySystem | ✅ | ✅ | Existed but not called in World.cs | Critical | Fixed |
+| CharterSystem (all 3 eras + Pending flags) | ❌ | ❌ | ❌ | Critical | Fixed |
+| MilestoneSystem.CurrentState | ✅ (as string) | ✅ | ❌ (never restored) | Critical | Fixed |
+| MilestoneSystem.Reached list | ❌ | ❌ | ❌ | High | Fixed |
+| ServiceFatigueSystem | ❌ | ❌ | ❌ (API existed, not wired) | High | Fixed |
+| LandValueSystem | n/a — pure derived state, recalc each tick | n/a | n/a | None | OK |
+| CityStatisticsSystem | ❌ | ❌ | ❌ | Medium (cosmetic — trends reset) | Not fixed (non-critical) |
+| PetitionSystem | ❌ | ❌ | ❌ | Medium (in-flight petitions lost) | Not fixed (non-critical) |
+| DistrictNamer | n/a — pure static utility | n/a | n/a | None | OK |
+| LeaderboardSystem | n/a — file-based, independent persistence | n/a | n/a | None | OK |
+| RoadGraph (SeedRoadGraphFromGrid) | n/a — rebuilt from grid | Not called after load | Critical | Fixed |
+
+SaveGame version bumped 3→4. All v3 saves load correctly (null fields → safe defaults).
 
 ---
 
