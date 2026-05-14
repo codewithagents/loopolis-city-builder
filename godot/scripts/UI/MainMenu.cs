@@ -166,9 +166,9 @@ public partial class MainMenu : Control
         headerRow.AddChild(backBtn);
 
         // ScrollContainer to hold cards (if there are many scenarios)
+        // Height must be explicit — CenterContainer won't expand-fill for us.
         var scroll = new ScrollContainer();
-        scroll.CustomMinimumSize = new Vector2(440, 0);
-        scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        scroll.CustomMinimumSize = new Vector2(440, 520);
         outerVbox.AddChild(scroll);
 
         var cardVbox = new VBoxContainer();
