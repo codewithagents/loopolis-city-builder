@@ -44,6 +44,12 @@ public partial class CharterChoicePanel : CanvasLayer
     /// </summary>
     public bool IsForMetropolisEra { get; private set; }
 
+    /// <summary>
+    /// True when the panel is showing Town era charter cards (default era).
+    /// This is always the negation of the other two — no new backing state needed.
+    /// </summary>
+    public bool IsForTownEra => !IsForCityEra && !IsForMetropolisEra;
+
     // ── Town charter data (mirrors CharterLibrary.AllTownCharters) ─────────────
     private static readonly (string Key, string Title, string Body, string Effect, Color Border)[] TownCharterCards =
     {

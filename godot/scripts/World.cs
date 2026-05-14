@@ -534,48 +534,19 @@ public partial class World : Node2D
 					_eventResponsePanel.Hide();
 				}
 
-				// Charter choice panel (viewer mode) — Town era
-				if (viewerStateCopy.TownCharterPending && _charterPanel == null)
-				{
-					_charterPanel = new CharterChoicePanel();
-					_charterPanel.CharterSelected += OnCharterSelected;
-					AddChild(_charterPanel);
-					_charterPanel.Show();
-				}
-				else if (!viewerStateCopy.TownCharterPending && _charterPanel != null && !_charterPanel.IsForCityEra)
-				{
-					// Charter chosen (possibly from another client or the server auto-selected)
-					_charterPanel.QueueFree();
-					_charterPanel = null;
-				}
-
-				// Charter choice panel (viewer mode) — City era
-				if (viewerStateCopy.CityCharterPending && _charterPanel == null)
-				{
-					_charterPanel = new CharterChoicePanel();
-					_charterPanel.CharterSelected += OnCharterSelected;
-					AddChild(_charterPanel);
-					_charterPanel.ShowCityCharters();
-				}
-				else if (!viewerStateCopy.CityCharterPending && _charterPanel != null && _charterPanel.IsForCityEra)
-				{
-					_charterPanel.QueueFree();
-					_charterPanel = null;
-				}
-
-				// Charter choice panel (viewer mode) — Metropolis era
-				if (viewerStateCopy.MetropolisCharterPending && _charterPanel == null)
-				{
-					_charterPanel = new CharterChoicePanel();
-					_charterPanel.CharterSelected += OnCharterSelected;
-					AddChild(_charterPanel);
-					_charterPanel.ShowMetropolisCharters();
-				}
-				else if (!viewerStateCopy.MetropolisCharterPending && _charterPanel != null && _charterPanel.IsForMetropolisEra)
-				{
-					_charterPanel.QueueFree();
-					_charterPanel = null;
-				}
+				// Charter panels (viewer mode) — one call per era
+				UpdateCharterPanelForEra(
+					viewerStateCopy.TownCharterPending,
+					_charterPanel != null && !_charterPanel.IsForCityEra,
+					p => p.Show());
+				UpdateCharterPanelForEra(
+					viewerStateCopy.CityCharterPending,
+					_charterPanel?.IsForCityEra ?? false,
+					p => p.ShowCityCharters());
+				UpdateCharterPanelForEra(
+					viewerStateCopy.MetropolisCharterPending,
+					_charterPanel?.IsForMetropolisEra ?? false,
+					p => p.ShowMetropolisCharters());
 
 				// Service fatigue advisory toast (throttled to once per 200 ticks)
 				FireServiceFatigueToastIfNeeded(viewerStateCopy);
@@ -790,47 +761,19 @@ public partial class World : Node2D
 					activeScenarioId: _engine.ActiveScenario.Id);
 			}
 
-			// Charter choice panel (standalone mode) — Town era
-			if (_engine.Charters.TownCharterPending && _charterPanel == null)
-			{
-				_charterPanel = new CharterChoicePanel();
-				_charterPanel.CharterSelected += OnCharterSelected;
-				AddChild(_charterPanel);
-				_charterPanel.Show();
-			}
-			else if (!_engine.Charters.TownCharterPending && _charterPanel != null && !_charterPanel.IsForCityEra)
-			{
-				_charterPanel.QueueFree();
-				_charterPanel = null;
-			}
-
-			// Charter choice panel (standalone mode) — City era
-			if (_engine.Charters.CityCharterPending && _charterPanel == null)
-			{
-				_charterPanel = new CharterChoicePanel();
-				_charterPanel.CharterSelected += OnCharterSelected;
-				AddChild(_charterPanel);
-				_charterPanel.ShowCityCharters();
-			}
-			else if (!_engine.Charters.CityCharterPending && _charterPanel != null && _charterPanel.IsForCityEra)
-			{
-				_charterPanel.QueueFree();
-				_charterPanel = null;
-			}
-
-			// Charter choice panel (standalone mode) — Metropolis era
-			if (_engine.Charters.MetropolisCharterPending && _charterPanel == null)
-			{
-				_charterPanel = new CharterChoicePanel();
-				_charterPanel.CharterSelected += OnCharterSelected;
-				AddChild(_charterPanel);
-				_charterPanel.ShowMetropolisCharters();
-			}
-			else if (!_engine.Charters.MetropolisCharterPending && _charterPanel != null && _charterPanel.IsForMetropolisEra)
-			{
-				_charterPanel.QueueFree();
-				_charterPanel = null;
-			}
+			// Charter panels (standalone mode) — one call per era
+			UpdateCharterPanelForEra(
+				_engine.Charters.TownCharterPending,
+				_charterPanel != null && !_charterPanel.IsForCityEra,
+				p => p.Show());
+			UpdateCharterPanelForEra(
+				_engine.Charters.CityCharterPending,
+				_charterPanel?.IsForCityEra ?? false,
+				p => p.ShowCityCharters());
+			UpdateCharterPanelForEra(
+				_engine.Charters.MetropolisCharterPending,
+				_charterPanel?.IsForMetropolisEra ?? false,
+				p => p.ShowMetropolisCharters());
 		}
 	}
 
@@ -1509,5 +1452,32 @@ public partial class World : Node2D
 			return entries.TryGetValue(scenarioId, out var entry) ? entry.Tick : 0;
 		}
 		catch { return 0; }
+	}
+
+	// ── Charter panel lifecycle helper ─────────────────────────────────────────
+
+	/// <summary>
+	/// Manages the charter panel lifecycle for one era.
+	/// Creates the panel when <paramref name="pending"/> is true and no panel exists.
+	/// Destroys it when <paramref name="pending"/> clears (charter chosen) and
+	/// <paramref name="isThisEra"/> confirms this era's panel is currently showing.
+	/// </summary>
+	private void UpdateCharterPanelForEra(
+		bool pending,
+		bool isThisEra,
+		Action<CharterChoicePanel> showMethod)
+	{
+		if (pending && _charterPanel == null)
+		{
+			_charterPanel = new CharterChoicePanel();
+			_charterPanel.CharterSelected += OnCharterSelected;
+			AddChild(_charterPanel);
+			showMethod(_charterPanel);
+		}
+		else if (!pending && _charterPanel != null && isThisEra)
+		{
+			_charterPanel.QueueFree();
+			_charterPanel = null;
+		}
 	}
 }

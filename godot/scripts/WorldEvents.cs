@@ -315,7 +315,8 @@ public partial class World : Node2D
 		};
 
 		var isMetropolisEra = _charterPanel?.IsForMetropolisEra ?? false;
-		var isCityEra       = _charterPanel?.IsForCityEra ?? false;
+		var isCityEra       = _charterPanel?.IsForCityEra       ?? false;
+		var isTownEra       = _charterPanel?.IsForTownEra       ?? true;  // default to Town if panel is null (shouldn't happen)
 
 		if (_viewerMode)
 		{
@@ -324,7 +325,8 @@ public partial class World : Node2D
 			{
 				var cmd = isMetropolisEra ? "select_metropolis_charter"
 				        : isCityEra       ? "select_city_charter"
-				        :                   "select_charter";
+				        : isTownEra       ? "select_charter"
+				        :                   "select_charter";  // fallback — same as Town
 				WriteCommand($"{{\"cmd\":\"{cmd}\",\"charter\":\"{charterKey}\",\"sessionId\":\"{sid}\"}}");
 			}
 		}
