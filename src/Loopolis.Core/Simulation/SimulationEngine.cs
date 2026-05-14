@@ -234,6 +234,9 @@ public class SimulationEngine
     /// <summary>
     /// Erase a tile and keep the RoadGraph in sync.
     /// If the erased tile was Road or Avenue, its node is removed from the graph.
+    /// If the erased tile was Residential, stale per-tile state (neglect penalty,
+    /// happiness distress counter) is cleared so a freshly-placed tile at the same
+    /// coordinates does not inherit the demolished tile's penalties.
     /// </summary>
     public void EraseTile(int x, int y)
     {
@@ -246,6 +249,11 @@ public class SimulationEngine
 
         if (oldZone == ZoneType.Road || oldZone == ZoneType.Avenue)
             RoadGraph.RemoveNode(x, y);
+
+        // Clear per-tile simulation state that is keyed by coordinates rather than
+        // zone/building: if a new zone is placed here later it must start fresh.
+        HappinessSystem.ClearNeglect(x, y);
+        Population.ClearUnhappyTicks(x, y);
     }
 
     public void Tick()
@@ -447,8 +455,10 @@ public class SimulationEngine
             Charters.NotifyCityMilestone();
         }
 
-        // When the city just reached Metropolis milestone for the first time, prompt metropolis charter selection
-        if (_previousMilestoneState == GameState.City
+        // When the city just reached Metropolis milestone for the first time, prompt metropolis charter selection.
+        // Guard is broad enough to handle a city that skips City tier entirely (e.g. pop jumps
+        // Active→Metropolis in one tick in tests or scenario setups).
+        if (_previousMilestoneState is GameState.Active or GameState.Town or GameState.City
             && MilestoneSystem.CurrentState is GameState.Metropolis or GameState.Loopolis
             && !MilestoneSystem.IsOver)
         {

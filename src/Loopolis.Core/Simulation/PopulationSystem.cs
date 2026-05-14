@@ -280,6 +280,14 @@ public class PopulationSystem
         Population = Math.Max(0, population);
 
     /// <summary>
+    /// Clears the happiness distress counter for a tile.
+    /// Must be called when a residential zone tile is erased (e.g. fire damage, player erase)
+    /// so that a newly-placed tile at the same coordinates does not inherit the stale counter
+    /// and immediately suffer distress decay or a suppressed growth floor.
+    /// </summary>
+    public void ClearUnhappyTicks(int x, int y) => _unhappyTicks.Remove((x, y));
+
+    /// <summary>
     /// Returns the road-graph entry node for a given tile: the tile itself if it is a road node,
     /// otherwise the first cardinal neighbour that is a road node. Returns null if none found.
     /// </summary>

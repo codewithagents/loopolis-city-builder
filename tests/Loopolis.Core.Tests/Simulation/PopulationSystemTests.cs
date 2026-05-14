@@ -275,4 +275,51 @@ public class PopulationSystemTests
         Assert.That(_pop.Population, Is.EqualTo(0),
             "Commercial activity should not inflate the residential population count");
     }
+
+    // ── Bug-fix regression tests ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Bug: erasing a residential tile (e.g. via fire damage) leaves a stale _unhappyTicks entry.
+    /// A new zone placed at the same coordinates should start fresh — not inherit the demolished
+    /// tile's distress counter and immediately suffer suppressed growth or distress decay.
+    /// </summary>
+    [Test]
+    public void ClearUnhappyTicks_NewTileAtSamePosition_DoesNotInheritDistressCounter()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        // Push the tile into distress: set very low happiness (0.1 = clamp floor) for many ticks.
+        // We do this by running Tick with low enough happiness — but PopulationSystem reads tile.Happiness
+        // directly. Set it manually to simulate a distressed state.
+        grid.SetHappiness(5, 5, 0.10);
+
+        // Run enough ticks to push unhappy counter past grace period (30 ticks)
+        for (var i = 0; i < 40; i++)
+        {
+            // Keep happiness low each tick
+            grid.SetHappiness(5, 5, 0.10);
+            _pop.Tick(grid);
+        }
+
+        // Verify the tile is in distress (counter > grace period)
+        Assert.That(_pop.DistressedTileCount, Is.GreaterThan(0),
+            "Tile should be in distress after 40 ticks of low happiness");
+
+        // Erase and immediately clear the stale counter
+        grid.SetZone(5, 5, ZoneType.Empty);
+        _pop.ClearUnhappyTicks(5, 5);
+
+        // Place a new residential tile at the same position
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+        grid.SetHappiness(5, 5, 0.80); // give it good happiness
+
+        // Run one tick — new tile should have minGrowth=1 (alreadyDistressed must be false)
+        _pop.Tick(grid);
+
+        Assert.That(grid.GetPopulation(5, 5), Is.GreaterThan(0),
+            "New tile with good happiness should grow immediately; stale distress counter must not suppress it");
+    }
 }

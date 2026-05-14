@@ -369,4 +369,74 @@ public class SimulationEngineTests
                 $"Engine.Tick() should not throw at tick {tick} with legacy save building");
         }
     }
+
+    // ── Bug-fix regression tests ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Bug: if population jumps directly from Active/Town to Metropolis in one tick
+    /// (possible via SetPopulation or scenario edge-case), the Metropolis charter
+    /// notification was never fired because the guard required _previousMilestoneState == City.
+    /// </summary>
+    [Test]
+    public void CharterNotification_MetropolisMilestone_FiresEvenWhenCityTierSkipped()
+    {
+        var engine = BuildEngine();
+
+        // Directly wire population past Metropolis threshold via SetPopulation
+        // so the milestone check in the next Tick() sees the jump.
+        engine.Population.SetPopulation(25_000);
+        engine.MilestoneSystem.Check(25_000, 10_000, 100, 0);
+
+        // Engine's _previousMilestoneState starts as Active.
+        // After one tick, NotifyCharterMilestonesIfNeeded should fire the metropolis notification.
+        engine.Tick();
+
+        Assert.That(engine.Charters.MetropolisCharterPending, Is.True,
+            "MetropolisCharterPending must be set even when the city skipped the City milestone tier");
+    }
+
+    /// <summary>
+    /// Bug: EraseTile must clear HappinessSystem._neglect and PopulationSystem._unhappyTicks
+    /// so that a freshly-placed zone at the same coordinates starts with clean state.
+    /// </summary>
+    [Test]
+    public void EraseTile_ClearsNeglectAndDistressCounterForThatPosition()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetFlatTerrain();
+
+        // Place road and residential zone
+        grid.SetZone(5, 6, ZoneType.Road);
+        grid.SetZone(5, 5, ZoneType.Residential);
+
+        var engine = BuildEngine(grid);
+        engine.SeedRoadGraphFromGrid();
+
+        // Give the tile power so it develops; set low happiness to accumulate distress
+        grid.SetPower(5, 5, true);
+        grid.SetRoadAccess(5, 5, true);
+        grid.SetHappiness(5, 5, 0.10);
+
+        // Accumulate neglect by ticking the happiness system directly many times
+        for (var i = 0; i < 200; i++)
+            engine.HappinessSystem.Propagate(grid);
+
+        // Also accumulate unhappy ticks in population system
+        for (var i = 0; i < 40; i++)
+        {
+            grid.SetHappiness(5, 5, 0.10);
+            engine.Population.Tick(grid);
+        }
+
+        // Confirm stale state accumulated
+        Assert.That(engine.HappinessSystem.GetNeglect(5, 5), Is.GreaterThan(0),
+            "Neglect should have accumulated before erasure");
+
+        // Erase the tile (simulates fire damage or player erase)
+        engine.EraseTile(5, 5);
+
+        // Verify neglect is cleared
+        Assert.That(engine.HappinessSystem.GetNeglect(5, 5), Is.EqualTo(0.0),
+            "EraseTile must clear the neglect entry so a new tile at this position starts fresh");
+    }
 }

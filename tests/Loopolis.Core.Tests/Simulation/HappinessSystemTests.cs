@@ -611,4 +611,58 @@ public class HappinessSystemTests
         Assert.That(result, Is.EqualTo(0.0).Within(0.001),
             "AverageNeglect should stay at 0.0 when service coverage is maintained from the start");
     }
+
+    // ── Bug-fix regression tests ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Bug: erasing a residential tile (e.g. via fire damage) leaves a stale _neglect entry.
+    /// A new zone placed at the same coordinates should start with zero neglect, not inherit
+    /// the demolished tile's accumulated penalty.
+    /// </summary>
+    [Test]
+    public void ClearNeglect_NewTileAtSamePosition_StartsWithZeroNeglect()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        // Accumulate significant neglect on the tile (200 ticks → cap at 0.20)
+        for (var i = 0; i < 250; i++)
+            _happiness.Propagate(grid);
+
+        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.20).Within(0.001),
+            "Neglect should be at cap (0.20) after 250 uncovered ticks");
+
+        // Clear the neglect (simulates EraseTile)
+        _happiness.ClearNeglect(5, 5);
+
+        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.0),
+            "After ClearNeglect, tile should report 0.0 neglect");
+    }
+
+    [Test]
+    public void ClearNeglect_AfterErase_NewTileDoesNotInheritPenalty()
+    {
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        // Build up neglect over 100 ticks
+        for (var i = 0; i < 100; i++)
+            _happiness.Propagate(grid);
+
+        // Erase the tile (fire damage path) and clear its neglect
+        grid.SetZone(5, 5, ZoneType.Empty);
+        _happiness.ClearNeglect(5, 5);
+
+        // Place a new residential zone at the same position
+        grid.SetZone(5, 5, ZoneType.Residential);
+        MakeReady(grid, 5, 5);
+
+        // Propagate once — the new tile should start at 0.001 neglect (one tick), not inherited 0.1
+        _happiness.Propagate(grid);
+
+        Assert.That(_happiness.GetNeglect(5, 5), Is.EqualTo(0.001).Within(0.0001),
+            "Rebuilt tile should start with only one tick of neglect (0.001), not the old tile's 0.1");
+    }
 }

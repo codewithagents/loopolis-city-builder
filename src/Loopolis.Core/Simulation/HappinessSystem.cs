@@ -19,7 +19,7 @@ namespace Loopolis.Core.Simulation;
 ///                           (no penalty if city population &lt; 50 or no industrial on map)
 ///   = clamp(0.1, 1.0)
 ///
-/// Service neglect accumulates at +0.001/tick when no service covers the tile (max 0.3),
+/// Service neglect accumulates at +0.001/tick when no service covers the tile (max 0.20),
 /// and recovers at -0.002/tick when any service covers the tile (min 0.0).
 /// This creates mid-game pressure: players must build services to maintain growth rate.
 ///
@@ -284,9 +284,16 @@ public class HappinessSystem
         }
     }
 
-    /// <summary>Returns the current service neglect penalty for a tile (0.0 to 0.3).</summary>
+    /// <summary>Returns the current service neglect penalty for a tile (0.0 to 0.20).</summary>
     public double GetNeglect(int x, int y) =>
         _neglect.TryGetValue((x, y), out var v) ? v : 0;
+
+    /// <summary>
+    /// Clears the service neglect entry for a tile.
+    /// Must be called when a residential zone tile is erased (e.g. fire damage, player erase)
+    /// so that a newly-placed tile at the same coordinates does not inherit the stale penalty.
+    /// </summary>
+    public void ClearNeglect(int x, int y) => _neglect.Remove((x, y));
 
     /// <summary>
     /// Returns the average neglect level across all developed residential tiles (0.0 to 0.20).
