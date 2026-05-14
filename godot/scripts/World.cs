@@ -97,6 +97,9 @@ public partial class World : Node2D
 	// City statistics panel (V key)
 	private CityStatsPanel _statsPanel = null!;
 
+	// Petition inbox panel (I key)
+	private PetitionInboxPanel _petitionPanel = null!;
+
 	// Event response panel
 	private EventResponsePanel _eventResponsePanel = null!;
 
@@ -221,6 +224,10 @@ public partial class World : Node2D
 		_statsPanel = new CityStatsPanel();
 		AddChild(_statsPanel);
 
+		// Petition inbox panel (press 'I' to toggle)
+		_petitionPanel = new PetitionInboxPanel();
+		AddChild(_petitionPanel);
+
 		// Event response panel (layer 12 — shown when a crisis event fires)
 		_eventResponsePanel = new EventResponsePanel();
 		_eventResponsePanel.InterveneRequested += OnEventInterveneRequested;
@@ -294,6 +301,7 @@ public partial class World : Node2D
 			};
 			_reader.BuildingDegraded  += (typeId, ax, ay) => SpawnBuildingCrumbleLabel(typeId, ax, ay);
 			_reader.BuildingsBorn     += (typeIds, tick)  => FireBuildingBirthToasts(typeIds, tick);
+			_reader.PetitionsThisTick += state            => FirePetitionToasts(state);
 			_reader.FirstGridReady    += (w, h) => _camera.FitToMap(w, h);
 			AddChild(_reader);
 			_viewerMode = true;
@@ -470,6 +478,10 @@ public partial class World : Node2D
 			// Keep stats panel live while open (server mode)
 			if (_statsPanel.IsVisible && _reader?.LastState != null)
 				_statsPanel.UpdateFromState(_reader.LastState);
+
+			// Keep petition panel live while open (server mode)
+			if (_petitionPanel.IsVisible && _reader?.LastState != null)
+				_petitionPanel.UpdatePetitions(_reader.LastState.ActivePetitions, _reader.LastState.Tick);
 
 			// Poll for upgrade results from server
 			PollViewerUpgradeResult();

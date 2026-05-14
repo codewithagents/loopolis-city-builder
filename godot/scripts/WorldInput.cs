@@ -209,6 +209,26 @@ public partial class World : Node2D
 				if (key.Keycode == Key.X) { _toolbar.ShowOverlaysTab();  return; }
 			}
 
+			// 'I' toggles the petition inbox panel
+			if (key.Keycode == Key.I)
+			{
+				if (_petitionPanel.IsVisible)
+				{
+					_petitionPanel.Hide();
+				}
+				else
+				{
+					_petitionPanel.Show();
+					// Populate immediately from latest state so the panel isn't blank on open
+					if (_viewerMode && _reader?.LastState != null)
+						_petitionPanel.UpdatePetitions(_reader.LastState.ActivePetitions, _reader.LastState.Tick);
+					else if (!_viewerMode)
+						_petitionPanel.UpdatePetitions(null, _standaloneTick);
+				}
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			var zone = key.Keycode switch
 			{
 				// Number row — original shortcuts
@@ -225,7 +245,6 @@ public partial class World : Node2D
 				// Letter shortcuts — select zone AND auto-switch to its tab
 				Key.R => "Residential",
 				Key.C => "Commercial",
-				Key.I => "Industrial",
 				Key.P => "Park",
 				Key.W => "Road",
 				Key.A => "Avenue",
@@ -306,7 +325,7 @@ public partial class World : Node2D
 				return;
 			}
 
-			// Escape: close stats panel, policy panel, shortcuts panel, building info panel, upgrade tool, cancel tool
+			// Escape: close stats panel, policy panel, shortcuts panel, petition panel, building info panel, upgrade tool, cancel tool
 			if (key.Keycode == Key.Escape)
 			{
 				if (_statsPanel.IsVisible)
@@ -326,6 +345,13 @@ public partial class World : Node2D
 				if (_shortcutsPanel.IsVisible)
 				{
 					_shortcutsPanel.Hide();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
+				if (_petitionPanel.IsVisible)
+				{
+					_petitionPanel.Hide();
 					GetViewport().SetInputAsHandled();
 					return;
 				}

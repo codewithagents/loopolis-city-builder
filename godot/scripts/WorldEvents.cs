@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 
 namespace LoopolisGodot;
 
@@ -282,5 +283,36 @@ public partial class World : Node2D
 			? "!" : "";
 
 		return $"+{name}{exclaim}";
+	}
+
+	// ── Petition toasts ────────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Fires toast notifications for new and resolved petitions this tick.
+	/// New petitions → orange alert toast. Resolved petitions → green hint toast.
+	/// Call this from the same update path as FireBuildingBirthToasts.
+	/// </summary>
+	internal void FirePetitionToasts(SharedState state)
+	{
+		// New petitions — orange alert toast
+		if (state.NewPetitionThisTick != null)
+		{
+			foreach (var district in state.NewPetitionThisTick)
+			{
+				// Look up full text from active petitions list for context
+				var petition = state.ActivePetitions?.FirstOrDefault(p => p.DistrictName == district);
+				var text = petition != null
+					? $"\U0001f4dc Petition: {petition.Text}"
+					: $"\U0001f4dc Petition from {district}";
+				_toastSystem.AddAlert(text);
+			}
+		}
+
+		// Resolved petitions — hint-styled toast (softer)
+		if (state.ResolvedPetitionThisTick != null)
+		{
+			foreach (var district in state.ResolvedPetitionThisTick)
+				_toastSystem.AddHint($"✓ Petition from {district} resolved!");
+		}
 	}
 }

@@ -23,6 +23,7 @@ public partial class TopBar : CanvasLayer
     private Label _happinessLabel = null!;
     private Label _tickLabel      = null!;
     private Label _policyLabel    = null!;
+    private Label _petitionLabel  = null!;
 
     // ── Pause / build-mode banner ──────────────────────────────────────────
     private PanelContainer _pauseBanner = null!;
@@ -161,6 +162,7 @@ public partial class TopBar : CanvasLayer
         _happinessLabel = MakeLabel("😊 100%");
         _tickLabel      = MakeLabel("T:0");
         _policyLabel    = MakeLabel("");
+        _petitionLabel  = MakeLabel("");
 
         // Balance — left aligned
         _balanceLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -197,6 +199,15 @@ public partial class TopBar : CanvasLayer
         _policyLabel.AddThemeColorOverride("font_color", new Color(1.00f, 0.78f, 0.20f)); // amber
         _policyLabel.Visible = false;
         hbox.AddChild(_policyLabel);
+
+        AddSep(hbox);
+
+        // Petition count badge — only visible when active petitions exist
+        _petitionLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+        _petitionLabel.AddThemeColorOverride("font_color", new Color(1.00f, 0.72f, 0.20f)); // orange-amber
+        _petitionLabel.TooltipText = "Active petitions — press I to view";
+        _petitionLabel.Visible = false;
+        hbox.AddChild(_petitionLabel);
 
         AddSep(hbox);
 
@@ -357,6 +368,18 @@ public partial class TopBar : CanvasLayer
         else
         {
             _policyLabel.Visible = false;
+        }
+
+        // Petition count badge — shown when active petitions exist
+        var petitionCount = state.ActivePetitions?.Length ?? 0;
+        if (petitionCount > 0)
+        {
+            _petitionLabel.Visible = true;
+            _petitionLabel.Text = $"\U0001f4dc {petitionCount}";
+        }
+        else
+        {
+            _petitionLabel.Visible = false;
         }
 
         // ── Scenario strip ─────────────────────────────────────────────────────

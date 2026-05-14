@@ -59,6 +59,13 @@ public partial class SharedStateReader : Node
     public event Action<string[], int>? BuildingsBorn;
 
     /// <summary>
+    /// Fired once per tick when petition activity occurred (new or resolved petitions).
+    /// Used by World.cs to show petition toasts.
+    /// Parameters: the full SharedState (needed to look up petition text).
+    /// </summary>
+    public event Action<SharedState>? PetitionsThisTick;
+
+    /// <summary>
     /// Fired when one or more buildings degrade (crumble) this tick.
     /// Parameters: typeId (e.g. "res_townhouse_2x2"), anchorX, anchorY.
     /// The position is the anchor of the first tile of the building that was removed,
@@ -170,6 +177,11 @@ public partial class SharedStateReader : Node
             // Fire batched building-birth toasts via LastNewBuildingTypeIds (engine-tracked, not scan-detected)
             if (state.LastNewBuildingTypeIds != null && state.LastNewBuildingTypeIds.Length > 0)
                 BuildingsBorn?.Invoke(state.LastNewBuildingTypeIds, state.Tick);
+
+            // Fire petition toast notifications when petition activity occurred this tick
+            if ((state.NewPetitionThisTick != null && state.NewPetitionThisTick.Length > 0) ||
+                (state.ResolvedPetitionThisTick != null && state.ResolvedPetitionThisTick.Length > 0))
+                PetitionsThisTick?.Invoke(state);
             _renderer.RefreshWithHeight(grid, heightMap, forestMap);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _renderer.SetFireTile(state.EventTileX, state.EventTileY);
@@ -495,7 +507,11 @@ public record SharedState(
     int PeakPopulation = 0,
     double PeakBalance = 0.0,
     float PopulationGrowthRate = 0f,
-    List<StatsSnapshot>? StatsHistory = null
+    List<StatsSnapshot>? StatsHistory = null,
+    // Petition inbox fields (from PetitionSystem)
+    PetitionEntry[]? ActivePetitions = null,
+    string[]? NewPetitionThisTick = null,
+    string[]? ResolvedPetitionThisTick = null
 )
 {
     /// <summary>
@@ -596,4 +612,18 @@ public record StatsSnapshot(
     double Balance,
     float AvgHappiness,
     float AvgPollution
+);
+
+/// <summary>
+/// A single active petition from PetitionSystem, serialized into state.json by the Runner.
+/// Mirrors the Runner's PetitionState record (camelCase JSON, case-insensitive deserialisation).
+/// </summary>
+public record PetitionEntry(
+    string Id = "",
+    string DistrictName = "",
+    string Text = "",
+    string Category = "",
+    int IssuedTick = 0,
+    int DeadlineTick = 0,
+    int UrgencyTicks = 0
 );

@@ -96,7 +96,7 @@ public partial class ShortcutsPanel : CanvasLayer
         AddSection(leftCol, "Zones & Tools");
         AddRow(leftCol, "R",       "Residential zone");
         AddRow(leftCol, "C",       "Commercial zone");
-        AddRow(leftCol, "I",       "Industrial zone");
+        AddRow(leftCol, "3",       "Industrial zone");
         AddRow(leftCol, "P",       "Park zone");
         AddRow(leftCol, "W",       "Road");
         AddRow(leftCol, "A",       "Avenue");
@@ -125,6 +125,7 @@ public partial class ShortcutsPanel : CanvasLayer
         AddRow(rightCol, "F5",     "Pollution overlay");
         AddRow(rightCol, "H",      "Toggle HUD stats");
         AddRow(rightCol, "M",      "Toggle minimap");
+        AddRow(rightCol, "I",      "Petition Inbox");
         AddRow(rightCol, "O",      "City Policies");
         AddRow(rightCol, "V",      "City Statistics");
         AddRow(rightCol, "?",      "This help panel");
