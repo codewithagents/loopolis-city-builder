@@ -19,7 +19,7 @@ godot/                    — Godot 4 project (presentation layer only).
 
 ## Development
 
-**Run tests (Core logic — 528 tests, Godot compile clean):**
+**Run tests (Core logic — 550 tests, Godot compile clean):**
 ```bash
 export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
 export PATH="$DOTNET_ROOT:$PATH"
@@ -80,8 +80,10 @@ Output is JSON — designed for agent analysis.
 28. ✅ **Terrain-Conditional Industry** — `ind_mill_2x2` (Timber Mill, forest tiles, 0.55× pollution) and `ind_quarry_2x2` (Quarry, elevated tiles, 1.65× pollution). BuildingGrowthSystem picks variant based on footprint terrain when growing from 1×1.
 29. ✅ **ScenarioSystem** — `ScenarioDefinition`, `ScenarioLibrary` (5 scenarios), `ScenarioEngine` (goal/medal checking). SimulationEngine tracks `ActiveScenario`, `ScenarioComplete`, `MedalEarned`, `ScenarioFailed`. Gold/Silver/Bronze thresholds per scenario.
 30. ✅ **Parks Zone** — `ZoneType.Park`: no buildings, +0.08 happiness per tile within Chebyshev-3 radius (capped +0.20), $3/tick maintenance. `ParkBonusRadius=3`. Commercial zone growth bug fixed (if→else if ordering).
+31. ✅ **ScenarioSystem** — `LeaderboardSystem` saves personal bests (Gold>Silver>Bronze, lower tick wins). `ScenarioLibrary` has 11 scenarios (tutorial + 10 playable). EmploymentWarning emits toast when ratio<0.40.
+32. ✅ **High-Tier Buildings** — `res_highrise_6x6` (Metropolis, all 4 services, 1800 pop), `com_office_4x4` (City, 800 activity), `ind_complex_4x4` (City, 1.30× pollution). Upgrade chains: apartment→highrise, shopping→office, warehouse→complex.
 
-**528 tests · 0 failures**
+**550 tests · 0 failures**
 
 ### Godot (presentation layer)
 - `World.cs` — standalone game loop, tile painting, overlays, build-mode pause, scenario wiring, minimap integration, city name
@@ -115,8 +117,11 @@ Buildings grow organically from road edges. Interior tiles only develop if a bui
 | `ind_mill_2x2` | I | 2×2 | Town | Forest tile in footprint (PollutionStrength 0.55×) |
 | `ind_quarry_2x2` | I | 2×2 | Town | Elevated tile (h≥2) in footprint (PollutionStrength 1.65×) |
 | `ind_warehouse_2x2` | I | 2×2 | Town | Road access (default flat) |
+| `ind_complex_4x4` | I | 4×4 | City | Road access (PollutionStrength 1.30×, upgrades from warehouse) |
 | `ind_park_4x2` | I | 4×2 | City | Road access |
 | `ind_park_2x4` | I | 2×4 | City | Road access |
+| `com_office_4x4` | C | 4×4 | City | Road access + power |
+| `res_highrise_6x6` | R | 6×6 | Metropolis | All 4 service coverages (Fire+Police+School+Hospital) |
 
 Growth trigger: building population ≥ 80% of capacity (tile count × 50).
 Absorption: smaller buildings inside the new footprint are absorbed ("big eats small").
