@@ -78,7 +78,7 @@
 | M11-P4 City era charters (InnovationHub/GreenCanopy/TradeCorridors) | ✅ Done | 26 new (CityCharterSystemTests) |
 | M11-P5 Metropolis era charters (NexusCity/GreenUtopia/EmpireOfSteel) | ✅ Done | 29 new (MetropolisCharterSystemTests) |
 
-**Total: 923 tests · 0 failures · ~9s runtime**
+**Total: 923 tests · 0 failures · ~9s runtime**   *(+ 70 UI tests = 993 combined)*
 
 ---
 
@@ -273,4 +273,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | refactor | Godot refactoring pass: (1) World.cs 6-copy charter panel lifecycle pattern → `UpdateCharterPanelForEra()` helper; 30 net lines removed. (2) CharterChoicePanel gains computed `IsForTownEra` — all three eras now explicit. (3) WorldEvents.cs `OnCharterSelected` routing uses `isTownEra` variable instead of implicit else-fallback. (4) GreenUtopia pollution cap raised ×0.1→×0.25 — prevents GreenCanopy+GreenUtopia = ×0.05 exploit (now ×0.125 combined). (5) metro_test runner scenario added — dense 7-road grid, $50k start, reaches Metropolis at tick 52, pop 54k, MetropolisCharterPending=true confirmed. | — |
 
-*Last updated: 2026-05-14 — QA pass: balance fixes, bug fix (EmpireOfSteel land value), refactoring (Effective* charter accessors, World.cs dedup, EventSystem helper); 918 Core + 70 UI = 988 tests*
+| 2026-05-14 | bug audit | Deep bug hunt (agentic + scenario sweep). **5 bugs fixed:** (1) HIGH: `_neglect` dictionary leaked stale state across tile erasures — new zones at demolition sites started with −0.20 happiness penalty. (2) HIGH: `_unhappyTicks` same pattern — new zones at fire/erase sites immediately entered distress, suppressing minGrowth guarantee. (3) MEDIUM: `NotifyMetropolisMilestone` required exact `City` previous state — jump Active→Metropolis or Town→Metropolis silently skipped the charter prompt. (4) MEDIUM (Runner): `ReadyResidentialZones` used powered predicate — no_power scenario reported 0 ready zones with 25 residents, self-contradicting JSON. Fixed to `IsReadyToDevelopUnpowered`. (5) MEDIUM (Runner): `Survived` used `balance >= 0` — abandoned city with positive cash falsely reported Survived=true. Fixed to check `gameState not in {Bankrupt, Abandoned}`. Also: GreenUtopia stacking exploit fixed (×0.1→×0.25), EmpireOfSteel land value wired (+10%). 5 new regression tests. | 923 Core + 70 UI = 993 tests · 0 failures |
+
+*Last updated: 2026-05-14 — Bug audit complete; 993 tests · 0 failures*
