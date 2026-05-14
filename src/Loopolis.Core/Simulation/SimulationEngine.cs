@@ -51,6 +51,7 @@ public class SimulationEngine
     public RoadGraph RoadGraph { get; } = new();
     public WorkerFlowSystem WorkerFlowSystem { get; } = new();
     public PolicySystem PolicySystem { get; } = new();
+    public CityStatisticsSystem Statistics { get; } = new();
     public int TickCount { get; private set; }
 
     // ── Scenario tracking ───────────────────────────────────────────────────
@@ -301,6 +302,25 @@ public class SimulationEngine
                 ScenarioFailed = true;
             }
         }
+
+        // Record city statistics snapshot for trend analysis and peak tracking
+        var allTiles    = Grid.AllTiles().ToList();
+        var zonedTiles  = allTiles.Where(t => t.Zone is ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial).ToList();
+        var poweredCount   = zonedTiles.Count(t => t.HasPower);
+        var unpoweredCount = zonedTiles.Count - poweredCount;
+        var avgHappinessSnap = (float)HappinessSystem.AverageHappiness(Grid);
+        var avgPollutionSnap = (float)PollutionSystem.AveragePollution(Grid);
+        Statistics.Record(new CitySnapshot(
+            Tick:             TickCount,
+            Population:       Population.Population,
+            Balance:          Budget.Balance,
+            AverageHappiness: avgHappinessSnap,
+            PoweredTiles:     poweredCount,
+            UnpoweredTiles:   unpoweredCount,
+            EmployedResidents: EmploymentSystem.RequiredJobs,
+            TotalJobs:        EmploymentSystem.AvailableJobs,
+            AveragePollution: avgPollutionSnap
+        ));
 
         TickCount++;
     }

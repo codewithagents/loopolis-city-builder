@@ -120,6 +120,20 @@ record WorkerFlowState(
     [property: JsonPropertyName("unroutedWorkers")]        int    UnroutedWorkers,
     [property: JsonPropertyName("overloadedEdges")]        int    OverloadedEdges);
 
+/// <summary>
+/// Compact statistics snapshot written to state.json — mirrors CitySnapshot but uses JSON-friendly types.
+/// </summary>
+record StatsSnapshot(
+    [property: JsonPropertyName("tick")]             int    Tick,
+    [property: JsonPropertyName("population")]       int    Population,
+    [property: JsonPropertyName("balance")]          double Balance,
+    [property: JsonPropertyName("avgHappiness")]     double AvgHappiness,
+    [property: JsonPropertyName("poweredTiles")]     int    PoweredTiles,
+    [property: JsonPropertyName("unpoweredTiles")]   int    UnpoweredTiles,
+    [property: JsonPropertyName("employedResidents")] int   EmployedResidents,
+    [property: JsonPropertyName("totalJobs")]        int    TotalJobs,
+    [property: JsonPropertyName("avgPollution")]     double AvgPollution);
+
 record OverlayTile(
     [property: JsonPropertyName("x")]     int    X,
     [property: JsonPropertyName("y")]     int    Y,
@@ -210,4 +224,12 @@ record ServerState(
     string? PendingEventType = null,
     int PendingEventCost = 0,
     // Zone constraints from active scenario (null = all zones allowed)
-    List<string>? DisabledZones = null);
+    List<string>? DisabledZones = null,
+    // City statistics
+    StatsSnapshot[]? StatsHistory = null,
+    int PeakPopulation = 0,
+    double PeakBalance = 0.0,
+    string PopulationTrend = "→",
+    string HappinessTrend = "→",
+    string BalanceTrend = "→",
+    float PopulationGrowthRate = 0f);

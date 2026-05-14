@@ -300,6 +300,21 @@ static class StateWriter
                 OverloadedEdges:        wf.OverloadedEdges);
         }
 
+        // --- City statistics: last 10 snapshots + trend/peak values ---
+        var statsHistory = engine.Statistics.History
+            .TakeLast(10)
+            .Select(s => new StatsSnapshot(
+                s.Tick,
+                s.Population,
+                Math.Round(s.Balance, 2),
+                Math.Round(s.AverageHappiness, 3),
+                s.PoweredTiles,
+                s.UnpoweredTiles,
+                s.EmployedResidents,
+                s.TotalJobs,
+                Math.Round(s.AveragePollution, 3)))
+            .ToArray();
+
         var state = new ServerState(
             Tick:                      engine.TickCount,
             Paused:                    paused,
@@ -369,7 +384,15 @@ static class StateWriter
             LastUpgradeResult:         lastUpgradeResult,
             PendingEventType:          engine.PendingEventType,
             PendingEventCost:          engine.PendingEventCost,
-            DisabledZones:             engine.ActiveScenario?.DisabledZones?.Select(z => z.ToString()).ToList()
+            DisabledZones:             engine.ActiveScenario?.DisabledZones?.Select(z => z.ToString()).ToList(),
+            // City statistics
+            StatsHistory:              statsHistory,
+            PeakPopulation:            engine.Statistics.PeakPopulation,
+            PeakBalance:               Math.Round(engine.Statistics.PeakBalance, 2),
+            PopulationTrend:           engine.Statistics.PopulationTrend(),
+            HappinessTrend:            engine.Statistics.HappinessTrend(),
+            BalanceTrend:              engine.Statistics.BalanceTrend(),
+            PopulationGrowthRate:      engine.Statistics.PopulationGrowthRate
         );
 
         var options = new JsonSerializerOptions
