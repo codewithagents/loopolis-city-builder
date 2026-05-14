@@ -520,6 +520,10 @@ public record SharedState(
     bool TownCharterPending = false,
     string? ActiveCharter = null,
     string? ActiveCharterDescription = null,
+    // Charter system (City era)
+    bool CityCharterPending = false,
+    string? CityActiveCharter = null,
+    string? CityActiveCharterDescription = null,
     // Service fatigue (City+ milestone)
     bool ServiceFatigueActive = false,
     ServiceFatigueEntry[]? DegradedServices = null

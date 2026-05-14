@@ -259,6 +259,10 @@ record ServerState(
     bool TownCharterPending = false,            // true → Godot should show the charter choice UI
     string? ActiveCharter = null,              // "Merchant", "Industrial", "Civic", or null
     string? ActiveCharterDescription = null,  // effect string for HUD
+    // Charter system (City era)
+    bool CityCharterPending = false,           // true → Godot should show City era charter choice UI
+    string? CityActiveCharter = null,         // "InnovationHub", "GreenCanopy", "TradeCorridors", or null
+    string? CityActiveCharterDescription = null, // effect string for HUD
     // Service fatigue (M11-P3, rule 1)
     bool ServiceFatigueActive = false,                        // true when GameState >= City
     ServiceFatigueEntry[]? DegradedServices = null);          // tiles currently below 60% capacity

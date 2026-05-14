@@ -405,6 +405,24 @@ static class CommandHandler
                     }
                     break;
 
+                case "select_city_charter":
+                {
+                    // {"cmd":"select_city_charter","charter":"InnovationHub"}
+                    var cityCharterName = root.TryGetProperty("charter", out var ccProp)
+                        ? ccProp.GetString() ?? ""
+                        : "";
+                    if (Enum.TryParse<CharterType>(cityCharterName, true, out var cityCharterType))
+                    {
+                        engine.Charters.SelectCityCharter(cityCharterType);
+                        Console.WriteLine($"[select_city_charter] {cityCharterName} selected. CityCharter={engine.Charters.CityCharter}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[select_city_charter] Unknown charter: {cityCharterName}");
+                    }
+                    break;
+                }
+
                 default:
                     Console.WriteLine($"[command] Unknown: {cmd}");
                     break;

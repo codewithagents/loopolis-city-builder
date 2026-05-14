@@ -4,12 +4,15 @@ using System;
 namespace LoopolisGodot;
 
 /// <summary>
-/// Full-screen modal panel shown exactly once when the Town milestone is reached.
+/// Full-screen modal panel shown when a charter milestone is reached (Town or City era).
 /// Forces the player to pick one of three era charters that permanently modify city growth.
 /// There is no cancel button — a charter must be chosen.
 ///
-/// Dual-mode: in viewer mode it writes a select_charter IPC command; in standalone mode it
-/// calls engine.Charters.SelectCharter() directly (same pattern as EventResponsePanel).
+/// Dual-mode: in viewer mode it writes a select_charter / select_city_charter IPC command;
+/// in standalone mode it calls engine.Charters.SelectCharter() / SelectCityCharter() directly.
+///
+/// Dual-era: call Show() for Town era cards, ShowCityCharters() for City era cards.
+/// World.cs reads IsForCityEra after CharterSelected fires to route the command correctly.
 ///
 /// Layer 15 — above all other panels (GameOverPanel=13, ScenarioResult=14).
 /// </summary>
@@ -18,13 +21,21 @@ public partial class CharterChoicePanel : CanvasLayer
     // ── Events ─────────────────────────────────────────────────────────────────
     /// <summary>
     /// Fired when the player clicks a charter card.
-    /// Parameter: charter name string ("Merchant", "Industrial", "Civic").
-    /// World.cs handles the actual IPC command or engine call.
+    /// Parameter: charter name string ("Merchant", "Industrial", "Civic",
+    ///            "InnovationHub", "GreenCanopy", "TradeCorridors").
+    /// World.cs checks IsForCityEra to decide which IPC command or engine call to make.
     /// </summary>
     public event Action<string>? CharterSelected;
 
-    // ── Charter data (mirrors CharterLibrary.AllTownCharters) ─────────────────
-    private static readonly (string Key, string Title, string Body, string Effect, Color Border)[] CharterCards =
+    /// <summary>
+    /// True when the panel is showing City era charter cards.
+    /// False when showing Town era cards (the default).
+    /// Read by World.cs inside the CharterSelected handler to route correctly.
+    /// </summary>
+    public bool IsForCityEra { get; private set; }
+
+    // ── Town charter data (mirrors CharterLibrary.AllTownCharters) ─────────────
+    private static readonly (string Key, string Title, string Body, string Effect, Color Border)[] TownCharterCards =
     {
         (
             Key:    "Merchant",
@@ -49,6 +60,32 @@ public partial class CharterChoicePanel : CanvasLayer
         ),
     };
 
+    // ── City charter data (mirrors CharterLibrary.AllCityCharters) ─────────────
+    private static readonly (string Key, string Title, string Body, string Effect, Color Border)[] CityCharterCards =
+    {
+        (
+            Key:    "InnovationHub",
+            Title:  "Innovation Hub",
+            Body:   "Your city embraces density. Smart zoning fills every building to capacity.",
+            Effect: "Residential capacity +20% · Tax revenue +8%",
+            Border: new Color(0.55f, 0.30f, 0.90f) // purple
+        ),
+        (
+            Key:    "GreenCanopy",
+            Title:  "Green Canopy",
+            Body:   "Green infrastructure networks define your skyline. Parks and clean tech heal your city.",
+            Effect: "Pollution impact ×0.5 · Park radius +2 tiles",
+            Border: new Color(0.25f, 0.72f, 0.35f) // forest green
+        ),
+        (
+            Key:    "TradeCorridors",
+            Title:  "Trade Corridors",
+            Body:   "Markets and trade routes flow through your city. The commercial sector never sleeps.",
+            Effect: "Commercial growth +25% · Land value +8%",
+            Border: new Color(0.85f, 0.65f, 0.10f) // deep gold
+        ),
+    };
+
     // ── Layout constants ───────────────────────────────────────────────────────
     private const float CardW       = 220f;
     private const float CardH       = 220f;
@@ -64,13 +101,36 @@ public partial class CharterChoicePanel : CanvasLayer
     {
         Layer   = 15;
         Visible = false;
-        BuildPanel();
+        // Build with Town era data by default — ShowCityCharters() rebuilds for City era
+        BuildPanel(
+            title:    "Your Town Has a Character",
+            subtitle: "Choose a charter that defines your city forever.",
+            cards:    TownCharterCards);
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
 
+    /// <summary>Show the Town era charter panel (resets and rebuilds).</summary>
     public new void Show()
     {
+        _charterChosen = false;
+        IsForCityEra   = false;
+        RebuildPanelContent(
+            title:    "Your Town Has a Character",
+            subtitle: "Choose a charter that defines your city forever.",
+            cards:    TownCharterCards);
+        Visible = true;
+    }
+
+    /// <summary>Show the City era charter panel (resets and rebuilds with City cards).</summary>
+    public void ShowCityCharters()
+    {
+        _charterChosen = false;
+        IsForCityEra   = true;
+        RebuildPanelContent(
+            title:    "Your City Has an Identity",
+            subtitle: "Choose a charter that shapes your city's future.",
+            cards:    CityCharterCards);
         Visible = true;
     }
 
@@ -81,7 +141,10 @@ public partial class CharterChoicePanel : CanvasLayer
 
     // ── UI construction ────────────────────────────────────────────────────────
 
-    private void BuildPanel()
+    private void BuildPanel(
+        string title,
+        string subtitle,
+        (string Key, string Title, string Body, string Effect, Color Border)[] cards)
     {
         // Full-screen dark overlay (blocks map interaction behind the panel)
         var overlay = new ColorRect();
@@ -90,17 +153,46 @@ public partial class CharterChoicePanel : CanvasLayer
         overlay.MouseFilter = Control.MouseFilterEnum.Stop;
         AddChild(overlay);
 
-        // Centred container card
+        AddChild(BuildCentredVbox(title, subtitle, cards));
+    }
+
+    /// <summary>
+    /// Clears all existing CanvasLayer children and rebuilds them for the given era.
+    /// Called by Show() and ShowCityCharters() to switch between Town and City cards.
+    /// </summary>
+    private void RebuildPanelContent(
+        string title,
+        string subtitle,
+        (string Key, string Title, string Body, string Effect, Color Border)[] cards)
+    {
+        // Remove all existing children
+        foreach (var child in GetChildren())
+            child.QueueFree();
+
+        // Rebuild overlay + card content
+        var overlay = new ColorRect();
+        overlay.Color = new Color(0f, 0f, 0f, 0.65f);
+        overlay.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        overlay.MouseFilter = Control.MouseFilterEnum.Stop;
+        AddChild(overlay);
+
+        AddChild(BuildCentredVbox(title, subtitle, cards));
+    }
+
+    private VBoxContainer BuildCentredVbox(
+        string title,
+        string subtitle,
+        (string Key, string Title, string Body, string Effect, Color Border)[] cards)
+    {
         var outerVbox = new VBoxContainer();
         outerVbox.SetAnchorsPreset(Control.LayoutPreset.Center);
         outerVbox.GrowHorizontal = Control.GrowDirection.Both;
         outerVbox.GrowVertical   = Control.GrowDirection.Both;
         outerVbox.AddThemeConstantOverride("separation", 16);
-        AddChild(outerVbox);
 
         // Title
         var titleLbl = new Label();
-        titleLbl.Text = "Your Town Has a Character";
+        titleLbl.Text = title;
         titleLbl.HorizontalAlignment = HorizontalAlignment.Center;
         titleLbl.AddThemeColorOverride("font_color", new Color(1.00f, 0.85f, 0.30f));
         titleLbl.AddThemeFontSizeOverride("font_size", 26);
@@ -108,7 +200,7 @@ public partial class CharterChoicePanel : CanvasLayer
 
         // Subtitle
         var subtitleLbl = new Label();
-        subtitleLbl.Text = "Choose a charter that defines your city forever.";
+        subtitleLbl.Text = subtitle;
         subtitleLbl.HorizontalAlignment = HorizontalAlignment.Center;
         subtitleLbl.AddThemeColorOverride("font_color", new Color(0.65f, 0.65f, 0.70f));
         subtitleLbl.AddThemeFontSizeOverride("font_size", 14);
@@ -119,7 +211,7 @@ public partial class CharterChoicePanel : CanvasLayer
         cardRow.AddThemeConstantOverride("separation", (int)CardSpacing);
         outerVbox.AddChild(cardRow);
 
-        foreach (var card in CharterCards)
+        foreach (var card in cards)
         {
             cardRow.AddChild(BuildCard(card.Key, card.Title, card.Body, card.Effect, card.Border));
         }
@@ -131,6 +223,8 @@ public partial class CharterChoicePanel : CanvasLayer
         footerLbl.AddThemeColorOverride("font_color", new Color(0.50f, 0.52f, 0.58f));
         footerLbl.AddThemeFontSizeOverride("font_size", 12);
         outerVbox.AddChild(footerLbl);
+
+        return outerVbox;
     }
 
     private Control BuildCard(string key, string title, string body, string effect, Color borderColor)
@@ -230,7 +324,7 @@ public partial class CharterChoicePanel : CanvasLayer
         _charterChosen = true;
 
         CharterSelected?.Invoke(charterKey);
-        // Panel hides itself — World.cs will also free it when ActiveCharter populates
+        // Panel hides itself — World.cs will also free it when ActiveCharter / CityActiveCharter populates
         Hide();
     }
 }

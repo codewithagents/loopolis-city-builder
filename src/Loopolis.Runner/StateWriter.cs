@@ -419,6 +419,14 @@ static class StateWriter
             ActiveCharterDescription:  engine.Charters.ActiveCharter != CharterType.None
                                            ? CharterLibrary.Find(engine.Charters.ActiveCharter)?.Effect
                                            : null,
+            // Charter system (City era)
+            CityCharterPending:        engine.Charters.CityCharterPending,
+            CityActiveCharter:         engine.Charters.CityCharter != CharterType.None
+                                           ? engine.Charters.CityCharter.ToString()
+                                           : null,
+            CityActiveCharterDescription: engine.Charters.CityCharter != CharterType.None
+                                           ? CharterLibrary.Find(engine.Charters.CityCharter)?.Effect
+                                           : null,
             // Service fatigue (M11-P3, rule 1): all service tiles with current fatigue capacity
             ServiceFatigueActive:      engine.ServiceFatigue.IsActive,
             DegradedServices:          engine.ServiceFatigue.DeprecatedTiles.Any()
