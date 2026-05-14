@@ -76,8 +76,9 @@
 | M11-P2 CharterSystem (Town era: Merchant/Industrial/Civic) | ✅ Done | 33 new (CharterSystemTests) |
 | M11-P3 ServiceFatigueSystem (service fatigue rule 1) | ✅ Done | 24 new (ServiceFatigueSystemTests) |
 | M11-P4 City era charters (InnovationHub/GreenCanopy/TradeCorridors) | ✅ Done | 26 new (CityCharterSystemTests) |
+| M11-P5 Metropolis era charters (NexusCity/GreenUtopia/EmpireOfSteel) | ✅ Done | 29 new (MetropolisCharterSystemTests) |
 
-**Total: 845 tests · 0 failures · ~9s runtime**
+**Total: 874 tests · 0 failures · ~9s runtime**
 
 ---
 
@@ -262,4 +263,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | city_path | City era charters: three permanent specializations unlocked at City milestone (5,000 pop). InnovationHub: residential capacity +20%, tax rate +8%. GreenCanopy: pollution penalty ×0.5, park radius Chebyshev-3→5. TradeCorridors: commercial growth ×1.25, land value +8%. All effects wired into simulation: PopulationSystem, BudgetSystem, HappinessSystem, LandValueSystem. CharterChoicePanel extended to dual-era (Town/City). City charter pending state serialized through IPC. CityCharterPending triggers panel in standalone + viewer modes. 26 new tests (CityCharterSystemTests). 845+70 tests = 915 total, 0 failures. | Done — CharterSystem + CharterType + CharterLibrary + HappinessSystem + SimulationEngine + Godot wiring |
 
-*Last updated: 2026-05-14 — City era charters, AdvisorBar HUD, scenario fixes, 915 tests*
+| 2026-05-14 | metropolis | Metropolis era charters: three end-game specializations unlocked at Metropolis milestone (25,000 pop). NexusCity: service radius +5, residential capacity +30%, tax +8% (efficiency city). GreenUtopia: pollution ×0.1, park happiness ×3.0, park radius +3 (near-zero pollution with GreenCanopy stack = ×0.05). EmpireOfSteel: industrial growth ×1.60, +25 jobs/tile, commercial ×1.30 (stacks with Merchant ×1.30 + TradeCorridors ×1.25 = ×2.11 total). CharterChoicePanel extended to triple-era with IsForMetropolisEra flag. Godot UI: electric-blue/vivid-green/forge-red color scheme. 29 new tests (MetropolisCharterSystemTests). Full suite: 874 · 0 failures. | Done — CharterType + CharterSystem + CharterLibrary + SimulationEngine + Runner IPC + Godot full stack |
+
+*Last updated: 2026-05-14 — Metropolis era charters complete (all 3 eras done), 874 tests*
