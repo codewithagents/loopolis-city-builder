@@ -24,6 +24,14 @@ public class PopulationSystem
     private const double IndustrialGrowthRate  = 0.05;
     private const double IndustrialDeclineRate = 0.05;
 
+    // Happiness distress decay constants
+    private const double LowHappinessDecayThreshold = 0.30;  // below this = city in distress
+    private const double LowHappinessDecayRate      = 0.015; // 1.5%/tick decline when distressed
+    private const int    LowHappinessGraceTicks      = 30;   // 30 ticks grace before decay starts
+
+    /// <summary>Tracks consecutive ticks each residential tile has been below the happiness threshold.</summary>
+    private readonly Dictionary<(int, int), int> _unhappyTicks = new();
+
     /// <summary>Total population: sum of all residential tile populations only.
     /// Commercial and Industrial activity is intentionally excluded so that
     /// milestones and HUD counts remain residential-only.</summary>
@@ -43,7 +51,7 @@ public class PopulationSystem
     public void Tick(CityGrid grid, double employmentMultiplier = 1.0, RoadTrafficSystem? trafficSystem = null,
         PowerCapacitySystem? powerCapacitySystem = null, RoadGraph? roadGraph = null,
         double industrialGrowthMultiplier = 1.0, double commercialGrowthMultiplier = 1.0,
-        double immigrationMultiplier = 1.0)
+        double residentialCapacityBonus = 0.0)
     {
         var totalPopulation = 0;
 
@@ -75,9 +83,15 @@ public class PopulationSystem
 
             // Effective capacity: res_house_1x1 without power caps at 25 (cottage-level).
             // All other residential buildings have standard capacity (power required to form them at all).
-            var tileCapacity = canDevelop
+            var baseCapacity = canDevelop
                 ? BuildingGrowthSystem.GetEffectiveCapacity(buildingTypeId ?? "res_house_1x1", tile.HasPower)
                 : ResidentsPerZone;
+
+            // OpenCity policy: +12% residential capacity (denser housing attracts immigrants).
+            // Only applied when the tile can actually develop; raw zones don't benefit.
+            var tileCapacity = canDevelop
+                ? (int)(baseCapacity * (1.0 + residentialCapacityBonus))
+                : baseCapacity;
 
             // res_house_1x1 can grow without power (road access is sufficient to form the building).
             // All other residential buildings require power to grow (they could never form without it).
@@ -94,7 +108,6 @@ public class PopulationSystem
 
                 // Border migration multiplier: +20% growth for R-tiles within road-graph distance 12
                 // of any external anchor (border connection tile). Simulates migration pressure.
-                // immigrationMultiplier (from OpenCity policy) stacks on top of the base multiplier.
                 var borderMultiplier = 1.0;
                 if (anchorDistanceMaps != null && roadGraph != null)
                 {
@@ -106,7 +119,7 @@ public class PopulationSystem
                         {
                             if (distMap.TryGetValue(tileNode.Value, out var dist) && dist <= BorderMigrationMaxDistance)
                             {
-                                borderMultiplier = BorderMigrationMultiplier * immigrationMultiplier;
+                                borderMultiplier = BorderMigrationMultiplier;
                                 break;
                             }
                         }
@@ -128,6 +141,27 @@ public class PopulationSystem
             else
             {
                 newPop = 0;
+            }
+
+            // Happiness distress decay: track consecutive ticks below threshold.
+            // After a grace period, tiles in persistent distress slowly lose population
+            // even if they are otherwise stable (e.g. flatlined at capacity with low happiness).
+            var tileKey = (tile.X, tile.Y);
+            if (tile.Happiness < LowHappinessDecayThreshold && newPop > 0)
+            {
+                _unhappyTicks.TryGetValue(tileKey, out var unhappyCount);
+                _unhappyTicks[tileKey] = unhappyCount + 1;
+
+                // After grace period, apply slow decay even if otherwise stable
+                if (_unhappyTicks[tileKey] > LowHappinessGraceTicks && canDevelop)
+                {
+                    var distressDecline = Math.Max(1, (int)(newPop * LowHappinessDecayRate));
+                    newPop = Math.Max(0, newPop - distressDecline);
+                }
+            }
+            else
+            {
+                _unhappyTicks.Remove(tileKey); // Reset counter when happiness recovers
             }
 
             if (newPop != current)
@@ -154,17 +188,20 @@ public class PopulationSystem
                     if (n.Zone == ZoneType.Residential)
                         adjacentResidential += n.Population;
 
-                // Grow faster when more residential nearby, capped at ActivityCapacity
-                // CommercialBoost policy multiplies the growth rate by 1.25
+                // Grow faster when more residential nearby, capped at ActivityCapacity.
+                // CommercialBoost policy multiplies the growth rate by 1.25, but only when
+                // there is meaningful room to grow (>5 units below cap). When near capacity,
+                // the multiplier is set to 1.0 to avoid overshooting/oscillation.
                 double commercialGrowthRate = CommercialBaseGrowthRate * (adjacentResidential / 100.0);
                 commercialGrowthRate = Math.Clamp(commercialGrowthRate, CommercialMinGrowthRate, CommercialMaxGrowthRate);
-                var rawGrowth = commercialGrowthRate * (ActivityCapacity - current) * commercialGrowthMultiplier;
+                var growthMultiplierToApply = (current < ActivityCapacity - 5) ? commercialGrowthMultiplier : 1.0;
+                var rawGrowth = commercialGrowthRate * (ActivityCapacity - current) * growthMultiplierToApply;
                 int newPop;
                 if (current < ActivityCapacity)
                 {
                     // Growing: guarantee at least 1 unit of progress
                     var growth = Math.Max(1, (int)rawGrowth);
-                    newPop = Math.Min(ActivityCapacity, current + growth);
+                    newPop = Math.Min(ActivityCapacity, current + growth); // Always cap at ActivityCapacity
                 }
                 else if (adjacentResidential < CommercialDeclineThreshold && current > 0)
                 {

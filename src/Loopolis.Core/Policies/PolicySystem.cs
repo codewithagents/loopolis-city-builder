@@ -6,10 +6,10 @@ namespace Loopolis.Core.Policies;
 /// Manages active city policies and exposes modifier accessors queried by other systems.
 ///
 /// Active policies:
-///   GreenCity       — PollutionMultiplier=0.65, HappinessBonus=+0.10, Cost=$80/tick
-///   IndustrialHub   — IndustrialGrowthMultiplier=1.25, JobsPerIndustrialTileBonus=+3, Cost=$50/tick
-///   CommercialBoost — CommercialGrowthMultiplier=1.25, Cost=$60/tick
-///   OpenCity        — ImmigrationMultiplier=1.4, TaxRateModifier=0.88, Cost=$30/tick
+///   GreenCity       — PollutionMultiplier=0.65, HappinessBonus=+0.10, Cost=$40/tick
+///   IndustrialHub   — IndustrialGrowthMultiplier=1.25, JobsPerIndustrialTileBonus=+8, Cost=$30/tick
+///   CommercialBoost — CommercialGrowthMultiplier=1.25, Cost=$30/tick
+///   OpenCity        — ResidentialCapacityBonus=+12%, TaxRateModifier=0.88, Cost=$15/tick
 ///
 /// Call Tick(budget) each tick (after BudgetSystem has charged maintenance) to deduct policy costs.
 /// Systems query the modifier accessors instead of checking ActivePolicies directly.
@@ -17,10 +17,10 @@ namespace Loopolis.Core.Policies;
 public class PolicySystem
 {
     // ── Cost constants ──────────────────────────────────────────────────────────
-    private const int GreenCityCost       = 80;
-    private const int IndustrialHubCost   = 50;
-    private const int CommercialBoostCost = 60;
-    private const int OpenCityCost        = 30;
+    private const int GreenCityCost       = 40;
+    private const int IndustrialHubCost   = 30;
+    private const int CommercialBoostCost = 30;
+    private const int OpenCityCost        = 15;
 
     // ── Active policies ─────────────────────────────────────────────────────────
     /// <summary>Set of currently active policies. Read-only from outside.</summary>
@@ -52,10 +52,10 @@ public class PolicySystem
 
     /// <summary>
     /// Bonus jobs added per industrial tile when computing available jobs.
-    /// 0 normally; +3 when IndustrialHub is active.
+    /// 0 normally; +8 when IndustrialHub is active.
     /// </summary>
     public int JobsPerIndustrialTileBonus =>
-        _activePolicies.Contains(PolicyType.IndustrialHub) ? 3 : 0;
+        _activePolicies.Contains(PolicyType.IndustrialHub) ? 8 : 0;
 
     /// <summary>
     /// Multiplier applied to commercial rawGrowth in PopulationSystem.
@@ -65,11 +65,21 @@ public class PolicySystem
         _activePolicies.Contains(PolicyType.CommercialBoost) ? 1.25 : 1.0;
 
     /// <summary>
-    /// Multiplier applied to the border migration growth bonus in PopulationSystem.
-    /// 1.0 normally; 1.4 when OpenCity is active.
+    /// Fractional bonus added to the effective capacity of residential tiles.
+    /// 0.0 normally; +0.12 when OpenCity is active (+12% residential capacity = denser housing).
+    /// This replaces the old ImmigrationMultiplier approach which was inert at capacity.
     /// </summary>
-    public double ImmigrationMultiplier =>
-        _activePolicies.Contains(PolicyType.OpenCity) ? 1.4 : 1.0;
+    public double ResidentialCapacityBonus =>
+        _activePolicies.Contains(PolicyType.OpenCity) ? 0.12 : 0.0;
+
+    /// <summary>
+    /// Deprecated: kept for backward compatibility. Use ResidentialCapacityBonus instead.
+    /// ImmigrationMultiplier was inert once tiles reached capacity; ResidentialCapacityBonus
+    /// increases the cap itself so growth can continue to a higher ceiling.
+    /// Returns 1.0 always (OpenCity no longer uses a growth-rate multiplier).
+    /// </summary>
+    [Obsolete("Use ResidentialCapacityBonus instead — ImmigrationMultiplier is inert at capacity.")]
+    public double ImmigrationMultiplier => 1.0;
 
     /// <summary>
     /// Multiplier applied to the effective tax rate in BudgetSystem.

@@ -247,7 +247,7 @@ public class SimulationEngine
         }
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population, PolicySystem.JobsPerIndustrialTileBonus);
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph,
-            PolicySystem.IndustrialGrowthMultiplier, PolicySystem.CommercialGrowthMultiplier, PolicySystem.ImmigrationMultiplier);
+            PolicySystem.IndustrialGrowthMultiplier, PolicySystem.CommercialGrowthMultiplier, PolicySystem.ResidentialCapacityBonus);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
         Budget.CollectCommercialIncome(Grid);

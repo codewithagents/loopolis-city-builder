@@ -28,29 +28,29 @@ public static class PolicyCatalog
         new(
             PolicyType.GreenCity,
             "Green City",
-            "Invest in clean infrastructure. Reduces industrial pollution by 35% and boosts happiness by +0.10 city-wide. Costs $80/tick.",
-            CostPerTick: 80,
+            "Invest in clean infrastructure. Reduces industrial pollution by 35% and boosts happiness by +0.10 city-wide. Costs $40/tick.",
+            CostPerTick: 40,
             UnlockAt: GameState.Active
         ),
         new(
             PolicyType.IndustrialHub,
             "Industrial Hub",
-            "Attract manufacturing investment. Increases industrial growth rate by 25% and adds +3 jobs per industrial tile. Costs $50/tick.",
-            CostPerTick: 50,
+            "Attract manufacturing investment. Increases industrial growth rate by 25% and adds +8 jobs per industrial tile. Costs $30/tick.",
+            CostPerTick: 30,
             UnlockAt: GameState.Town
         ),
         new(
             PolicyType.CommercialBoost,
             "Commercial Boost",
-            "Offer business incentives. Accelerates commercial activity growth by 25%. Costs $60/tick.",
-            CostPerTick: 60,
+            "Offer business incentives. Accelerates commercial activity growth by 25%. Costs $30/tick.",
+            CostPerTick: 30,
             UnlockAt: GameState.Town
         ),
         new(
             PolicyType.OpenCity,
             "Open City",
-            "Lower barriers to entry. Increases immigration rate by 40% but reduces effective tax revenue by 12%. Costs $30/tick.",
-            CostPerTick: 30,
+            "Lower barriers to entry. Allows denser residential housing (+12% capacity) but reduces effective tax revenue by 12%. Costs $15/tick.",
+            CostPerTick: 15,
             UnlockAt: GameState.Active
         ),
     };

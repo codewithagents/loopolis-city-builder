@@ -26,14 +26,14 @@ public class PolicySystemTests
     }
 
     [Test]
-    public void DefaultState_AllMultipliersAreOne()
+    public void DefaultState_AllModifiersAreNeutral()
     {
         Assert.That(_policy.PollutionMultiplier,         Is.EqualTo(1.0));
         Assert.That(_policy.HappinessBonusFromPolicy,    Is.EqualTo(0.0));
         Assert.That(_policy.IndustrialGrowthMultiplier,  Is.EqualTo(1.0));
         Assert.That(_policy.JobsPerIndustrialTileBonus,  Is.EqualTo(0));
         Assert.That(_policy.CommercialGrowthMultiplier,  Is.EqualTo(1.0));
-        Assert.That(_policy.ImmigrationMultiplier,       Is.EqualTo(1.0));
+        Assert.That(_policy.ResidentialCapacityBonus,    Is.EqualTo(0.0));
         Assert.That(_policy.TaxRateModifier,             Is.EqualTo(1.0));
     }
 
@@ -77,7 +77,8 @@ public class PolicySystemTests
 
         _policy.Tick(_budget);
 
-        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 80).Within(0.001));
+        // GreenCity now costs $40/tick (rebalanced from $80)
+        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 40).Within(0.001));
     }
 
     // ── IndustrialHub ───────────────────────────────────────────────────────────
@@ -90,10 +91,11 @@ public class PolicySystemTests
     }
 
     [Test]
-    public void ActivateIndustrialHub_JobsBonusIsThree()
+    public void ActivateIndustrialHub_JobsBonusIsEight()
     {
         _policy.ActivatePolicy(PolicyType.IndustrialHub);
-        Assert.That(_policy.JobsPerIndustrialTileBonus, Is.EqualTo(3));
+        // Increased from +3 to +8 to have a measurable employment impact
+        Assert.That(_policy.JobsPerIndustrialTileBonus, Is.EqualTo(8));
     }
 
     [Test]
@@ -104,7 +106,8 @@ public class PolicySystemTests
 
         _policy.Tick(_budget);
 
-        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 50).Within(0.001));
+        // IndustrialHub now costs $30/tick (rebalanced from $50)
+        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 30).Within(0.001));
     }
 
     // ── CommercialBoost ─────────────────────────────────────────────────────────
@@ -124,16 +127,18 @@ public class PolicySystemTests
 
         _policy.Tick(_budget);
 
-        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 60).Within(0.001));
+        // CommercialBoost now costs $30/tick (rebalanced from $60)
+        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 30).Within(0.001));
     }
 
     // ── OpenCity ────────────────────────────────────────────────────────────────
 
     [Test]
-    public void ActivateOpenCity_ImmigrationMultiplierIsIncreased()
+    public void ActivateOpenCity_ResidentialCapacityBonusIsApplied()
     {
         _policy.ActivatePolicy(PolicyType.OpenCity);
-        Assert.That(_policy.ImmigrationMultiplier, Is.EqualTo(1.4).Within(0.001));
+        // Changed from ImmigrationMultiplier (inert at capacity) to ResidentialCapacityBonus (+12%)
+        Assert.That(_policy.ResidentialCapacityBonus, Is.EqualTo(0.12).Within(0.001));
     }
 
     [Test]
@@ -151,7 +156,8 @@ public class PolicySystemTests
 
         _policy.Tick(_budget);
 
-        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 30).Within(0.001));
+        // OpenCity now costs $15/tick (rebalanced from $30)
+        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 15).Within(0.001));
     }
 
     // ── Multiple policies ───────────────────────────────────────────────────────
@@ -164,20 +170,20 @@ public class PolicySystemTests
         _policy.ActivatePolicy(PolicyType.CommercialBoost);
         _policy.ActivatePolicy(PolicyType.OpenCity);
 
-        // 80 + 50 + 60 + 30 = 220
-        Assert.That(_policy.GetCostPerTick(), Is.EqualTo(220));
+        // 40 + 30 + 30 + 15 = 115
+        Assert.That(_policy.GetCostPerTick(), Is.EqualTo(115));
     }
 
     [Test]
     public void MultiplePoliciesActive_TickDeductsCorrectTotal()
     {
-        _policy.ActivatePolicy(PolicyType.GreenCity);   // $80
-        _policy.ActivatePolicy(PolicyType.OpenCity);    // $30
+        _policy.ActivatePolicy(PolicyType.GreenCity);   // $40
+        _policy.ActivatePolicy(PolicyType.OpenCity);    // $15
         var balanceBefore = _budget.Balance;
 
         _policy.Tick(_budget);
 
-        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 110).Within(0.001));
+        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 55).Within(0.001));
     }
 
     // ── IsActive ────────────────────────────────────────────────────────────────
@@ -328,12 +334,12 @@ public class PolicySystemTests
         var demand = new DemandSystem();
         var engine = new SimulationEngine(grid, budget, pop, power, roads, demand);
 
-        engine.PolicySystem.ActivatePolicy(PolicyType.OpenCity);  // $30/tick
+        engine.PolicySystem.ActivatePolicy(PolicyType.OpenCity);  // $15/tick
         var balanceBefore = budget.Balance;
         engine.Tick();
 
         // Budget should have been reduced by the policy cost (among other maintenance costs)
         // We can confirm policy cost was applied by checking it's deducted on top of maintenance
-        Assert.That(budget.Balance, Is.LessThan(balanceBefore - 30 + 1)); // at least $30 was deducted from policy alone
+        Assert.That(budget.Balance, Is.LessThan(balanceBefore - 15 + 1)); // at least $15 was deducted from policy alone
     }
 }
