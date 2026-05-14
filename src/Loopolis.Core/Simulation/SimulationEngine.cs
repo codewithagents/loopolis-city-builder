@@ -325,6 +325,62 @@ public class SimulationEngine
         TickCount++;
     }
 
+    // ── City Advisor ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the single most important advisory hint for the player based on
+    /// the current simulation state. Computed fresh on each access — call at most
+    /// once per tick (e.g. in PushStandaloneHudUpdate or StateWriter.WriteState).
+    /// </summary>
+    public AdvisoryMessage CurrentAdvice => CityAdvisor.Advise(BuildAdvisoryState());
+
+    private SimulationState BuildAdvisoryState()
+    {
+        var allZoned = Grid.AllTiles()
+            .Where(t => t.Zone is ZoneType.Residential or ZoneType.Commercial or ZoneType.Industrial)
+            .ToList();
+        var poweredCount = allZoned.Count(t => t.HasPower);
+
+        // Service coverage ratio: average of the four service types from the last snapshot.
+        // Falls back to 0 when no snapshot exists yet (before tick 1).
+        float serviceCoverageRatio = 0f;
+        if (LastServiceCoverage != null)
+        {
+            var cov = LastServiceCoverage;
+            serviceCoverageRatio = (cov.SchoolCoveragePercent + cov.PoliceCoveragePercent
+                                    + cov.FireCoveragePercent + cov.HospitalCoveragePercent) / 4f;
+        }
+
+        // Next milestone: find first threshold above current population
+        (int threshold, string name) = MilestoneSystem.CurrentState switch
+        {
+            GameState.Active     => (500,      "Town"),
+            GameState.Town       => (5_000,    "City"),
+            GameState.City       => (25_000,   "Metropolis"),
+            GameState.Metropolis => (100_000,  "Loopolis"),
+            _                   => (0,         ""),
+        };
+
+        return new SimulationState(
+            Population:            Population.Population,
+            Tick:                  TickCount,
+            Balance:               Budget.Balance,
+            IncomePerTick:         Budget.NetIncomePerTick,
+            CostPerTick:           Budget.LastMaintenanceCost,
+            AverageHappiness:      (float)HappinessSystem.AverageHappiness(Grid),
+            DistressedTileCount:   Population.DistressedTileCount,
+            EmploymentRatio:       (float)EmploymentSystem.EmploymentRatio,
+            PowerSupply:           PowerCapacitySystem.TotalSupplyMW,
+            PowerDemand:           PowerCapacitySystem.TotalDemandMW,
+            PoweredTiles:          poweredCount,
+            TotalActiveTiles:      allZoned.Count,
+            ServiceCoverageRatio:  serviceCoverageRatio,
+            PopulationGrowthRate:  Statistics.PopulationGrowthRate,
+            NextMilestoneThreshold: threshold,
+            NextMilestoneName:     name
+        );
+    }
+
     // ── Manual upgrade ──────────────────────────────────────────────────────
 
     /// <summary>

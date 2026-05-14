@@ -6,10 +6,10 @@ namespace Loopolis.Core.Policies;
 /// Manages active city policies and exposes modifier accessors queried by other systems.
 ///
 /// Active policies:
-///   GreenCity       — PollutionMultiplier=0.65, HappinessBonus=+0.10, Cost=$40/tick
+///   GreenCity       — PollutionMultiplier=0.65, HappinessBonus=+0.10, Cost=$25/tick
 ///   IndustrialHub   — IndustrialGrowthMultiplier=1.25, JobsPerIndustrialTileBonus=+8, Cost=$30/tick
 ///   CommercialBoost — CommercialGrowthMultiplier=1.25, Cost=$30/tick
-///   OpenCity        — ResidentialCapacityBonus=+12%, TaxRateModifier=0.88, Cost=$15/tick
+///   OpenCity        — ResidentialCapacityBonus=+12%, Cost=$15/tick (no tax penalty)
 ///
 /// Call Tick(budget) each tick (after BudgetSystem has charged maintenance) to deduct policy costs.
 /// Systems query the modifier accessors instead of checking ActivePolicies directly.
@@ -17,7 +17,7 @@ namespace Loopolis.Core.Policies;
 public class PolicySystem
 {
     // ── Cost constants ──────────────────────────────────────────────────────────
-    private const int GreenCityCost       = 40;
+    private const int GreenCityCost       = 25;
     private const int IndustrialHubCost   = 30;
     private const int CommercialBoostCost = 30;
     private const int OpenCityCost        = 15;
@@ -83,10 +83,10 @@ public class PolicySystem
 
     /// <summary>
     /// Multiplier applied to the effective tax rate in BudgetSystem.
-    /// 1.0 normally; 0.88 when OpenCity is active (12% lower tax revenue).
+    /// Always 1.0 — OpenCity no longer reduces tax revenue (the $15/tick cost is the trade-off
+    /// for the +12% residential capacity bonus; a tax penalty made the policy net-negative).
     /// </summary>
-    public double TaxRateModifier =>
-        _activePolicies.Contains(PolicyType.OpenCity) ? 0.88 : 1.0;
+    public double TaxRateModifier => 1.0;
 
     // ── Policy management ───────────────────────────────────────────────────────
 

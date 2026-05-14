@@ -246,8 +246,9 @@ static class ScenarioSetup
                 grid.SetFlatTerrain();
                 grid.SetZone(5, 12, ZoneType.CoalPlant);
                 for (var x = 6; x <= 16; x++) grid.SetZone(x, 12, ZoneType.Road);
-                // Residential north of road — wider strip
+                // Residential north of road — two rows so res_townhouse_2x2 (2×2 footprint) can grow
                 for (var x = 9; x <= 14; x++) grid.SetZone(x, 11, ZoneType.Residential);
+                for (var x = 9; x <= 14; x++) grid.SetZone(x, 10, ZoneType.Residential);
                 // Commercial south of road
                 grid.SetZone(9,  13, ZoneType.Commercial);
                 grid.SetZone(10, 13, ZoneType.Commercial);
@@ -493,6 +494,54 @@ static class ScenarioSetup
                 engineSf.SeedRoadGraphFromGrid();
                 engineSf.ActiveScenario = Loopolis.Core.Scenarios.ScenarioLibrary.Find("service_first");
                 return (gSf, engineSf);
+            }
+
+            case "city_challenge":
+            {
+                // 64×64 generated terrain, limited $3,000 starting balance — "limited funds + big goal" scenario.
+                var seed = terrainSeed != 0 ? terrainSeed : 42;
+                var gCc = new CityGrid(64, 64);
+                var heightMapCc = Loopolis.Core.Grid.HeightMapGenerator.Generate(64, 64, seed);
+                var forestMapCc = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed);
+                gCc.ApplyHeightMap(heightMapCc);
+                gCc.ApplyForestMap(forestMapCc);
+                // Border connection at center of south edge — force flat terrain so it can always be placed
+                gCc.SetHeightLevel(32, 63, 1);
+                gCc.PlaceBorderConnection(32, 63);
+                // Starter road spine heading north — force flat terrain on each tile
+                gCc.SetHeightLevel(32, 62, 1); gCc.SetZone(32, 62, ZoneType.Road);
+                gCc.SetHeightLevel(32, 61, 1); gCc.SetZone(32, 61, ZoneType.Road);
+                gCc.SetHeightLevel(32, 60, 1); gCc.SetZone(32, 60, ZoneType.Road);
+                var budgetCc = new BudgetSystem(initialBalance: 3_000);
+                Console.WriteLine($"[city_challenge] Border connection at (32,63), starter spine (32,62–60), seed={seed}, balance=$3,000");
+                var engineCc = new SimulationEngine(gCc, budgetCc, population, power, roads, demand);
+                engineCc.SeedRoadGraphFromGrid();
+                engineCc.ActiveScenario = Loopolis.Core.Scenarios.ScenarioLibrary.Find("city_challenge");
+                return (gCc, engineCc);
+            }
+
+            case "boom_town":
+            {
+                // 64×64 generated terrain, generous $15,000 starting balance — "money is no constraint, build fast" scenario.
+                var seed = terrainSeed != 0 ? terrainSeed : 42;
+                var gBt = new CityGrid(64, 64);
+                var heightMapBt = Loopolis.Core.Grid.HeightMapGenerator.Generate(64, 64, seed);
+                var forestMapBt = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed);
+                gBt.ApplyHeightMap(heightMapBt);
+                gBt.ApplyForestMap(forestMapBt);
+                // Border connection at center of south edge — force flat terrain so it can always be placed
+                gBt.SetHeightLevel(32, 63, 1);
+                gBt.PlaceBorderConnection(32, 63);
+                // Starter road spine heading north — force flat terrain on each tile
+                gBt.SetHeightLevel(32, 62, 1); gBt.SetZone(32, 62, ZoneType.Road);
+                gBt.SetHeightLevel(32, 61, 1); gBt.SetZone(32, 61, ZoneType.Road);
+                gBt.SetHeightLevel(32, 60, 1); gBt.SetZone(32, 60, ZoneType.Road);
+                var budgetBt = new BudgetSystem(initialBalance: 15_000);
+                Console.WriteLine($"[boom_town] Border connection at (32,63), starter spine (32,62–60), seed={seed}, balance=$15,000");
+                var engineBt = new SimulationEngine(gBt, budgetBt, population, power, roads, demand);
+                engineBt.SeedRoadGraphFromGrid();
+                engineBt.ActiveScenario = Loopolis.Core.Scenarios.ScenarioLibrary.Find("boom_town");
+                return (gBt, engineBt);
             }
 
             default:

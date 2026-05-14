@@ -50,7 +50,7 @@ public class EventSystem
         CityEventType.FireBreak    => 800,
         CityEventType.CrimeWave   => 600,
         CityEventType.PowerOutage  => 1200,
-        CityEventType.DemandSlump  => 1500,
+        CityEventType.DemandSlump  => 900,
         _                          => 0,
     };
 

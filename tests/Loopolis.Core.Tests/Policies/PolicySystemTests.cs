@@ -77,8 +77,8 @@ public class PolicySystemTests
 
         _policy.Tick(_budget);
 
-        // GreenCity now costs $40/tick (rebalanced from $80)
-        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 40).Within(0.001));
+        // GreenCity costs $25/tick (reduced from $40 — benefit was too expensive vs payoff)
+        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 25).Within(0.001));
     }
 
     // ── IndustrialHub ───────────────────────────────────────────────────────────
@@ -142,10 +142,14 @@ public class PolicySystemTests
     }
 
     [Test]
-    public void ActivateOpenCity_TaxRateModifierReducesTaxRevenue()
+    public void OpenCity_TaxRateModifierIsAlwaysOne()
     {
+        // OpenCity no longer reduces tax revenue — the $15/tick cost is the only trade-off.
+        // Without OpenCity
+        Assert.That(_policy.TaxRateModifier, Is.EqualTo(1.0).Within(0.001));
+        // With OpenCity active — still 1.0 (no tax penalty)
         _policy.ActivatePolicy(PolicyType.OpenCity);
-        Assert.That(_policy.TaxRateModifier, Is.EqualTo(0.88).Within(0.001));
+        Assert.That(_policy.TaxRateModifier, Is.EqualTo(1.0).Within(0.001));
     }
 
     [Test]
@@ -170,20 +174,20 @@ public class PolicySystemTests
         _policy.ActivatePolicy(PolicyType.CommercialBoost);
         _policy.ActivatePolicy(PolicyType.OpenCity);
 
-        // 40 + 30 + 30 + 15 = 115
-        Assert.That(_policy.GetCostPerTick(), Is.EqualTo(115));
+        // 25 + 30 + 30 + 15 = 100
+        Assert.That(_policy.GetCostPerTick(), Is.EqualTo(100));
     }
 
     [Test]
     public void MultiplePoliciesActive_TickDeductsCorrectTotal()
     {
-        _policy.ActivatePolicy(PolicyType.GreenCity);   // $40
+        _policy.ActivatePolicy(PolicyType.GreenCity);   // $25
         _policy.ActivatePolicy(PolicyType.OpenCity);    // $15
         var balanceBefore = _budget.Balance;
 
         _policy.Tick(_budget);
 
-        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 55).Within(0.001));
+        Assert.That(_budget.Balance, Is.EqualTo(balanceBefore - 40).Within(0.001));
     }
 
     // ── IsActive ────────────────────────────────────────────────────────────────

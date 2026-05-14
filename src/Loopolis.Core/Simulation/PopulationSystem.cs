@@ -38,6 +38,13 @@ public class PopulationSystem
     public int Population { get; private set; }
 
     /// <summary>
+    /// Number of residential tiles that have been unhappy (below 0.30 happiness)
+    /// for at least 30 consecutive ticks. Updated each Tick().
+    /// Used by CityAdvisor to diagnose persistent distress.
+    /// </summary>
+    public int DistressedTileCount { get; private set; }
+
+    /// <summary>
     /// Grows or declines population per residential tile each tick.
     /// Also grows Commercial activity (demand-driven) and Industrial activity (steady).
     ///
@@ -98,12 +105,19 @@ public class PopulationSystem
             bool isCottage = buildingTypeId == "res_house_1x1";
             bool canGrow = canDevelop && (tile.HasPower || isCottage);
 
+            // tileKey is used by both the growth block (distress check) and the decay block below.
+            var tileKey = (tile.X, tile.Y);
+
             int newPop;
             if (canGrow)
             {
                 // Grow toward effective capacity, modified by demand factor, happiness, employment, traffic, and brownout.
                 // Guarantee at least 1 unit of growth only when employment is adequate (≥40%).
                 // With severe unemployment (<40%) growth CAN stall — a real signal to build industrial.
+                //
+                // Exception: when a tile is actively in persistent happiness distress (above grace period),
+                // the minimum-growth guarantee is suspended. This allows distress decay to overcome growth
+                // and produce a net population decline — which is the intended design response to neglect.
                 var trafficMultiplier = trafficSystem?.GetGrowthMultiplier(grid, tile.X, tile.Y) ?? 1.0;
 
                 // Border migration multiplier: +20% growth for R-tiles within road-graph distance 12
@@ -126,9 +140,14 @@ public class PopulationSystem
                     }
                 }
 
+                // Check whether this tile is already in active distress (past the grace period).
+                // When in distress, suppress the minGrowth floor so decay can outpace growth.
+                var alreadyDistressed = _unhappyTicks.TryGetValue(tileKey, out var prevUnhappyCount)
+                    && prevUnhappyCount > LowHappinessGraceTicks;
+
                 var growthMultiplier = tile.DemandFactor * tile.Happiness * employmentMultiplier * trafficMultiplier * brownoutGrowthMultiplier * borderMultiplier;
                 var rawGrowth = GrowthRate * tileCapacity * growthMultiplier;
-                var minGrowth = employmentMultiplier >= 0.4 ? 1 : 0;
+                var minGrowth = (!alreadyDistressed && employmentMultiplier >= 0.4) ? 1 : 0;
                 var growth = current < tileCapacity ? Math.Max(minGrowth, (int)rawGrowth) : 0;
                 newPop = Math.Min(tileCapacity, current + growth);
             }
@@ -146,7 +165,6 @@ public class PopulationSystem
             // Happiness distress decay: track consecutive ticks below threshold.
             // After a grace period, tiles in persistent distress slowly lose population
             // even if they are otherwise stable (e.g. flatlined at capacity with low happiness).
-            var tileKey = (tile.X, tile.Y);
             if (tile.Happiness < LowHappinessDecayThreshold && newPop > 0)
             {
                 _unhappyTicks.TryGetValue(tileKey, out var unhappyCount);
@@ -171,6 +189,10 @@ public class PopulationSystem
         }
 
         Population = totalPopulation;
+
+        // Update distressed tile count: tiles that have been below the happiness threshold
+        // for at least LowHappinessGraceTicks consecutive ticks.
+        DistressedTileCount = _unhappyTicks.Count(kvp => kvp.Value >= LowHappinessGraceTicks);
 
         // --- Commercial activity growth ---
         foreach (var tile in grid.TilesOfType(ZoneType.Commercial))

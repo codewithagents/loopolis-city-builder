@@ -46,8 +46,10 @@ public class EmploymentSystem
     public double Propagate(CityGrid grid, int totalPopulation, int jobsPerIndustrialTileBonus = 0)
     {
         AvailableJobs = 0;
+        var hasIndustrialTiles = false;
         foreach (var t in grid.TilesOfType(ZoneType.Industrial))
         {
+            hasIndustrialTiles = true;
             if (!t.HasRoadAccess) continue;
             if (t.HasPower)
             {
@@ -56,6 +58,16 @@ public class EmploymentSystem
             }
             else
                 AvailableJobs += UnpoweredIndustrialJobs;
+        }
+
+        // When there is no industrial at all (e.g. green city, R+C only), the employment
+        // throttle does not apply — there are no factories to work in, but also no expectation
+        // of factory jobs. The city survives on commercial activity alone.
+        if (!hasIndustrialTiles)
+        {
+            RequiredJobs = 0;
+            EmploymentRatio = 1.0;
+            return 1.0;
         }
 
         RequiredJobs = Math.Max(0, totalPopulation - FreeJobsThreshold);

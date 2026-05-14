@@ -35,18 +35,44 @@ public class EmploymentSystemTests
         Assert.That(multiplier, Is.EqualTo(1.0));
     }
 
-    // ── Test 2: no industrial above threshold → min multiplier ────────────
+    // ── Test 2: no industrial at all → no throttle (green-city design) ──────
 
     [Test]
-    public void NoIndustrial_AboveThreshold_MinMultiplier()
+    public void NoIndustrial_AboveThreshold_NoThrottle()
     {
-        // pop=200, required=100, no jobs at all → ratio=0.0, floor at MinGrowthMultiplier
+        // When there are zero industrial tiles (green city / R+C only economy),
+        // the employment throttle does not apply.
+        // RequiredJobs and EmploymentRatio both report 0/1.0 — no factory jobs expected.
         var grid = new CityGrid(10, 10);
 
         var multiplier = _employment.Propagate(grid, totalPopulation: 200);
 
         Assert.That(_employment.AvailableJobs, Is.EqualTo(0));
-        Assert.That(_employment.RequiredJobs, Is.EqualTo(100));
+        Assert.That(_employment.RequiredJobs, Is.EqualTo(0),
+            "No industrial tiles → RequiredJobs is 0 (factory-job throttle suspended)");
+        Assert.That(_employment.EmploymentRatio, Is.EqualTo(1.0),
+            "No industrial tiles → EmploymentRatio is 1.0 (no throttle)");
+        Assert.That(multiplier, Is.EqualTo(1.0),
+            "No industrial tiles → growth multiplier is 1.0 (no throttle)");
+    }
+
+    // ── Test 2b: industrial exists but none road-accessible → throttle applies ──
+
+    [Test]
+    public void IndustrialExistsButNotAccessible_AboveThreshold_MinMultiplier()
+    {
+        // pop=200, 1 industrial tile but NO road access → provides 0 jobs.
+        // Industrial IS present on the map, so the throttle IS active:
+        // RequiredJobs=100, ratio=0.0, floor at MinGrowthMultiplier.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Industrial);
+        // HasRoadAccess = false (default) — counts as "industrial exists" but contributes no jobs
+
+        var multiplier = _employment.Propagate(grid, totalPopulation: 200);
+
+        Assert.That(_employment.AvailableJobs, Is.EqualTo(0));
+        Assert.That(_employment.RequiredJobs, Is.EqualTo(100),
+            "Industrial tiles exist (even if inaccessible) → throttle is active");
         Assert.That(_employment.EmploymentRatio, Is.EqualTo(0.0));
         Assert.That(multiplier, Is.EqualTo(EmploymentSystem.MinGrowthMultiplier));
     }

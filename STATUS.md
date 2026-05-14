@@ -70,8 +70,9 @@
 | 3 Challenge Scenarios (island_chain, narrow_valley, river_delta) | ✅ Done | 28 new (ScenarioLibraryExtendedTests) |
 
 | ManualUpgradeSystem | ✅ Done | 11 new (ManualUpgradeSystemTests) |
+| CityStatisticsSystem | ✅ Done | 24 new (CityStatisticsTests) |
 
-**Total: 628 tests · 0 failures · ~0.73s runtime**
+**Total: 722 tests · 0 failures · ~4s runtime**
 
 ---
 
@@ -238,4 +239,8 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | powered_start | PolicySystem: all 4 policies wired into simulation. No active policies = zero regression. 500 ticks: pop=291, balance=$11,158 (+$15.14/tick), happiness=0.896. GreenCity/IndustrialHub/CommercialBoost/OpenCity modifiers confirmed via unit tests. set_policy command + ServerState policy fields ready for Godot IPC. Fixed pre-existing 0xDELTA1 hex literal and stale ScenarioLibrary count assertion. | — |
 
-*Last updated: 2026-05-14 — PolicySystem (4 policies), 579 tests*
+| 2026-05-14 | powered_start | CityStatisticsSystem: 67-tick run — populationTrend=↑, balanceTrend=↑, happinessTrend=→ (stable 0.896). peakPopulation=291 correctly never decreases. statsHistory last 10 entries with all 9 fields populated. PopulationGrowthRate=0.0117 (correctly positive during growth phase). | Working correctly |
+
+| 2026-05-14 | integration | CityAdvisor + PlaythroughTests: 4 test failures fixed. (1) CityAdvisor locale: all string.Format calls now use CultureInfo.InvariantCulture — German locale was producing "0,80" instead of "0.80". (2) TutorialScenario: industrial layout redesigned with south road spur (y=19) + 3 N-S spurs + 13 industrial tiles at y=20 — far enough from residential (distance 6) to avoid pollution distress, enough jobs (260) to sustain pop growth to 500+. Commute distances kept ≤ 10 for all tiles. (3) GreenCity: EmploymentSystem now skips the factory-job throttle when zero industrial tiles exist — R+C-only city gets full 1.0 employment multiplier. Test passes at pop>300. (4) HappinessDecay: PopulationSystem now suppresses minGrowth=1 guarantee when a tile is in active persistent distress (alreadyDistressed=true) — decay can overcome growth and produce net population decline as designed. New EmploymentSystemTests.IndustrialExistsButNotAccessible confirms throttle still fires when inaccessible industrial exists. | — |
+
+*Last updated: 2026-05-14 — 4 test failures resolved, 722 tests*
