@@ -112,7 +112,7 @@ public static class ScenarioLibrary
             MapHeight:       64,
             StartingBalance: 15_000,
             TickLimit:       600,
-            Goal:            new ScenarioGoal(TargetPopulation: 8_000),
+            Goal:            new ScenarioGoal(TargetPopulation: 5_000),
             Medals:          new ScenarioMedals(Bronze: 600, Silver: 480, Gold: 340)
         ),
 
@@ -122,7 +122,7 @@ public static class ScenarioLibrary
             Description:     "Tiny map, almost no money. Prove you can do more with less.",
             MapWidth:        32,
             MapHeight:       32,
-            StartingBalance: 2_500,
+            StartingBalance: 3_500,
             TickLimit:       500,
             Goal:            new ScenarioGoal(TargetPopulation: 1_000),
             Medals:          new ScenarioMedals(Bronze: 500, Silver: 400, Gold: 280)
