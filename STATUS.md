@@ -63,11 +63,13 @@
 | BuildingCatalog terrain-conditional industrial | ✅ Done | 6 new (TerrainConditionalIndustrialTests) |
 | HighTierBuildings (res_highrise_6x6, com_office_4x4, ind_complex_4x4) | ✅ Done | 16 new (HighTierBuildingTests) |
 | PolicySystem (GreenCity/IndustrialHub/CommercialBoost/OpenCity) | ✅ Done | 29 new (PolicySystemTests) |
+| Policy rebalance + CommercialBoost cap fix + OpenCity capacity mechanism | ✅ Done | 10 new (PolicyBalanceTests) |
+| Happiness distress decay (LowHappinessDecayThreshold=0.30, 30-tick grace, 1.5%/tick) | ✅ Done | 4 new (PolicyBalanceTests) |
 | ScenarioEngine + ScenarioLibrary + ScenarioDefinition | ✅ Done | 14 new (ScenarioEngineTests) |
 | BuildingGrowthIntegration flaky fix | ✅ Done | FireStation added to test grid (prevents random fire demolition) |
 | 3 Challenge Scenarios (island_chain, narrow_valley, river_delta) | ✅ Done | 28 new (ScenarioLibraryExtendedTests) |
 
-**Total: 607 tests · 0 failures · ~0.73s runtime**
+**Total: 617 tests · 0 failures · ~0.77s runtime**
 
 ---
 
