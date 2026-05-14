@@ -28,6 +28,14 @@ public partial class TopBar : CanvasLayer
     private Label _pauseBannerLabel = null!;
     private StyleBoxFlat _bannerStyle = null!;
 
+    // ── Scenario strip (always visible when a scenario is active) ──────────
+    private PanelContainer _scenarioStrip = null!;
+    private Label _scenarioStripLeft   = null!;
+    private Label _scenarioStripCenter = null!;
+    private Label _scenarioStripRight  = null!;
+    private StyleBoxFlat _scenarioStripStyle = null!;
+    private const int ScenarioStripHeight = 28;
+
     // ── Hamburger dropdown ─────────────────────────────────────────────────
     private PanelContainer _dropdownPanel = null!;
 
@@ -72,6 +80,52 @@ public partial class TopBar : CanvasLayer
         _pauseBannerLabel.AddThemeFontSizeOverride("font_size", 16);
         _pauseBannerLabel.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f));
         _pauseBanner.AddChild(_pauseBannerLabel);
+
+        // ── Scenario strip (y=48, 28px tall, hidden when no scenario active) ─
+        _scenarioStrip = new PanelContainer();
+        _scenarioStrip.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+        _scenarioStrip.GrowVertical = Control.GrowDirection.End;
+        _scenarioStrip.Position = new Vector2(0, 48);
+        _scenarioStrip.CustomMinimumSize = new Vector2(0, ScenarioStripHeight);
+        _scenarioStrip.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _scenarioStrip.Visible = false;
+
+        _scenarioStripStyle = new StyleBoxFlat();
+        _scenarioStripStyle.BgColor = new Color(0.05f, 0.05f, 0.10f, 0.90f);
+        _scenarioStripStyle.BorderWidthLeft = 4; // colored left border set per medal pace
+        _scenarioStripStyle.BorderColor = new Color(0.4f, 0.4f, 0.6f);
+        _scenarioStripStyle.ContentMarginLeft = 12;
+        _scenarioStripStyle.ContentMarginRight = 12;
+        _scenarioStripStyle.ContentMarginTop = 3;
+        _scenarioStripStyle.ContentMarginBottom = 3;
+        _scenarioStrip.AddThemeStyleboxOverride("panel", _scenarioStripStyle);
+        AddChild(_scenarioStrip);
+
+        var stripHbox = new HBoxContainer();
+        stripHbox.SizeFlagsVertical = Control.SizeFlags.Fill;
+        _scenarioStrip.AddChild(stripHbox);
+
+        _scenarioStripLeft = new Label();
+        _scenarioStripLeft.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _scenarioStripLeft.VerticalAlignment = VerticalAlignment.Center;
+        _scenarioStripLeft.AddThemeFontSizeOverride("font_size", 13);
+        _scenarioStripLeft.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+        stripHbox.AddChild(_scenarioStripLeft);
+
+        _scenarioStripCenter = new Label();
+        _scenarioStripCenter.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _scenarioStripCenter.HorizontalAlignment = HorizontalAlignment.Center;
+        _scenarioStripCenter.VerticalAlignment = VerticalAlignment.Center;
+        _scenarioStripCenter.AddThemeFontSizeOverride("font_size", 13);
+        _scenarioStripCenter.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.75f));
+        stripHbox.AddChild(_scenarioStripCenter);
+
+        _scenarioStripRight = new Label();
+        _scenarioStripRight.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _scenarioStripRight.HorizontalAlignment = HorizontalAlignment.Right;
+        _scenarioStripRight.VerticalAlignment = VerticalAlignment.Center;
+        _scenarioStripRight.AddThemeFontSizeOverride("font_size", 13);
+        stripHbox.AddChild(_scenarioStripRight);
 
         var hbox = new HBoxContainer();
         hbox.AddThemeConstantOverride("separation", 0);
@@ -276,7 +330,82 @@ public partial class TopBar : CanvasLayer
         // Tick
         _tickLabel.Text = $"T:{state.Tick}";
 
+        // ── Scenario strip ─────────────────────────────────────────────────────
+        var scenarioActive = !string.IsNullOrEmpty(state.ActiveScenarioId);
+        _scenarioStrip.Visible = scenarioActive;
+
+        if (scenarioActive)
+        {
+            // Left: name + goal
+            var targetPop = state.ScenarioTargetPopulation;
+            _scenarioStripLeft.Text = $"📍 {state.ActiveScenarioName}  →  {targetPop:N0} pop";
+
+            // Center: tick / limit
+            if (state.ScenarioTickLimit > 0)
+            {
+                var remaining = state.ScenarioTickLimit - state.Tick;
+                _scenarioStripCenter.Text = $"T: {state.Tick:N0} / {state.ScenarioTickLimit:N0}  ({remaining:N0} left)";
+            }
+            else
+            {
+                _scenarioStripCenter.Text = $"T: {state.Tick:N0}";
+            }
+
+            // Right: medal pace or completion status
+            if (state.ScenarioComplete)
+            {
+                var (cEmoji, cColor) = GetMedalPaceStyle(state.MedalEarned);
+                _scenarioStripRight.Text = $"{cEmoji} {state.MedalEarned}!";
+                _scenarioStripRight.AddThemeColorOverride("font_color", cColor);
+                _scenarioStripStyle.BorderColor = cColor;
+            }
+            else if (state.ScenarioFailed)
+            {
+                _scenarioStripRight.Text = "FAILED";
+                _scenarioStripRight.AddThemeColorOverride("font_color", new Color(1f, 0.3f, 0.3f));
+                _scenarioStripStyle.BorderColor = new Color(1f, 0.3f, 0.3f);
+            }
+            else
+            {
+                var tick = state.Tick;
+                string paceText;
+                Color paceColor;
+                Color borderColor;
+                if (tick < state.ScenarioGoldTick)
+                {
+                    paceText  = "🥇 Gold pace";
+                    paceColor = new Color(1.0f, 0.85f, 0.10f);
+                    borderColor = paceColor;
+                }
+                else if (tick < state.ScenarioSilverTick)
+                {
+                    paceText  = "🥈 Silver pace";
+                    paceColor = new Color(0.78f, 0.82f, 0.88f);
+                    borderColor = paceColor;
+                }
+                else if (tick < state.ScenarioBronzeTick)
+                {
+                    paceText  = "🥉 Bronze pace";
+                    paceColor = new Color(0.85f, 0.60f, 0.15f);
+                    borderColor = paceColor;
+                }
+                else
+                {
+                    paceText  = "⚠ Behind";
+                    paceColor = new Color(1f, 0.3f, 0.3f);
+                    borderColor = paceColor;
+                }
+                _scenarioStripRight.Text = paceText;
+                _scenarioStripRight.AddThemeColorOverride("font_color", paceColor);
+                _scenarioStripStyle.BorderColor = borderColor;
+            }
+        }
+
         // Pause / build-mode banner
+        // When a scenario strip is visible, the pause banner stacks below it (y=76), otherwise y=48.
+        var pauseBannerY = scenarioActive ? 48 + ScenarioStripHeight : 48;
+        _pauseBanner.Position = new Vector2(0, pauseBannerY);
+
         if (state.Paused && !state.GameState.StartsWith("Bankrupt") && !state.GameState.StartsWith("Abandon") && state.GameState != "Loopolis")
         {
             _pauseBanner.Visible = true;
@@ -298,6 +427,13 @@ public partial class TopBar : CanvasLayer
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private static (string emoji, Color color) GetMedalPaceStyle(string? medal) => medal switch
+    {
+        "Gold"   => ("🥇", new Color(1.0f, 0.85f, 0.10f)),
+        "Silver" => ("🥈", new Color(0.78f, 0.82f, 0.88f)),
+        _        => ("🥉", new Color(0.85f, 0.60f, 0.15f)),
+    };
 
     private static Label MakeLabel(string text)
     {

@@ -5,12 +5,18 @@ using System.Linq;
 using System.Text.Json;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Persistence;
+using Loopolis.Core.Scenarios;
 using Loopolis.Core.Simulation;
 
 namespace LoopolisGodot;
 
 public partial class World : Node2D
 {
+	/// <summary>
+	/// Set before loading World.tscn to start a specific scenario in standalone mode.
+	/// Consumed (reset to null) when SetupStandaloneSimulation runs.
+	/// </summary>
+	public static string? PendingScenarioId { get; set; } = null;
 	private CityGrid _grid = null!;
 	private SimulationEngine _engine = null!;
 	private double _tickTimer = 0;
@@ -61,6 +67,11 @@ public partial class World : Node2D
 	private bool _employmentToastShown = false;
 	private bool _happinessWarnedLow = false;      // warned at <40%
 	private bool _happinessWarnedCritical = false; // warned at <30% (close to abandonment)
+
+	// Scenario completion tracking (standalone mode — fires overlay once)
+	private bool _scenarioCompleteFired = false;
+	private bool _scenarioFailedFired   = false;
+	private ScenarioResultPanel? _scenarioResultPanel;
 
 	// Tutorial hint progression
 	private int _tutorialHintIndex = 0;
@@ -119,6 +130,20 @@ public partial class World : Node2D
 
 		_toastSystem = new ToastSystem();
 		AddChild(_toastSystem);
+
+		// Scenario result panel (shown on complete/failed)
+		_scenarioResultPanel = new ScenarioResultPanel();
+		_scenarioResultPanel.PlayAgainRequested += (scenarioId) =>
+		{
+			PendingScenarioId = scenarioId;
+			GetTree().ReloadCurrentScene();
+		};
+		_scenarioResultPanel.MainMenuRequested += () =>
+		{
+			KillServerIfRunning();
+			GetTree().ChangeSceneToFile("res://scenes/MainMenu.tscn");
+		};
+		AddChild(_scenarioResultPanel);
 
 		// Wire toolbar signals
 		_toolbar.ZoneSelected   += OnZoneSelected;
@@ -183,10 +208,22 @@ public partial class World : Node2D
 
 	private void SetupStandaloneSimulation()
 	{
-		_grid        = new CityGrid(StandaloneMapSize, StandaloneMapSize);
+		// Consume pending scenario selection (set by MainMenu before loading World.tscn)
+		ScenarioDefinition? scenario = null;
+		if (PendingScenarioId != null)
+		{
+			scenario = ScenarioLibrary.Find(PendingScenarioId);
+			PendingScenarioId = null; // consume it
+		}
+
+		var mapSize         = scenario != null ? scenario.MapWidth  : StandaloneMapSize;
+		var mapHeight       = scenario != null ? scenario.MapHeight : StandaloneMapSize;
+		var startingBalance = scenario != null ? (double)scenario.StartingBalance : 4_000.0;
+
+		_grid        = new CityGrid(mapSize, mapHeight);
 		_terrainSeed = (int)(GD.Randi() % int.MaxValue);
 
-		_budget     = new BudgetSystem(); // default $4,000 starting balance
+		_budget     = new BudgetSystem(startingBalance);
 		_population = new PopulationSystem();
 		var power   = new PowerNetwork();
 		var roads   = new RoadNetwork();
@@ -195,11 +232,18 @@ public partial class World : Node2D
 		_engine   = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
 		_gameOver = false;
 
-		SetupDefaultNewGame();
+		// Attach scenario to engine so ScenarioEngine.CheckCompletion runs per tick
+		if (scenario != null)
+			_engine.ActiveScenario = scenario;
+
+		// Reset scenario overlay tracking
+		_scenarioCompleteFired = false;
+		_scenarioFailedFired   = false;
+
+		SetupDefaultNewGame(mapSize, mapHeight);
 
 		_renderer.Refresh(_grid);
-		// Fit the camera to show the full map including the south-edge border road
-		_camera.FitToMap(StandaloneMapSize, StandaloneMapSize);
+		_camera.FitToMap(mapSize, mapHeight);
 		PushStandaloneHudUpdate();
 	}
 
@@ -208,27 +252,27 @@ public partial class World : Node2D
 	/// at the centre of the south edge, and three starter road tiles extending north
 	/// from it.  No power plant, no pre-placed zones.
 	/// </summary>
-	private void SetupDefaultNewGame()
+	private void SetupDefaultNewGame(int mapW = StandaloneMapSize, int mapH = StandaloneMapSize)
 	{
 		// Procedural terrain — hills, water, forests based on random seed
 		GenerateTerrain(_grid, _terrainSeed);
 
 		// Ensure south-centre has land for border road + starter roads
-		var bx = StandaloneMapSize / 2;
+		var bx = mapW / 2;
 		for (var lx = bx - 2; lx <= bx + 2; lx++)
-		for (var ly = StandaloneMapSize - 8; ly < StandaloneMapSize; ly++)
+		for (var ly = mapH - 8; ly < mapH; ly++)
 		{
 			_grid.SetHeightLevel(lx, ly, 1);
 			_grid.SetForest(lx, ly, false);
 		}
 
 		// Border connection — centre of south edge, unerasable Regional Highway
-		_grid.PlaceBorderConnection(StandaloneMapSize / 2, StandaloneMapSize - 1);
+		_grid.PlaceBorderConnection(mapW / 2, mapH - 1);
 
 		// 3 starter road tiles extending north from the border
-		_grid.SetZone(StandaloneMapSize / 2, StandaloneMapSize - 2, ZoneType.Road);
-		_grid.SetZone(StandaloneMapSize / 2, StandaloneMapSize - 3, ZoneType.Road);
-		_grid.SetZone(StandaloneMapSize / 2, StandaloneMapSize - 4, ZoneType.Road);
+		_grid.SetZone(mapW / 2, mapH - 2, ZoneType.Road);
+		_grid.SetZone(mapW / 2, mapH - 3, ZoneType.Road);
+		_grid.SetZone(mapW / 2, mapH - 4, ZoneType.Road);
 
 		// Seed road graph so the border connection registers as an ExternalAnchor
 		_engine.SeedRoadGraphFromGrid();
@@ -377,6 +421,34 @@ public partial class World : Node2D
 				_gameOverPanel.ShowWin(_standaloneTick, _population!.Population, _budget!.Balance);
 				_hintOverlay.SetGameOver();
 				_toastSystem.SetGameOver();
+			}
+
+			// Scenario complete (edge: fires once when ScenarioComplete first becomes true)
+			if (_engine.ScenarioComplete && !_scenarioCompleteFired && !_gameOver)
+			{
+				_scenarioCompleteFired = true;
+				_standalonePaused = true;
+				_toolbar.SetPaused(true);
+				_scenarioResultPanel?.ShowComplete(
+					scenarioName:  _engine.ActiveScenario!.Name,
+					medal:         _engine.MedalEarned ?? "Bronze",
+					population:    _population!.Population,
+					targetPop:     _engine.ActiveScenario.Goal.TargetPopulation,
+					ticksUsed:     _standaloneTick,
+					activeScenarioId: _engine.ActiveScenario.Id);
+			}
+
+			// Scenario failed (edge: fires once when ScenarioFailed first becomes true)
+			if (_engine.ScenarioFailed && !_scenarioFailedFired && !_gameOver)
+			{
+				_scenarioFailedFired = true;
+				_standalonePaused = true;
+				_toolbar.SetPaused(true);
+				_scenarioResultPanel?.ShowFailed(
+					scenarioName: _engine.ActiveScenario!.Name,
+					population:   _population!.Population,
+					targetPop:    _engine.ActiveScenario.Goal.TargetPopulation,
+					activeScenarioId: _engine.ActiveScenario.Id);
 			}
 		}
 	}
@@ -764,6 +836,7 @@ public partial class World : Node2D
 			_toolbar.SetBuildMode(false);
 			_toolbar.SetPaused(false);
 			_gameOverPanel.Hide();
+			_scenarioResultPanel?.Hide();
 		}
 	}
 
@@ -1401,7 +1474,17 @@ public partial class World : Node2D
 			Power:                     powerState,
 			ResZones:                  resZones,
 			ComZones:                  comZones,
-			IndZones:                  indZones
+			IndZones:                  indZones,
+			ActiveScenarioId:          _engine.ActiveScenario?.Id,
+			ActiveScenarioName:        _engine.ActiveScenario?.Name,
+			ScenarioTargetPopulation:  _engine.ActiveScenario?.Goal.TargetPopulation ?? 0,
+			ScenarioTickLimit:         _engine.ActiveScenario?.TickLimit ?? 0,
+			ScenarioBronzeTick:        _engine.ActiveScenario?.Medals.Bronze ?? 0,
+			ScenarioSilverTick:        _engine.ActiveScenario?.Medals.Silver ?? 0,
+			ScenarioGoldTick:          _engine.ActiveScenario?.Medals.Gold   ?? 0,
+			ScenarioComplete:          _engine.ScenarioComplete,
+			MedalEarned:               _engine.MedalEarned,
+			ScenarioFailed:            _engine.ScenarioFailed
 		);
 		_lastState = state;
 		_hud.UpdateStats(state);

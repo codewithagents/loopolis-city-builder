@@ -27,9 +27,13 @@ public partial class SharedStateReader : Node
     private Toolbar _toolbar = null!;
     private GameOverPanel _gameOverPanel = null!;
     private CityHealthPanel _cityHealth = null!;
+    private TopBar _topBar = null!;
+    private ScenarioResultPanel _scenarioResultPanel = null!;
     private bool _bankruptShown = false;
     private bool _abandonedShown = false;
     private bool _winShown = false;
+    private bool _scenarioCompleteShown = false;
+    private bool _scenarioFailedShown   = false;
     private double _pollTimer = 0;
     private const double PollInterval = 0.05; // 20Hz polling
 
@@ -92,12 +96,14 @@ public partial class SharedStateReader : Node
 
     public override void _Ready()
     {
-        _renderer      = GetNode<TilemapRenderer>("/root/World/TilemapRenderer");
-        _hud           = GetNode<HudOverlay>("/root/World/HudOverlay");
-        _hintOverlay   = GetNode<HintOverlay>("/root/World/HintOverlay");
-        _toolbar       = GetNode<Toolbar>("/root/World/Toolbar");
-        _gameOverPanel = GetNode<GameOverPanel>("/root/World/GameOverPanel");
-        _cityHealth    = GetNode<CityHealthPanel>("/root/World/CityHealthPanel");
+        _renderer            = GetNode<TilemapRenderer>("/root/World/TilemapRenderer");
+        _hud                 = GetNode<HudOverlay>("/root/World/HudOverlay");
+        _hintOverlay         = GetNode<HintOverlay>("/root/World/HintOverlay");
+        _toolbar             = GetNode<Toolbar>("/root/World/Toolbar");
+        _gameOverPanel       = GetNode<GameOverPanel>("/root/World/GameOverPanel");
+        _cityHealth          = GetNode<CityHealthPanel>("/root/World/CityHealthPanel");
+        _topBar              = GetNode<TopBar>("/root/World/TopBar");
+        _scenarioResultPanel = GetNode<ScenarioResultPanel>("/root/World/ScenarioResultPanel");
 
         // Resolve the shared directory path from the Godot project directory
         var projectDir = ProjectSettings.GlobalizePath("res://");
@@ -167,6 +173,7 @@ public partial class SharedStateReader : Node
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _renderer.SetFireTile(state.EventTileX, state.EventTileY);
             _hud.UpdateStats(state);
+            _topBar.UpdateStats(state);
             _hintOverlay.UpdateHints(state);
             _cityHealth.UpdateWarnings(state);
             _toolbar.SetPaused(state.Paused);
@@ -212,6 +219,42 @@ public partial class SharedStateReader : Node
                     File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
                 }
                 catch { /* runner may not be listening */ }
+            }
+
+            // Scenario complete — show result panel once (edge detection)
+            if (!_scenarioCompleteShown && state.ScenarioComplete && !string.IsNullOrEmpty(state.ActiveScenarioId))
+            {
+                _scenarioCompleteShown = true;
+                try
+                {
+                    var commandPath = Path.Combine(_sharedDir, $"command-{_sessionId}.json");
+                    File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
+                }
+                catch { /* runner may not be listening */ }
+                _scenarioResultPanel.ShowComplete(
+                    scenarioName:     state.ActiveScenarioName ?? state.ActiveScenarioId ?? "",
+                    medal:            state.MedalEarned ?? "Bronze",
+                    population:       state.Population,
+                    targetPop:        state.ScenarioTargetPopulation,
+                    ticksUsed:        state.Tick,
+                    activeScenarioId: state.ActiveScenarioId ?? "");
+            }
+
+            // Scenario failed — show result panel once (edge detection)
+            if (!_scenarioFailedShown && state.ScenarioFailed && !string.IsNullOrEmpty(state.ActiveScenarioId))
+            {
+                _scenarioFailedShown = true;
+                try
+                {
+                    var commandPath = Path.Combine(_sharedDir, $"command-{_sessionId}.json");
+                    File.WriteAllText(commandPath, "{\"cmd\":\"pause\"}");
+                }
+                catch { /* runner may not be listening */ }
+                _scenarioResultPanel.ShowFailed(
+                    scenarioName:     state.ActiveScenarioName ?? state.ActiveScenarioId ?? "",
+                    population:       state.Population,
+                    targetPop:        state.ScenarioTargetPopulation,
+                    activeScenarioId: state.ActiveScenarioId ?? "");
             }
         }
         catch (Exception)
@@ -412,6 +455,7 @@ public record SharedState(
     int ResZones = 0,                       // count of Residential zone tiles
     int ComZones = 0,                       // count of Commercial zone tiles
     int IndZones = 0,                       // count of Industrial zone tiles
+    int ParkTiles = 0,                      // count of Park zone tiles
     // Scenario tracking fields (null/0 when in sandbox mode)
     string? ActiveScenarioId = null,        // e.g. "fresh_start"
     string? ActiveScenarioName = null,      // e.g. "Fresh Start"
