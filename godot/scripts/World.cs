@@ -81,7 +81,7 @@ public partial class World : Node2D
 	private bool _scenarioFailedFired   = false;
 	private ScenarioResultPanel? _scenarioResultPanel;
 
-	// Tutorial hint progression
+	// Tutorial hint progression (passive hints — separate from the guided tutorial)
 	private int _tutorialHintIndex = 0;
 	private static readonly string[] TutorialHints =
 	{
@@ -90,6 +90,17 @@ public partial class World : Node2D
 		"💡 Build Fire Station, Police, and School — happiness keeps your city growing.",
 		"💡 Milestones: 500 pop = Town · 5k = City · 25k = Metropolis · 100k = Loopolis"
 	};
+
+	// ── Guided tutorial state machine ──────────────────────────────────────
+	private bool _tutorialActive   = false;
+	private int  _tutorialStep     = 0;  // 1-5; 0 = not started
+	private TutorialPanel _tutorialPanel = null!;
+	private bool _tutorialStep1Done = false; // road placed
+	private bool _tutorialStep2Done = false; // 2+ R zones adjacent to road
+	private bool _tutorialStep3Done = false; // coal/power plant placed
+	private bool _tutorialStep4Done = false; // at least 1 R zone tile HasPower
+	private bool _tutorialStep5Done = false; // first building appeared
+	private float _tutorialStepFlashTimer = 0f; // brief pause after CompleteStep before advancing
 
 	// Server process tracking (static — survives scene changes)
 	private static long _serverPid = -1;
@@ -143,6 +154,10 @@ public partial class World : Node2D
 		_minimap = new Minimap();
 		AddChild(_minimap);
 		_minimap.SetCamera(_camera);
+
+		// Tutorial panel (guided 5-step tutorial)
+		_tutorialPanel = new TutorialPanel();
+		AddChild(_tutorialPanel);
 
 		// Scenario result panel (shown on complete/failed)
 		_scenarioResultPanel = new ScenarioResultPanel();
@@ -239,6 +254,7 @@ public partial class World : Node2D
 	{
 		// Consume pending scenario selection (set by MainMenu before loading World.tscn)
 		ScenarioDefinition? scenario = null;
+		var pendingId = PendingScenarioId; // capture before consuming
 		if (PendingScenarioId != null)
 		{
 			scenario = ScenarioLibrary.Find(PendingScenarioId);
@@ -269,12 +285,32 @@ public partial class World : Node2D
 		_scenarioCompleteFired = false;
 		_scenarioFailedFired   = false;
 
+		// Reset tutorial state
+		_tutorialActive       = false;
+		_tutorialStep         = 0;
+		_tutorialStep1Done    = false;
+		_tutorialStep2Done    = false;
+		_tutorialStep3Done    = false;
+		_tutorialStep4Done    = false;
+		_tutorialStep5Done    = false;
+		_tutorialStepFlashTimer = 0f;
+		_tutorialPanel?.HideTutorial();
+
 		SetupDefaultNewGame(mapSize, mapHeight);
 
 		_renderer.Refresh(_grid);
 		_minimap.UpdateFromGrid(_grid);
 		_camera.FitToMap(mapSize, mapHeight);
 		PushStandaloneHudUpdate();
+
+		// Activate guided tutorial when the tutorial scenario is selected
+		if (pendingId == "tutorial")
+		{
+			_tutorialActive   = true;
+			_standalonePaused = true;
+			_toolbar.SetPaused(true);
+			AdvanceTutorial(1);
+		}
 	}
 
 	/// <summary>
@@ -348,6 +384,14 @@ public partial class World : Node2D
 			if (viewerGrid != null && viewerState != null)
 				_minimap.UpdateFromState(viewerState, viewerGrid);
 			return;
+		}
+
+		// Tutorial: advance to next step after brief flash delay
+		if (_tutorialActive && _tutorialStepFlashTimer > 0f)
+		{
+			_tutorialStepFlashTimer -= (float)delta;
+			if (_tutorialStepFlashTimer <= 0f)
+				AdvanceTutorialDelayed();
 		}
 
 		if (_standalonePaused) return;
@@ -432,6 +476,10 @@ public partial class World : Node2D
 			_minimap.UpdateFromGrid(_grid);
 			UpdateNeglectMap();
 			PushStandaloneHudUpdate();
+
+			// Tutorial step 5: first building birth (checked per tick when tutorial is active)
+			if (_tutorialActive && _tutorialStep == 5 && newBuildingTypeIdsThisTick.Count > 0)
+				CheckTutorialProgress();
 
 			// Bankrupt check
 			if (_engine.MilestoneSystem.CurrentState == Loopolis.Core.Simulation.GameState.Bankrupt)
@@ -1067,6 +1115,8 @@ public partial class World : Node2D
 				}
 			}
 			_renderer.Refresh(_grid);
+			// Check tutorial progress after every tile placement (standalone mode)
+			if (_tutorialActive) CheckTutorialProgress();
 		}
 	}
 
@@ -1642,6 +1692,136 @@ public partial class World : Node2D
 			_toastSystem.AddHint(TutorialHints[_tutorialHintIndex]);
 			_tutorialHintIndex++;
 		}
+	}
+
+	// ── Guided tutorial ───────────────────────────────────────────────────
+
+	private static readonly string[] TutorialStepMessages =
+	{
+		"",  // index 0 unused
+		"Step 1: Place a Road\nClick 'Road' in the toolbar and build north of the highway stub.",
+		"Step 2: Zone Residential\nClick 'Res' and place 2+ zones next to your road.",
+		"Step 3: Add Power\nOpen the 'Ut' tab, then place a Coal Plant away from homes.",
+		"Step 4: Connect Power Lines\nUse 'Pwr Line' to link the plant to your zones.",
+		"Step 5: Watch it grow!\nPress Space or click Resume — wait for your first cottage!"
+	};
+
+	private void AdvanceTutorial(int nextStep)
+	{
+		_tutorialStep = nextStep;
+		if (nextStep >= 1 && nextStep <= 5)
+			_tutorialPanel.ShowStep(nextStep, TutorialStepMessages[nextStep]);
+
+		// Step 5: auto-unpause so the simulation runs and buildings can spawn
+		if (nextStep == 5)
+		{
+			_standalonePaused = false;
+			_toolbar.SetPaused(false);
+		}
+	}
+
+	/// <summary>
+	/// Called from _Process after the flash timer expires.  Figures out which step
+	/// to move to based on what has already been completed.
+	/// </summary>
+	private void AdvanceTutorialDelayed()
+	{
+		if (!_tutorialStep1Done)          { AdvanceTutorial(1); return; }
+		if (!_tutorialStep2Done)          { AdvanceTutorial(2); return; }
+		if (!_tutorialStep3Done)          { AdvanceTutorial(3); return; }
+		if (!_tutorialStep4Done)          { AdvanceTutorial(4); return; }
+		if (!_tutorialStep5Done)          { AdvanceTutorial(5); return; }
+		CompleteTutorial();
+	}
+
+	/// <summary>
+	/// Inspects the current grid / engine state and advances the tutorial when
+	/// a step's completion condition is satisfied.  Safe to call every frame / every
+	/// tile-placement — guards against re-triggering already-completed steps.
+	/// </summary>
+	private void CheckTutorialProgress()
+	{
+		if (!_tutorialActive) return;
+
+		// Step 1: road placed
+		if (_tutorialStep == 1 && !_tutorialStep1Done)
+		{
+			var hasRoad = _grid.AllTiles().Any(t =>
+				t.Zone == Loopolis.Core.Grid.ZoneType.Road ||
+				t.Zone == Loopolis.Core.Grid.ZoneType.Avenue);
+			if (hasRoad)
+			{
+				_tutorialStep1Done = true;
+				_tutorialPanel.CompleteStep();
+				_tutorialStepFlashTimer = 1.2f; // brief delay before advancing
+				return;
+			}
+		}
+
+		// Step 2: 2+ residential zone tiles placed
+		if (_tutorialStep == 2 && !_tutorialStep2Done)
+		{
+			var resCount = _grid.AllTiles().Count(t => t.Zone == Loopolis.Core.Grid.ZoneType.Residential);
+			if (resCount >= 2)
+			{
+				_tutorialStep2Done = true;
+				_tutorialPanel.CompleteStep();
+				_tutorialStepFlashTimer = 1.2f;
+				return;
+			}
+		}
+
+		// Step 3: coal/nuclear/power plant placed
+		if (_tutorialStep == 3 && !_tutorialStep3Done)
+		{
+			var hasPlant = _grid.AllTiles().Any(t =>
+				t.Zone == Loopolis.Core.Grid.ZoneType.CoalPlant ||
+				t.Zone == Loopolis.Core.Grid.ZoneType.NuclearPlant ||
+				t.Zone == Loopolis.Core.Grid.ZoneType.PowerPlant);
+			if (hasPlant)
+			{
+				_tutorialStep3Done = true;
+				_tutorialPanel.CompleteStep();
+				_tutorialStepFlashTimer = 1.2f;
+				return;
+			}
+		}
+
+		// Step 4: at least 1 residential zone tile HasPower
+		if (_tutorialStep == 4 && !_tutorialStep4Done)
+		{
+			// Re-propagate power network so the check reflects the current layout
+			// even when paused in build mode.
+			_engine.PowerNetwork.Propagate(_grid);
+			var anyPowered = _grid.AllTiles().Any(t =>
+				t.Zone == Loopolis.Core.Grid.ZoneType.Residential && t.HasPower);
+			if (anyPowered)
+			{
+				_tutorialStep4Done = true;
+				_tutorialPanel.CompleteStep();
+				_tutorialStepFlashTimer = 1.2f;
+				return;
+			}
+		}
+
+		// Step 5: first building appears — checked after tick in _Process
+		if (_tutorialStep == 5 && !_tutorialStep5Done)
+		{
+			var hasBuilding = _grid.Buildings.Count > 0;
+			if (hasBuilding)
+			{
+				_tutorialStep5Done = true;
+				CompleteTutorial();
+			}
+		}
+	}
+
+	private void CompleteTutorial()
+	{
+		_tutorialActive = false;
+		_tutorialPanel.HideTutorial();
+		_toastSystem.AddMilestone("Tutorial complete! Your city has started. Keep building!");
+		Log("[tutorial] Completed — first building spawned!");
 	}
 
 	private void UpdateEventLog(SharedState state, string? milestone)

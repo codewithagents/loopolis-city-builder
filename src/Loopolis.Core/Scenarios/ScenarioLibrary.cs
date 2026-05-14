@@ -9,6 +9,18 @@ public static class ScenarioLibrary
     public static readonly IReadOnlyList<ScenarioDefinition> All = new[]
     {
         new ScenarioDefinition(
+            Id:              "tutorial",
+            Name:            "Tutorial — Your First City",
+            Description:     "Learn the basics. Place roads, zones, and power to start your first city.",
+            MapWidth:        32,
+            MapHeight:       32,
+            StartingBalance: 6_000,
+            TickLimit:       0,
+            Goal:            new ScenarioGoal(TargetPopulation: 100),
+            Medals:          new ScenarioMedals(Bronze: 0, Silver: 0, Gold: 0)
+        ),
+
+        new ScenarioDefinition(
             Id:              "fresh_start",
             Name:            "Fresh Start",
             Description:     "A clean slate. Build the foundations of a thriving town.",

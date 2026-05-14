@@ -85,6 +85,20 @@ public partial class MainMenu : Control
         // City name input row
         vbox.AddChild(BuildCityNameRow(_cityNameEdit));
 
+        // Tutorial button — recommended for new players, amber styling
+        var tutorialBtn = MakeMenuButton("Tutorial — Start here!");
+        ApplyAmberButtonStyle(tutorialBtn);
+        tutorialBtn.Pressed += () =>
+        {
+            ApplyCityName();
+            // Default the city name to "My First City" if the player left it blank
+            if (string.IsNullOrWhiteSpace(_cityNameEdit.Text))
+                World.CityName = "My First City";
+            World.PendingScenarioId = "tutorial";
+            GetTree().ChangeSceneToFile("res://scenes/World.tscn");
+        };
+        vbox.AddChild(tutorialBtn);
+
         // "New Game" now opens the scenario picker
         var newGameBtn = MakeMenuButton("New Game");
         newGameBtn.Pressed += () =>
@@ -295,33 +309,44 @@ public partial class MainMenu : Control
         descLabel.AutowrapMode = TextServer.AutowrapMode.Word;
         leftVbox.AddChild(descLabel);
 
-        // Medal thresholds row
+        // Medal thresholds row (skip for tutorial — show "Recommended" badge instead)
         var medalsLabel = new Label();
-        medalsLabel.Text = $"🥇{scenario.Medals.Gold}t  🥈{scenario.Medals.Silver}t  🥉{scenario.Medals.Bronze}t";
-        medalsLabel.AddThemeColorOverride("font_color", new Color(0.80f, 0.75f, 0.55f));
-        medalsLabel.AddThemeFontSizeOverride("font_size", 12);
-        leftVbox.AddChild(medalsLabel);
-
-        // Personal best row
-        var pbLabel = new Label();
-        if (best != null)
+        if (scenario.Id == "tutorial")
         {
-            var (medalEmoji, medalName, medalColor) = best.Medal switch
-            {
-                "Gold"   => ("🥇", "Gold",   new Color(1.0f, 0.82f, 0.15f)),
-                "Silver" => ("🥈", "Silver", new Color(0.80f, 0.82f, 0.88f)),
-                _        => ("🥉", "Bronze", new Color(0.80f, 0.55f, 0.25f)),
-            };
-            pbLabel.Text = $"{medalEmoji} {medalName} · T:{best.Tick}";
-            pbLabel.AddThemeColorOverride("font_color", medalColor);
+            medalsLabel.Text = "Recommended for new players";
+            medalsLabel.AddThemeColorOverride("font_color", new Color(0.90f, 0.72f, 0.20f));
         }
         else
         {
-            pbLabel.Text = "Not yet played";
-            pbLabel.AddThemeColorOverride("font_color", new Color(0.45f, 0.45f, 0.45f));
+            medalsLabel.Text = $"🥇{scenario.Medals.Gold}t  🥈{scenario.Medals.Silver}t  🥉{scenario.Medals.Bronze}t";
+            medalsLabel.AddThemeColorOverride("font_color", new Color(0.80f, 0.75f, 0.55f));
         }
-        pbLabel.AddThemeFontSizeOverride("font_size", 12);
-        leftVbox.AddChild(pbLabel);
+        medalsLabel.AddThemeFontSizeOverride("font_size", 12);
+        leftVbox.AddChild(medalsLabel);
+
+        // Personal best row (hidden for tutorial — no medals)
+        if (scenario.Id != "tutorial")
+        {
+            var pbLabel = new Label();
+            if (best != null)
+            {
+                var (medalEmoji, medalName, medalColor) = best.Medal switch
+                {
+                    "Gold"   => ("🥇", "Gold",   new Color(1.0f, 0.82f, 0.15f)),
+                    "Silver" => ("🥈", "Silver", new Color(0.80f, 0.82f, 0.88f)),
+                    _        => ("🥉", "Bronze", new Color(0.80f, 0.55f, 0.25f)),
+                };
+                pbLabel.Text = $"{medalEmoji} {medalName} · T:{best.Tick}";
+                pbLabel.AddThemeColorOverride("font_color", medalColor);
+            }
+            else
+            {
+                pbLabel.Text = "Not yet played";
+                pbLabel.AddThemeColorOverride("font_color", new Color(0.45f, 0.45f, 0.45f));
+            }
+            pbLabel.AddThemeFontSizeOverride("font_size", 12);
+            leftVbox.AddChild(pbLabel);
+        }
 
         // Right column: goal, limit, play button
         var rightVbox = new VBoxContainer();
@@ -329,7 +354,9 @@ public partial class MainMenu : Control
         hbox.AddChild(rightVbox);
 
         var goalLabel = new Label();
-        goalLabel.Text = $"Goal: {scenario.Goal.TargetPopulation:N0} pop";
+        goalLabel.Text = scenario.Id == "tutorial"
+            ? "Guided tutorial"
+            : $"Goal: {scenario.Goal.TargetPopulation:N0} pop";
         goalLabel.HorizontalAlignment = HorizontalAlignment.Right;
         goalLabel.AddThemeColorOverride("font_color", new Color(0.5f, 0.9f, 0.5f));
         goalLabel.AddThemeFontSizeOverride("font_size", 13);
@@ -530,6 +557,34 @@ public partial class MainMenu : Control
         btn.AddThemeFontSizeOverride("font_size", 18);
         ApplyButtonStyle(btn, new Color(0.15f, 0.15f, 0.22f));
         return btn;
+    }
+
+    /// <summary>
+    /// Applies amber/gold border styling to a button to mark it as the recommended action.
+    /// </summary>
+    private static void ApplyAmberButtonStyle(Button btn)
+    {
+        var amberBorder = new Color(0.85f, 0.65f, 0.15f);
+        var style = new StyleBoxFlat();
+        style.BgColor = new Color(0.18f, 0.14f, 0.06f);
+        style.BorderColor = amberBorder;
+        style.BorderWidthBottom = style.BorderWidthTop = style.BorderWidthLeft = style.BorderWidthRight = 2;
+        style.CornerRadiusTopLeft = style.CornerRadiusTopRight = style.CornerRadiusBottomLeft = style.CornerRadiusBottomRight = 5;
+        style.ContentMarginLeft = style.ContentMarginRight = 12;
+        style.ContentMarginTop = style.ContentMarginBottom = 8;
+        btn.AddThemeStyleboxOverride("normal", style);
+
+        var hoverStyle = new StyleBoxFlat();
+        hoverStyle.BgColor = new Color(0.26f, 0.20f, 0.08f);
+        hoverStyle.BorderColor = new Color(1.0f, 0.82f, 0.30f);
+        hoverStyle.BorderWidthBottom = hoverStyle.BorderWidthTop = hoverStyle.BorderWidthLeft = hoverStyle.BorderWidthRight = 2;
+        hoverStyle.CornerRadiusTopLeft = hoverStyle.CornerRadiusTopRight = hoverStyle.CornerRadiusBottomLeft = hoverStyle.CornerRadiusBottomRight = 5;
+        hoverStyle.ContentMarginLeft = hoverStyle.ContentMarginRight = 12;
+        hoverStyle.ContentMarginTop = hoverStyle.ContentMarginBottom = 8;
+        btn.AddThemeStyleboxOverride("hover", hoverStyle);
+        btn.AddThemeStyleboxOverride("pressed", hoverStyle);
+
+        btn.AddThemeColorOverride("font_color", new Color(1.0f, 0.90f, 0.55f));
     }
 
     private static void ApplyButtonStyle(Button btn, Color normalBg)

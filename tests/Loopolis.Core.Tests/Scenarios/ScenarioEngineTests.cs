@@ -131,9 +131,9 @@ public class ScenarioEngineTests
     // ── ScenarioLibrary tests ─────────────────────────────────────────────────
 
     [Test]
-    public void ScenarioLibrary_HasTenScenarios()
+    public void ScenarioLibrary_HasElevenScenarios()
     {
-        Assert.That(ScenarioLibrary.All.Count, Is.EqualTo(10));
+        Assert.That(ScenarioLibrary.All.Count, Is.EqualTo(11));
     }
 
     [Test]
@@ -142,6 +142,9 @@ public class ScenarioEngineTests
         foreach (var scenario in ScenarioLibrary.All)
         {
             var m = scenario.Medals;
+            // Tutorial scenario has no medals (all zeros) — skip medal threshold validation
+            if (m.Gold == 0 && m.Silver == 0 && m.Bronze == 0) continue;
+
             Assert.That(m.Gold,   Is.LessThan(m.Silver),
                 $"{scenario.Id}: Gold({m.Gold}) must be < Silver({m.Silver})");
             Assert.That(m.Silver, Is.LessThan(m.Bronze),
