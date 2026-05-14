@@ -268,9 +268,11 @@ public class SimulationEngine
             EraseTile(EventSystem.FireTileX, EventSystem.FireTileY);
         }
         HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph, PolicySystem.HappinessBonusFromPolicy,
-            Charters.ServiceCoverageRadiusBonus, Charters.ParkHappinessMultiplier);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus + charter bonuses
+            Charters.ServiceCoverageRadiusBonus, Charters.ParkHappinessMultiplier,
+            pollutionMultiplier: Charters.CityPollutionMultiplier,
+            parkRadiusBonus: Charters.CityParkRadiusBonus);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus + charter bonuses
         LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph, ServiceFatigue);  // capacity-aware service coverage snapshot (fatigue-adjusted)
-        LandValueSystem.Propagate(Grid, Charters.LandValueBonus);   // land value after happiness is computed
+        LandValueSystem.Propagate(Grid, Charters.LandValueBonus + Charters.CityLandValueBonus);   // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition
         var avgHappiness = HappinessSystem.AverageHappiness(Grid);
@@ -309,12 +311,12 @@ public class SimulationEngine
 
         // Combine policy + charter growth multipliers (multiplicative stacking)
         var industrialGrowthMult = PolicySystem.IndustrialGrowthMultiplier * Charters.IndustrialGrowthMultiplier;
-        var commercialGrowthMult = PolicySystem.CommercialGrowthMultiplier * Charters.CommercialGrowthMultiplier;
+        var commercialGrowthMult = PolicySystem.CommercialGrowthMultiplier * Charters.CommercialGrowthMultiplier * Charters.CityCommercialGrowthMultiplier;
 
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph,
-            industrialGrowthMult, commercialGrowthMult, PolicySystem.ResidentialCapacityBonus);
+            industrialGrowthMult, commercialGrowthMult, PolicySystem.ResidentialCapacityBonus + Charters.CityResidentialCapacityBonus);
         Budget.SetPopulation(Population.Population);
-        Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
+        Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier + Charters.CityTaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
         Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
         PolicySystem.Tick(Budget);  // deduct active policy costs after maintenance
@@ -327,6 +329,15 @@ public class SimulationEngine
         {
             Charters.NotifyTownMilestone();
         }
+
+        // Charter notification: when the city just reached City milestone for the first time, prompt city charter selection
+        if (_previousMilestoneState == GameState.Town
+            && MilestoneSystem.CurrentState is GameState.City or GameState.Metropolis or GameState.Loopolis
+            && !MilestoneSystem.IsOver)
+        {
+            Charters.NotifyCityMilestone();
+        }
+
         _previousMilestoneState = MilestoneSystem.CurrentState;
 
         // Service fatigue: decay service building capacity post-City milestone

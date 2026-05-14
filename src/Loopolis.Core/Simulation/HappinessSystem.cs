@@ -148,7 +148,8 @@ public class HappinessSystem
     public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
         RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null,
         int cityPopulation = 0, RoadGraph? roadGraph = null, double policyHappinessBonus = 0.0,
-        float serviceCoverageRadiusBonus = 0f, double parkHappinessMultiplier = 1.0)
+        float serviceCoverageRadiusBonus = 0f, double parkHappinessMultiplier = 1.0,
+        float pollutionMultiplier = 1.0f, int parkRadiusBonus = 0)
     {
         grid.ClearHappiness();
 
@@ -208,8 +209,8 @@ public class HappinessSystem
             }
             happiness += Math.Min(coveredByCategories.Count, 2) * 0.15;
 
-            // Pollution penalty
-            happiness -= tile.PollutionLevel * 0.4;
+            // Pollution penalty (GreenCanopy city charter reduces impact via pollutionMultiplier)
+            happiness -= tile.PollutionLevel * 0.4 * pollutionMultiplier;
 
             // Service neglect: accumulate when uncovered, recover when covered
             var key = (tile.X, tile.Y);
@@ -255,8 +256,8 @@ public class HappinessSystem
             if (parkTiles.Count > 0)
             {
                 var nearbyParks = parkTiles.Count(p =>
-                    Math.Abs(p.X - tile.X) <= ParkBonusRadius &&
-                    Math.Abs(p.Y - tile.Y) <= ParkBonusRadius);
+                    Math.Abs(p.X - tile.X) <= (ParkBonusRadius + parkRadiusBonus) &&
+                    Math.Abs(p.Y - tile.Y) <= (ParkBonusRadius + parkRadiusBonus));
                 if (nearbyParks > 0)
                 {
                     var rawParkBonus = Math.Min(nearbyParks * ParkHappinessBonusPerTile, ParkHappinessBonusCap);

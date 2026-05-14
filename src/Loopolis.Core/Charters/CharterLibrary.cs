@@ -15,6 +15,20 @@ public static class CharterLibrary
             "Service radius +3 · Parks give 2× happiness", "Town"),
     };
 
+    public static readonly IReadOnlyList<CharterDefinition> AllCityCharters = new[]
+    {
+        new CharterDefinition(CharterType.InnovationHub, "Innovation Hub",
+            "Your city embraces density. Smart zoning fills every building to capacity.",
+            "Residential capacity +20% · Tax revenue +8%", "City"),
+        new CharterDefinition(CharterType.GreenCanopy, "Green Canopy",
+            "Green infrastructure networks define your skyline. Parks and clean tech heal your city.",
+            "Pollution impact ×0.5 · Park radius +2 tiles", "City"),
+        new CharterDefinition(CharterType.TradeCorridors, "Trade Corridors",
+            "Markets and trade routes flow through your city. The commercial sector never sleeps.",
+            "Commercial growth +25% · Land value +8%", "City"),
+    };
+
     public static CharterDefinition? Find(CharterType type) =>
-        AllTownCharters.FirstOrDefault(c => c.Type == type);
+        AllTownCharters.FirstOrDefault(c => c.Type == type)
+        ?? AllCityCharters.FirstOrDefault(c => c.Type == type);
 }
