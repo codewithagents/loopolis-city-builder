@@ -69,7 +69,9 @@
 | BuildingGrowthIntegration flaky fix | ✅ Done | FireStation added to test grid (prevents random fire demolition) |
 | 3 Challenge Scenarios (island_chain, narrow_valley, river_delta) | ✅ Done | 28 new (ScenarioLibraryExtendedTests) |
 
-**Total: 617 tests · 0 failures · ~0.77s runtime**
+| ManualUpgradeSystem | ✅ Done | 11 new (ManualUpgradeSystemTests) |
+
+**Total: 628 tests · 0 failures · ~0.73s runtime**
 
 ---
 
