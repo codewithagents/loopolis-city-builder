@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
+using Loopolis.Core.Petitions;
 using Loopolis.Core.Policies;
 using Loopolis.Core.Simulation;
 
@@ -315,6 +316,18 @@ static class StateWriter
                 Math.Round(s.AveragePollution, 3)))
             .ToArray();
 
+        // --- Petition Inbox ---
+        var petitionSystem  = engine.PetitionSystem;
+        var currentTick     = engine.TickCount;
+        var activePetitions = petitionSystem.ActivePetitions
+            .Select(p => new PetitionState(
+                p.Id, p.DistrictName, p.Text, p.Category,
+                p.IssuedTick, p.DeadlineTick,
+                UrgencyTicks: Math.Max(0, p.DeadlineTick - currentTick)))
+            .ToArray();
+        var newPetitionThisTick     = petitionSystem.NewThisTick.Select(p => p.DistrictName).ToArray();
+        var resolvedPetitionThisTick = petitionSystem.RecentlyResolved.Select(p => p.DistrictName).ToArray();
+
         var state = new ServerState(
             Tick:                      engine.TickCount,
             Paused:                    paused,
@@ -392,7 +405,11 @@ static class StateWriter
             PopulationTrend:           engine.Statistics.PopulationTrend(),
             HappinessTrend:            engine.Statistics.HappinessTrend(),
             BalanceTrend:              engine.Statistics.BalanceTrend(),
-            PopulationGrowthRate:      engine.Statistics.PopulationGrowthRate
+            PopulationGrowthRate:      engine.Statistics.PopulationGrowthRate,
+            // Petition Inbox
+            ActivePetitions:           activePetitions.Length > 0 ? activePetitions : null,
+            NewPetitionThisTick:       newPetitionThisTick.Length > 0 ? newPetitionThisTick : null,
+            ResolvedPetitionThisTick:  resolvedPetitionThisTick.Length > 0 ? resolvedPetitionThisTick : null
         );
 
         var options = new JsonSerializerOptions

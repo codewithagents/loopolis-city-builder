@@ -1,6 +1,7 @@
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
+using Loopolis.Core.Petitions;
 using Loopolis.Core.Policies;
 using Loopolis.Core.Scenarios;
 
@@ -52,6 +53,7 @@ public class SimulationEngine
     public WorkerFlowSystem WorkerFlowSystem { get; } = new();
     public PolicySystem PolicySystem { get; } = new();
     public CityStatisticsSystem Statistics { get; } = new();
+    public PetitionSystem PetitionSystem { get; } = new();
     public int TickCount { get; private set; }
 
     // ── Scenario tracking ───────────────────────────────────────────────────
@@ -321,6 +323,10 @@ public class SimulationEngine
             TotalJobs:        EmploymentSystem.AvailableJobs,
             AveragePollution: avgPollutionSnap
         ));
+
+        // Petition system: citizens file complaints when simulation thresholds are breached.
+        // Must run AFTER all other systems (population, happiness, employment, services) have updated.
+        PetitionSystem.Tick(Grid, this);
 
         TickCount++;
     }

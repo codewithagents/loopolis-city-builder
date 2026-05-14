@@ -72,7 +72,9 @@
 | ManualUpgradeSystem | ✅ Done | 11 new (ManualUpgradeSystemTests) |
 | CityStatisticsSystem | ✅ Done | 24 new (CityStatisticsTests) |
 
-**Total: 722 tests · 0 failures · ~4s runtime**
+| M11-P1 PetitionSystem (DistrictNamer + PetitionSystem + wiring) | ✅ Done | 27 new (PetitionSystemTests) |
+
+**Total: 749 tests · 0 failures · ~6s runtime**
 
 ---
 
@@ -243,4 +245,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | integration | CityAdvisor + PlaythroughTests: 4 test failures fixed. (1) CityAdvisor locale: all string.Format calls now use CultureInfo.InvariantCulture — German locale was producing "0,80" instead of "0.80". (2) TutorialScenario: industrial layout redesigned with south road spur (y=19) + 3 N-S spurs + 13 industrial tiles at y=20 — far enough from residential (distance 6) to avoid pollution distress, enough jobs (260) to sustain pop growth to 500+. Commute distances kept ≤ 10 for all tiles. (3) GreenCity: EmploymentSystem now skips the factory-job throttle when zero industrial tiles exist — R+C-only city gets full 1.0 employment multiplier. Test passes at pop>300. (4) HappinessDecay: PopulationSystem now suppresses minGrowth=1 guarantee when a tile is in active persistent distress (alreadyDistressed=true) — decay can overcome growth and produce net population decline as designed. New EmploymentSystemTests.IndustrialExistsButNotAccessible confirms throttle still fires when inaccessible industrial exists. | — |
 
-*Last updated: 2026-05-14 — 4 test failures resolved, 722 tests*
+| 2026-05-14 | powered_start | PetitionSystem: 500-tick powered_start run — pop=2400, balance=$96,619, happiness=0.83, GameState=Town. PetitionSystem runs every tick with no regression on simulation outcomes. Power petition suppressed (city is fully powered), happiness > 0.45 so no happiness petition. Services petition checked via road-graph distance. No petitions fire on well-run city as designed. | Working correctly |
+
+*Last updated: 2026-05-14 — M11-P1 PetitionSystem implemented, 749 tests*

@@ -150,6 +150,16 @@ record OverlayState(
     [property: JsonPropertyName("height")]  int               Height,
     [property: JsonPropertyName("tiles")]   List<OverlayTile> Tiles);
 
+/// <summary>Compact petition entry for state.json output.</summary>
+record PetitionState(
+    [property: JsonPropertyName("id")]           string Id,
+    [property: JsonPropertyName("districtName")] string DistrictName,
+    [property: JsonPropertyName("text")]         string Text,
+    [property: JsonPropertyName("category")]     string Category,
+    [property: JsonPropertyName("issuedTick")]   int    IssuedTick,
+    [property: JsonPropertyName("deadlineTick")] int    DeadlineTick,
+    [property: JsonPropertyName("urgencyTicks")] int    UrgencyTicks);   // DeadlineTick - current tick
+
 record ServerState(
     int Tick,
     bool Paused,
@@ -232,4 +242,8 @@ record ServerState(
     string PopulationTrend = "→",
     string HappinessTrend = "→",
     string BalanceTrend = "→",
-    float PopulationGrowthRate = 0f);
+    float PopulationGrowthRate = 0f,
+    // Petition Inbox
+    PetitionState[]? ActivePetitions = null,
+    string[]? NewPetitionThisTick = null,       // district names of new petitions (for toast triggers)
+    string[]? ResolvedPetitionThisTick = null); // district names of just-resolved petitions (for celebration toasts)
