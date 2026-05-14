@@ -34,7 +34,15 @@ public class LandValueSystem
     public const double HighHappinessBonus = 0.10;
     public const double PowerBonus         = 0.05;
 
-    public void Propagate(CityGrid grid)
+    /// <summary>
+    /// Propagates land value across the grid.
+    /// </summary>
+    /// <param name="grid">The city grid.</param>
+    /// <param name="charterLandValueBonus">
+    /// Flat bonus added to every non-water tile's land value.
+    /// Pass <c>CharterSystem.LandValueBonus</c> (0.0 when no charter, +0.06 for Merchant).
+    /// </param>
+    public void Propagate(CityGrid grid, double charterLandValueBonus = 0.0)
     {
         grid.ClearLandValue();
 
@@ -73,6 +81,9 @@ public class LandValueSystem
             // Power bonus
             if (tile.HasPower)
                 value += PowerBonus;
+
+            // Charter bonus (Merchant Charter: +0.06 city-wide land value boost)
+            value += charterLandValueBonus;
 
             grid.SetLandValue(x, y, Math.Clamp(value, 0.0, 1.0));
         }

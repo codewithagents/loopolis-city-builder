@@ -1,4 +1,5 @@
 using Loopolis.Core.Buildings;
+using Loopolis.Core.Charters;
 using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Petitions;
@@ -52,6 +53,7 @@ public class SimulationEngine
     public RoadGraph RoadGraph { get; } = new();
     public WorkerFlowSystem WorkerFlowSystem { get; } = new();
     public PolicySystem PolicySystem { get; } = new();
+    public CharterSystem Charters { get; } = new();
     public CityStatisticsSystem Statistics { get; } = new();
     public PetitionSystem PetitionSystem { get; } = new();
     public int TickCount { get; private set; }
@@ -119,6 +121,9 @@ public class SimulationEngine
     private int _lowHappinessTicks = 0;
     private const int LowHappinessLimit = 50;   // give player time to react before abandonment
     private const double AbandonThreshold = 0.25; // lowered from 0.30 — no-service cities shouldn't auto-abandon
+
+    // Tracks the previous milestone state for charter notification detection
+    private GameState _previousMilestoneState = GameState.Active;
 
     public SimulationEngine(CityGrid grid, BudgetSystem budget, PopulationSystem population,
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,
@@ -244,9 +249,10 @@ public class SimulationEngine
         {
             EraseTile(EventSystem.FireTileX, EventSystem.FireTileY);
         }
-        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph, PolicySystem.HappinessBonusFromPolicy);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph, PolicySystem.HappinessBonusFromPolicy,
+            Charters.ServiceCoverageRadiusBonus, Charters.ParkHappinessMultiplier);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus + charter bonuses
         LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph);  // capacity-aware service coverage snapshot
-        LandValueSystem.Propagate(Grid);   // land value after happiness is computed
+        LandValueSystem.Propagate(Grid, Charters.LandValueBonus);   // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition
         var avgHappiness = HappinessSystem.AverageHappiness(Grid);
@@ -279,15 +285,31 @@ public class SimulationEngine
             if (!buildingIdsBefore.Contains(kvp.Key))
                 LastNewBuildingTypeIds.Add(kvp.Value.TypeId);
         }
-        var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population, PolicySystem.JobsPerIndustrialTileBonus);
+        // Combine policy + charter job bonus
+        var totalJobsBonus = PolicySystem.JobsPerIndustrialTileBonus + Charters.JobsPerTileBonus;
+        var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population, totalJobsBonus);
+
+        // Combine policy + charter growth multipliers (multiplicative stacking)
+        var industrialGrowthMult = PolicySystem.IndustrialGrowthMultiplier * Charters.IndustrialGrowthMultiplier;
+        var commercialGrowthMult = PolicySystem.CommercialGrowthMultiplier * Charters.CommercialGrowthMultiplier;
+
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph,
-            PolicySystem.IndustrialGrowthMultiplier, PolicySystem.CommercialGrowthMultiplier, PolicySystem.ResidentialCapacityBonus);
+            industrialGrowthMult, commercialGrowthMult, PolicySystem.ResidentialCapacityBonus);
         Budget.SetPopulation(Population.Population);
         Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
         Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
         PolicySystem.Tick(Budget);  // deduct active policy costs after maintenance
         MilestoneSystem.Check(Population.Population, Budget.Balance, Budget.NetIncomePerTick, TickCount);
+
+        // Charter notification: when the city just reached Town for the first time, prompt charter selection
+        if (_previousMilestoneState != GameState.Town
+            && MilestoneSystem.CurrentState == GameState.Town
+            && !MilestoneSystem.IsOver)
+        {
+            Charters.NotifyTownMilestone();
+        }
+        _previousMilestoneState = MilestoneSystem.CurrentState;
 
         // Scenario goal / medal check (only when a scenario is active and goal not yet reached)
         if (ActiveScenario != null && !ScenarioComplete)

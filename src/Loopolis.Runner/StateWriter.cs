@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Loopolis.Core.Buildings;
+using Loopolis.Core.Charters;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Petitions;
 using Loopolis.Core.Policies;
@@ -409,7 +410,15 @@ static class StateWriter
             // Petition Inbox
             ActivePetitions:           activePetitions.Length > 0 ? activePetitions : null,
             NewPetitionThisTick:       newPetitionThisTick.Length > 0 ? newPetitionThisTick : null,
-            ResolvedPetitionThisTick:  resolvedPetitionThisTick.Length > 0 ? resolvedPetitionThisTick : null
+            ResolvedPetitionThisTick:  resolvedPetitionThisTick.Length > 0 ? resolvedPetitionThisTick : null,
+            // Charter system
+            TownCharterPending:        engine.Charters.TownCharterPending,
+            ActiveCharter:             engine.Charters.ActiveCharter != CharterType.None
+                                           ? engine.Charters.ActiveCharter.ToString()
+                                           : null,
+            ActiveCharterDescription:  engine.Charters.ActiveCharter != CharterType.None
+                                           ? CharterLibrary.Find(engine.Charters.ActiveCharter)?.Effect
+                                           : null
         );
 
         var options = new JsonSerializerOptions

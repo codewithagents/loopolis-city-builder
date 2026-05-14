@@ -147,7 +147,8 @@ public class HappinessSystem
 
     public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
         RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null,
-        int cityPopulation = 0, RoadGraph? roadGraph = null, double policyHappinessBonus = 0.0)
+        int cityPopulation = 0, RoadGraph? roadGraph = null, double policyHappinessBonus = 0.0,
+        float serviceCoverageRadiusBonus = 0f, double parkHappinessMultiplier = 1.0)
     {
         grid.ClearHappiness();
 
@@ -191,8 +192,9 @@ public class HappinessSystem
                 {
                     // Road-graph distance: tile must have road access to its neighbour, and
                     // service must also have road access, with graph distance ≤ coverage radius.
+                    // Civic Charter adds serviceCoverageRadiusBonus to all service radii.
                     var dist = roadGraph.GetDistanceViaRoads(grid, tile.X, tile.Y, svc.X, svc.Y);
-                    covered = dist <= ServiceRadius[svc.Zone];
+                    covered = dist <= ServiceRadius[svc.Zone] + serviceCoverageRadiusBonus;
                 }
                 else
                 {
@@ -249,13 +251,17 @@ public class HappinessSystem
                 happiness += brownoutPenalty;
 
             // Park bonus: +0.08 per park tile within Chebyshev distance 3, capped at +0.20 total
+            // Civic Charter doubles the park happiness contribution (parkHappinessMultiplier = 2.0).
             if (parkTiles.Count > 0)
             {
                 var nearbyParks = parkTiles.Count(p =>
                     Math.Abs(p.X - tile.X) <= ParkBonusRadius &&
                     Math.Abs(p.Y - tile.Y) <= ParkBonusRadius);
                 if (nearbyParks > 0)
-                    happiness += Math.Min(nearbyParks * ParkHappinessBonusPerTile, ParkHappinessBonusCap);
+                {
+                    var rawParkBonus = Math.Min(nearbyParks * ParkHappinessBonusPerTile, ParkHappinessBonusCap);
+                    happiness += rawParkBonus * parkHappinessMultiplier;
+                }
             }
 
             // Traffic congestion penalty: −0.10 if adjacent to an overloaded road/avenue

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Loopolis.Core.Charters;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Policies;
 using Loopolis.Core.Simulation;
@@ -370,6 +371,23 @@ static class CommandHandler
                         Console.WriteLine($"[event_respond] No pending event or insufficient funds.");
                     break;
                 }
+
+                case "select_charter":
+                    // {"cmd":"select_charter","charter":"Merchant"}
+                    if (root.TryGetProperty("charter", out var charterProp))
+                    {
+                        var charterName = charterProp.GetString() ?? "";
+                        if (Enum.TryParse<CharterType>(charterName, true, out var charterType))
+                        {
+                            engine.Charters.SelectCharter(charterType);
+                            Console.WriteLine($"[select_charter] {charterName} selected. ActiveCharter={engine.Charters.ActiveCharter}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[select_charter] Unknown charter: {charterName}");
+                        }
+                    }
+                    break;
 
                 default:
                     Console.WriteLine($"[command] Unknown: {cmd}");

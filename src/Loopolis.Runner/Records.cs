@@ -246,4 +246,8 @@ record ServerState(
     // Petition Inbox
     PetitionState[]? ActivePetitions = null,
     string[]? NewPetitionThisTick = null,       // district names of new petitions (for toast triggers)
-    string[]? ResolvedPetitionThisTick = null); // district names of just-resolved petitions (for celebration toasts)
+    string[]? ResolvedPetitionThisTick = null,  // district names of just-resolved petitions (for celebration toasts)
+    // Charter system (Town era)
+    bool TownCharterPending = false,            // true → Godot should show the charter choice UI
+    string? ActiveCharter = null,              // "Merchant", "Industrial", "Civic", or null
+    string? ActiveCharterDescription = null); // effect string for HUD

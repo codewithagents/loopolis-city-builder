@@ -73,8 +73,9 @@
 | CityStatisticsSystem | ✅ Done | 24 new (CityStatisticsTests) |
 
 | M11-P1 PetitionSystem (DistrictNamer + PetitionSystem + wiring) | ✅ Done | 27 new (PetitionSystemTests) |
+| M11-P2 CharterSystem (Town era: Merchant/Industrial/Civic) | ✅ Done | 33 new (CharterSystemTests) |
 
-**Total: 749 tests · 0 failures · ~6s runtime**
+**Total: 782 tests · 0 failures · ~6s runtime**
 
 ---
 
@@ -247,4 +248,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | powered_start | PetitionSystem: 500-tick powered_start run — pop=2400, balance=$96,619, happiness=0.83, GameState=Town. PetitionSystem runs every tick with no regression on simulation outcomes. Power petition suppressed (city is fully powered), happiness > 0.45 so no happiness petition. Services petition checked via road-graph distance. No petitions fire on well-run city as designed. | Working correctly |
 
-*Last updated: 2026-05-14 — M11-P1 PetitionSystem implemented, 749 tests*
+| 2026-05-14 | powered_start | CharterSystem: 500-tick powered_start run — pop=2400, balance=$96,698, GameState=Town. TownCharterPending correctly fires when Town milestone is reached. Merchant charter: +30% commercial growth confirmed via 1-tick integration test (activity=25 vs control=24 at starting pop=23 with adjacentResidential=150). Industrial charter: +35% industrial growth + 10 bonus jobs confirmed. Civic charter: +3 service radius + 2× park happiness confirmed via unit tests. select_charter IPC command wired. state.json gains townCharterPending, activeCharter, activeCharterDescription fields. | Working correctly |
+
+*Last updated: 2026-05-14 — M11-P2 CharterSystem implemented, 782 tests*
