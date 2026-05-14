@@ -1,4 +1,5 @@
 using Loopolis.Core.Scenarios;
+using System.IO;
 
 namespace Loopolis.Core.Tests.Scenarios;
 
@@ -130,9 +131,9 @@ public class ScenarioEngineTests
     // ── ScenarioLibrary tests ─────────────────────────────────────────────────
 
     [Test]
-    public void ScenarioLibrary_HasFiveScenarios()
+    public void ScenarioLibrary_HasTenScenarios()
     {
-        Assert.That(ScenarioLibrary.All.Count, Is.EqualTo(5));
+        Assert.That(ScenarioLibrary.All.Count, Is.EqualTo(10));
     }
 
     [Test]
@@ -171,5 +172,103 @@ public class ScenarioEngineTests
     {
         foreach (var s in ScenarioLibrary.All)
             Assert.That(s.Description, Is.Not.Empty, $"{s.Id} has empty description");
+    }
+}
+
+// ── LeaderboardSystem Tests ────────────────────────────────────────────────────
+
+[TestFixture]
+public class LeaderboardSystemTests
+{
+    private string _tempFile = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _tempFile = Path.Combine(Path.GetTempPath(), $"loopolis_lb_{Guid.NewGuid():N}.json");
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        if (File.Exists(_tempFile)) File.Delete(_tempFile);
+    }
+
+    // ── Save / Load ────────────────────────────────────────────────────────────
+
+    [Test]
+    public void LeaderboardSystem_SavesNewEntry()
+    {
+        LeaderboardSystem.Save("fresh_start", "Gold", 198, 512, _tempFile);
+
+        var entries = LeaderboardSystem.Load(_tempFile);
+
+        Assert.That(entries.ContainsKey("fresh_start"), Is.True);
+        var entry = entries["fresh_start"];
+        Assert.That(entry.Medal,      Is.EqualTo("Gold"));
+        Assert.That(entry.Tick,       Is.EqualTo(198));
+        Assert.That(entry.Population, Is.EqualTo(512));
+    }
+
+    [Test]
+    public void LeaderboardSystem_UpdatesEntry_WhenHigherMedal()
+    {
+        // Start with a Bronze entry
+        LeaderboardSystem.Save("fresh_start", "Bronze", 400, 500, _tempFile);
+
+        // Save a Silver result — should overwrite
+        LeaderboardSystem.Save("fresh_start", "Silver", 300, 510, _tempFile);
+
+        var entries = LeaderboardSystem.Load(_tempFile);
+        Assert.That(entries["fresh_start"].Medal, Is.EqualTo("Silver"));
+        Assert.That(entries["fresh_start"].Tick,  Is.EqualTo(300));
+    }
+
+    [Test]
+    public void LeaderboardSystem_DoesNotDowngrade_WhenSameMedalButWorseTick()
+    {
+        // Save a Silver at tick 250
+        LeaderboardSystem.Save("fresh_start", "Silver", 250, 510, _tempFile);
+
+        // Try to save a Silver at tick 350 (worse)
+        LeaderboardSystem.Save("fresh_start", "Silver", 350, 520, _tempFile);
+
+        var entries = LeaderboardSystem.Load(_tempFile);
+        Assert.That(entries["fresh_start"].Tick, Is.EqualTo(250),
+            "Should keep the lower tick (better result)");
+    }
+
+    [Test]
+    public void LeaderboardSystem_GoldBeatsSilver()
+    {
+        // Silver at 200
+        LeaderboardSystem.Save("river_valley", "Silver", 200, 2000, _tempFile);
+
+        // Gold at 350 (higher tick, but Gold > Silver)
+        LeaderboardSystem.Save("river_valley", "Gold", 350, 2001, _tempFile);
+
+        var entries = LeaderboardSystem.Load(_tempFile);
+        Assert.That(entries["river_valley"].Medal, Is.EqualTo("Gold"),
+            "Gold medal should beat Silver even with a higher tick count");
+    }
+
+    [Test]
+    public void LeaderboardSystem_Load_ReturnsEmptyDict_WhenFileDoesNotExist()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), $"no_such_file_{Guid.NewGuid():N}.json");
+        var entries = LeaderboardSystem.Load(missing);
+        Assert.That(entries, Is.Empty);
+    }
+
+    [Test]
+    public void LeaderboardSystem_MultipleScenarios_StoredIndependently()
+    {
+        LeaderboardSystem.Save("fresh_start",  "Gold",   200, 500,  _tempFile);
+        LeaderboardSystem.Save("river_valley", "Bronze", 590, 2000, _tempFile);
+
+        var entries = LeaderboardSystem.Load(_tempFile);
+        Assert.That(entries.Count, Is.EqualTo(2));
+        Assert.That(entries["fresh_start"].Medal,  Is.EqualTo("Gold"));
+        Assert.That(entries["river_valley"].Medal, Is.EqualTo("Bronze"));
     }
 }

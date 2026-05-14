@@ -15,9 +15,10 @@ public partial class HudOverlay : CanvasLayer
     // ── Detail stats panel ─────────────────────────────────────────────────
     private PanelContainer _statsPanel = null!;
 
-    private Label _balanceLabel   = null!;
-    private Label _jobsLabel      = null!;
-    private Label _schoolLabel    = null!;
+    private Label _balanceLabel      = null!;
+    private Label _jobsLabel         = null!;
+    private Label _employmentLabel   = null!;
+    private Label _schoolLabel       = null!;
     private Label _policeLabel    = null!;
     private Label _fireLabel      = null!;
     private Label _hospitalLabel  = null!;
@@ -188,9 +189,10 @@ public partial class HudOverlay : CanvasLayer
 
         vbox.AddChild(MakeHSep());
 
-        _balanceLabel  = MakeLabel("Budget: Tax $0/tk | Costs $0/tk");
-        _jobsLabel     = MakeLabel("Jobs: —");
-        _schoolLabel   = MakeServiceLabel("🏫 School: — (none built)");
+        _balanceLabel    = MakeLabel("Budget: Tax $0/tk | Costs $0/tk");
+        _jobsLabel       = MakeLabel("Jobs: —");
+        _employmentLabel = MakeServiceLabel("💼 Employment: —");
+        _schoolLabel     = MakeServiceLabel("🏫 School: — (none built)");
         _policeLabel   = MakeServiceLabel("🚔 Police: — (none built)");
         _fireLabel     = MakeServiceLabel("🔥 Fire: — (none built)");
         _hospitalLabel = MakeServiceLabel("🏥 Hospital: — (none built)");
@@ -201,6 +203,7 @@ public partial class HudOverlay : CanvasLayer
         vbox.AddChild(_balanceLabel);
         vbox.AddChild(MakeHSep());
         vbox.AddChild(_jobsLabel);
+        vbox.AddChild(_employmentLabel);
         vbox.AddChild(MakeHSep());
         vbox.AddChild(_schoolLabel);
         vbox.AddChild(_policeLabel);
@@ -355,6 +358,22 @@ public partial class HudOverlay : CanvasLayer
         {
             _jobsLabel.Text = $"Jobs: {state.AvailableJobs} available";
             _jobsLabel.AddThemeColorOverride("font_color", new Color(0.3f, 1f, 0.3f));
+        }
+
+        // Employment ratio row — only shown when there are workers
+        if (state.WorkingAge > 0)
+        {
+            var ratioPct = (int)(state.EmploymentRatio * 100);
+            _employmentLabel.Text = $"💼 Employment: {ratioPct}%  ({state.AvailableJobs} jobs / {state.WorkingAge} workers)";
+            _employmentLabel.AddThemeColorOverride("font_color",
+                state.EmploymentRatio >= 0.40f ? new Color(0.3f, 1f, 0.3f) :
+                state.EmploymentRatio >= 0.20f ? new Color(1f, 0.65f, 0.1f) :
+                                                 new Color(1f, 0.2f, 0.2f));
+            _employmentLabel.Visible = true;
+        }
+        else
+        {
+            _employmentLabel.Visible = false;
         }
 
         // Service rows

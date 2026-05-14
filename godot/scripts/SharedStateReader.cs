@@ -437,8 +437,10 @@ public record SharedState(
     double TaxModifier = 0.0,
     string? SessionId = null,
     int AvailableJobs = 0,
+    int WorkingAge = 0,             // residential population count (same as Population for ratio calc)
+    double EmploymentRatio = 0f,
+    bool EmploymentWarning = false, // true when ratio < 0.40 and WorkingAge > 50
     int RequiredJobs = 0,
-    double EmploymentRatio = 1.0,
     double EventHappinessPenalty = 0.0,   // live penalty from EventSystem — data-driven, not string-matched
     // City health diagnostic fields (written by Runner, consumed by CityHealthPanel)
     HappinessBreakdownDto? HappinessBreakdown = null,
@@ -466,7 +468,10 @@ public record SharedState(
     int ScenarioGoldTick = 0,
     bool ScenarioComplete = false,
     string? MedalEarned = null,             // "Gold", "Silver", "Bronze", or null
-    bool ScenarioFailed = false             // true when tick limit exceeded without goal
+    bool ScenarioFailed = false,            // true when tick limit exceeded without goal
+    // Personal best from leaderboard (populated by World.cs / Runner from leaderboard.json)
+    string? PersonalBestMedal = null,       // e.g. "Gold", "Silver", "Bronze", or null
+    int PersonalBestTick = 0               // tick count of personal best run (0 = no entry)
 )
 {
     /// <summary>

@@ -67,6 +67,66 @@ public static class ScenarioLibrary
             Goal:            new ScenarioGoal(TargetPopulation: 10_000),
             Medals:          new ScenarioMedals(Bronze: 1_500, Silver: 1_200, Gold: 900)
         ),
+
+        new ScenarioDefinition(
+            Id:              "coastal_town",
+            Name:            "Coastal Town",
+            Description:     "A city hemmed in by water. Build around the coast and across the islands.",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 5_500,
+            TickLimit:       700,
+            Goal:            new ScenarioGoal(TargetPopulation: 2_500),
+            Medals:          new ScenarioMedals(Bronze: 700, Silver: 550, Gold: 380)
+        ),
+
+        new ScenarioDefinition(
+            Id:              "polluted_legacy",
+            Name:            "The Polluted Legacy",
+            Description:     "A struggling industrial base. Clean it up and grow a city people want to live in.",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 7_000,
+            TickLimit:       900,
+            Goal:            new ScenarioGoal(TargetPopulation: 4_000),
+            Medals:          new ScenarioMedals(Bronze: 900, Silver: 700, Gold: 500)
+        ),
+
+        new ScenarioDefinition(
+            Id:              "forest_reserve",
+            Name:            "Forest Reserve",
+            Description:     "Dense forest everywhere. Use timber mills wisely — your forests are worth protecting.",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 4_500,
+            TickLimit:       600,
+            Goal:            new ScenarioGoal(TargetPopulation: 1_500),
+            Medals:          new ScenarioMedals(Bronze: 600, Silver: 460, Gold: 310)
+        ),
+
+        new ScenarioDefinition(
+            Id:              "boom_town",
+            Name:            "Boom Town",
+            Description:     "Big budget, big ambitions. How fast can you build a real city?",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 15_000,
+            TickLimit:       600,
+            Goal:            new ScenarioGoal(TargetPopulation: 8_000),
+            Medals:          new ScenarioMedals(Bronze: 600, Silver: 480, Gold: 340)
+        ),
+
+        new ScenarioDefinition(
+            Id:              "founders_challenge",
+            Name:            "Founder's Challenge",
+            Description:     "Tiny map, almost no money. Prove you can do more with less.",
+            MapWidth:        32,
+            MapHeight:       32,
+            StartingBalance: 2_500,
+            TickLimit:       500,
+            Goal:            new ScenarioGoal(TargetPopulation: 1_000),
+            Medals:          new ScenarioMedals(Bronze: 500, Silver: 400, Gold: 280)
+        ),
     };
 
     /// <summary>Returns the scenario with the given ID, or null if not found.</summary>

@@ -72,6 +72,7 @@ public partial class World : Node2D
 	// Toast deduplication flags
 	private bool _brownoutToastShown = false;
 	private bool _employmentToastShown = false;
+	private bool _employmentWarnedLow = false;     // warned when employment ratio < 0.40
 	private bool _happinessWarnedLow = false;      // warned at <40%
 	private bool _happinessWarnedCritical = false; // warned at <30% (close to abandonment)
 
@@ -202,7 +203,23 @@ public partial class World : Node2D
 		{
 			GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
 			_reader = new SharedStateReader();
-			_reader.BuildingBorn      += (typeId, ax, ay) => SpawnBuildingBirthLabel(typeId, ax, ay);
+			_reader.BuildingBorn      += (typeId, ax, ay) =>
+			{
+				SpawnBuildingBirthLabel(typeId, ax, ay);
+				// Spawn animation: look up building dimensions from last state
+				var bInfo = _reader?.LastState?.Buildings;
+				if (bInfo != null)
+				{
+					foreach (var b in bInfo)
+					{
+						if (b.X == ax && b.Y == ay && b.TypeId == typeId)
+						{
+							_renderer.AnimateBuildingSpawn(new Vector2I(ax, ay), b.Width, b.Height);
+							break;
+						}
+					}
+				}
+			};
 			_reader.BuildingDegraded  += (typeId, ax, ay) => SpawnBuildingCrumbleLabel(typeId, ax, ay);
 			_reader.BuildingsBorn     += (typeIds, tick)  => FireBuildingBirthToasts(typeIds, tick);
 			_reader.FirstGridReady    += (w, h) => _camera.FitToMap(w, h);
@@ -386,6 +403,10 @@ public partial class World : Node2D
 				{
 					SpawnBuildingBirthLabel(kvp.Value.TypeId, kvp.Value.AnchorX, kvp.Value.AnchorY);
 					newBuildingTypeIdsThisTick.Add(kvp.Value.TypeId);
+					// Spawn animation: building scales in from 0 → overshoot → 1.0
+					_renderer.AnimateBuildingSpawn(
+						new Vector2I(kvp.Value.AnchorX, kvp.Value.AnchorY),
+						kvp.Value.Width, kvp.Value.Height);
 				}
 			}
 			if (newBuildingTypeIdsThisTick.Count > 0)
@@ -459,6 +480,17 @@ public partial class World : Node2D
 					targetPop:     _engine.ActiveScenario.Goal.TargetPopulation,
 					ticksUsed:     _standaloneTick,
 					activeScenarioId: _engine.ActiveScenario.Id);
+				// Save personal best to leaderboard
+				try
+				{
+					LeaderboardSystem.Save(
+						_engine.ActiveScenario.Id,
+						_engine.MedalEarned ?? "Bronze",
+						_standaloneTick,
+						_population!.Population,
+						GetLeaderboardPath());
+				}
+				catch { /* non-critical */ }
 			}
 
 			// Scenario failed (edge: fires once when ScenarioFailed first becomes true)
@@ -1492,8 +1524,10 @@ public partial class World : Node2D
 			LatestEventBanner:         _engine.LatestEventBanner,
 			TaxModifier:               _budget.TaxModifier,
 			AvailableJobs:             _engine.EmploymentSystem.AvailableJobs,
-			RequiredJobs:              _engine.EmploymentSystem.RequiredJobs,
+			WorkingAge:                _population.Population,
 			EmploymentRatio:           _engine.EmploymentSystem.EmploymentRatio,
+			EmploymentWarning:         _engine.EmploymentSystem.EmploymentRatio < 0.40f && _population.Population > 50,
+			RequiredJobs:              _engine.EmploymentSystem.RequiredJobs,
 			EventHappinessPenalty:     _engine.EventSystem.HappinessPenalty,
 			HappinessBreakdown:        happinessBreakdown,
 			Employment:                employmentDto,
@@ -1513,7 +1547,9 @@ public partial class World : Node2D
 			ScenarioGoldTick:          _engine.ActiveScenario?.Medals.Gold   ?? 0,
 			ScenarioComplete:          _engine.ScenarioComplete,
 			MedalEarned:               _engine.MedalEarned,
-			ScenarioFailed:            _engine.ScenarioFailed
+			ScenarioFailed:            _engine.ScenarioFailed,
+			PersonalBestMedal:         GetPersonalBestMedal(_engine.ActiveScenario?.Id),
+			PersonalBestTick:          GetPersonalBestTick(_engine.ActiveScenario?.Id)
 		);
 		_lastState = state;
 		_hud.UpdateStats(state);
@@ -1554,6 +1590,14 @@ public partial class World : Node2D
 		{
 			_employmentToastShown = false;
 		}
+
+		// Low employment warning: fires when ratio drops below 0.40, resets above 0.55
+		if (state.EmploymentWarning && !_employmentWarnedLow)
+		{
+			_employmentWarnedLow = true;
+			_toastSystem.AddAlert("⚠ Low employment — add industrial zones to resume growth");
+		}
+		if (_engine.EmploymentSystem.EmploymentRatio >= 0.55f) _employmentWarnedLow = false;
 
 		// Happiness warnings (fire before abandonment kicks in at 25%)
 		if (state.Happiness < 0.40 && !_happinessWarnedLow)
@@ -1649,5 +1693,50 @@ public partial class World : Node2D
 			_loggedCapacity = true;
 		}
 		if (state.Population < state.MaxCapacity - 10) _loggedCapacity = false;
+	}
+
+	// ── Leaderboard helpers ────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Returns the path to leaderboard.json.
+	/// Uses Godot's user data dir (writable on all platforms) with a fallback to godot/saves/.
+	/// </summary>
+	private static string GetLeaderboardPath()
+	{
+		try
+		{
+			var userDir = Godot.OS.GetUserDataDir();
+			return System.IO.Path.Combine(userDir, "leaderboard.json");
+		}
+		catch
+		{
+			// Fallback: project-relative saves directory (editor / dev mode)
+			var projectDir = Godot.ProjectSettings.GlobalizePath("res://");
+			return System.IO.Path.Combine(projectDir, "saves", "leaderboard.json");
+		}
+	}
+
+	/// <summary>Returns the personal best medal for the given scenario, or null if no entry exists.</summary>
+	private static string? GetPersonalBestMedal(string? scenarioId)
+	{
+		if (string.IsNullOrEmpty(scenarioId)) return null;
+		try
+		{
+			var entries = LeaderboardSystem.Load(GetLeaderboardPath());
+			return entries.TryGetValue(scenarioId, out var entry) ? entry.Medal : null;
+		}
+		catch { return null; }
+	}
+
+	/// <summary>Returns the personal best tick for the given scenario, or 0 if no entry exists.</summary>
+	private static int GetPersonalBestTick(string? scenarioId)
+	{
+		if (string.IsNullOrEmpty(scenarioId)) return 0;
+		try
+		{
+			var entries = LeaderboardSystem.Load(GetLeaderboardPath());
+			return entries.TryGetValue(scenarioId, out var entry) ? entry.Tick : 0;
+		}
+		catch { return 0; }
 	}
 }

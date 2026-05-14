@@ -1026,8 +1026,10 @@ static void WriteState(
         TaxModifier:               engine.Budget.TaxModifier,
         SessionId:                 sessionId.Length > 0 ? sessionId : null,
         AvailableJobs:             engine.EmploymentSystem.AvailableJobs,
-        RequiredJobs:              engine.EmploymentSystem.RequiredJobs,
+        WorkingAge:                currentPop,
         EmploymentRatio:           Math.Round(engine.EmploymentSystem.EmploymentRatio, 3),
+        EmploymentWarning:         engine.EmploymentSystem.EmploymentRatio < 0.40 && currentPop > 50,
+        RequiredJobs:              engine.EmploymentSystem.RequiredJobs,
         EventHappinessPenalty:     engine.EventSystem.HappinessPenalty,
         HappinessBreakdown:        happinessBreakdown,
         Employment:                employmentState,
@@ -1573,8 +1575,10 @@ record ServerState(
     double TaxModifier = 0.0,
     string? SessionId = null,
     int AvailableJobs = 0,
-    int RequiredJobs = 0,
+    int WorkingAge = 0,
     double EmploymentRatio = 1.0,
+    bool EmploymentWarning = false,
+    int RequiredJobs = 0,
     double EventHappinessPenalty = 0.0,
     HappinessBreakdown? HappinessBreakdown = null,
     EmploymentState? Employment = null,
@@ -1603,7 +1607,9 @@ record ServerState(
     bool ScenarioComplete = false,
     string? MedalEarned = null,
     bool ScenarioFailed = false,
-    int ParkTiles = 0);                     // count of Park zone tiles
+    int ParkTiles = 0,                      // count of Park zone tiles
+    string? PersonalBestMedal = null,       // personal best medal from leaderboard
+    int PersonalBestTick = 0);              // tick count of personal best run
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 
