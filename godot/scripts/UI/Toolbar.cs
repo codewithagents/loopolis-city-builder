@@ -27,6 +27,7 @@ public partial class Toolbar : CanvasLayer
     private int    _activeTab     = 0;   // 0=Zones 1=Services 2=Utilities 3=Overlays
     private int    _lastKnownPop  = 0;
     private int    _activeOverlayMode = 0;
+    private System.Collections.Generic.List<string>? _disabledZones = null;
 
     private readonly Dictionary<string, Button> _buttons      = new();
     private readonly Dictionary<string, Button> _taxButtons   = new();
@@ -378,6 +379,67 @@ public partial class Toolbar : CanvasLayer
             {
                 btn.Modulate = new Color(1f, 1f, 1f, 1f);
                 btn.TooltipText = tooltip;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Greys out zone buttons that are disabled by the current scenario's DisabledZones constraint.
+    /// Pass null or an empty list to restore all buttons to their normal state.
+    /// Only affects zones in tab 0 (Residential, Commercial, Industrial, Road, Avenue, Park, Erase).
+    /// </summary>
+    public void UpdateDisabledZones(System.Collections.Generic.IReadOnlyList<string>? disabledZones)
+    {
+        // Convert to list for easier comparison; null → empty
+        var incoming = disabledZones != null && disabledZones.Count > 0
+            ? new System.Collections.Generic.List<string>(disabledZones)
+            : null;
+
+        // Skip if nothing changed
+        var prevCount = _disabledZones?.Count ?? 0;
+        var newCount  = incoming?.Count ?? 0;
+        if (prevCount == newCount)
+        {
+            // Fast-path: if both empty, nothing to do
+            if (newCount == 0) return;
+            // Both non-empty: check if contents match
+            var same = true;
+            foreach (var z in incoming!)
+                if (_disabledZones!.IndexOf(z) < 0) { same = false; break; }
+            if (same) return;
+        }
+
+        _disabledZones = incoming;
+
+        // Zones that can be disabled are only zone-type buttons in tab 0
+        // (not services, utilities, or special tools like Erase/Upgrade)
+        var disableableZones = new[] { "Residential", "Commercial", "Industrial", "Road", "Avenue", "Park" };
+
+        foreach (var zone in disableableZones)
+        {
+            if (!_buttons.TryGetValue(zone, out var btn)) continue;
+
+            var isDisabled = incoming != null && incoming.Contains(zone);
+            if (isDisabled)
+            {
+                // Grey out: dim opacity and disable button
+                btn.Disabled = true;
+                btn.Modulate = new Color(1f, 1f, 1f, 0.4f);
+                btn.TooltipText = $"Disabled in this scenario";
+            }
+            else
+            {
+                // Restore: re-enable (milestone locks will re-apply on next UpdateMilestoneLocks call)
+                // Only restore if the milestone gate also allows it
+                foreach (var (label, z, color, tooltip, milestoneMin, tab) in ZoneButtons)
+                {
+                    if (z != zone) continue;
+                    var milestoneOk = milestoneMin <= 0 || _lastKnownPop >= milestoneMin;
+                    btn.Disabled = !milestoneOk;
+                    btn.Modulate = milestoneOk ? new Color(1f, 1f, 1f, 1f) : new Color(0.5f, 0.5f, 0.5f, 0.7f);
+                    btn.TooltipText = tooltip;
+                    break;
+                }
             }
         }
     }

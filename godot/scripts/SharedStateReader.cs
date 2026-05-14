@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -178,6 +179,7 @@ public partial class SharedStateReader : Node
             _cityHealth.UpdateWarnings(state);
             _toolbar.SetPaused(state.Paused);
             _toolbar.UpdateMilestoneLocks(state.Population);
+            _toolbar.UpdateDisabledZones(state.DisabledZones);
 
             // Bankrupt detection — show panel once and pause the server
             if (!_bankruptShown && state.GameState == "Bankrupt")
@@ -483,7 +485,9 @@ public record SharedState(
     string? LastUpgradeResult = null,
     // Event response system — set when an event fires and the player hasn't responded yet
     string? PendingEventType = null,
-    int PendingEventCost = 0
+    int PendingEventCost = 0,
+    // Zone constraints from active scenario (null = all zones allowed)
+    List<string>? DisabledZones = null
 )
 {
     /// <summary>

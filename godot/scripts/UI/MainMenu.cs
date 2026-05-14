@@ -1,6 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Loopolis.Core.Scenarios;
 
 namespace LoopolisGodot;
@@ -323,6 +324,17 @@ public partial class MainMenu : Control
         }
         medalsLabel.AddThemeFontSizeOverride("font_size", 12);
         leftVbox.AddChild(medalsLabel);
+
+        // Disabled zone constraint badge (shown for constrained scenarios)
+        if (scenario.DisabledZones != null && scenario.DisabledZones.Count > 0)
+        {
+            var constraintLabel = new Label();
+            var names = string.Join(", ", scenario.DisabledZones.Select(z => z.ToString()));
+            constraintLabel.Text = $"⛔ No {names}";
+            constraintLabel.AddThemeColorOverride("font_color", new Color(0.90f, 0.55f, 0.20f));
+            constraintLabel.AddThemeFontSizeOverride("font_size", 11);
+            leftVbox.AddChild(constraintLabel);
+        }
 
         // Personal best row (hidden for tutorial — no medals)
         if (scenario.Id != "tutorial")

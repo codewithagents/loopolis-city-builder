@@ -139,6 +139,19 @@ public class SimulationEngine
         EmploymentSystem = employmentSystem ?? new EmploymentSystem();
     }
 
+    // ── Scenario zone constraint helpers ───────────────────────────────────────
+
+    /// <summary>
+    /// Returns true if the given zone type is allowed under the current active scenario's
+    /// DisabledZones constraint.  When no scenario is active, or when DisabledZones is null,
+    /// all zones are permitted.
+    /// </summary>
+    public bool IsZoneAllowed(ZoneType zone)
+    {
+        if (ActiveScenario?.DisabledZones == null) return true;
+        return !ActiveScenario.DisabledZones.Contains(zone);
+    }
+
     // ── Tile placement helpers ──────────────────────────────────────────────────
 
     /// <summary>

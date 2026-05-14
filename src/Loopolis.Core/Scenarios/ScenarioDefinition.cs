@@ -1,3 +1,5 @@
+using Loopolis.Core.Grid;
+
 namespace Loopolis.Core.Scenarios;
 
 /// <summary>
@@ -22,6 +24,7 @@ public record ScenarioMedals(
 /// Immutable definition of a single scenario.
 /// TickLimit = 0 means no tick limit (sandbox / pure goal mode).
 /// TerrainSeed = null means use the default scenario setup logic (no procedural terrain).
+/// DisabledZones = null means all zones are available; a non-null list restricts placement.
 /// </summary>
 public record ScenarioDefinition(
     string Id,
@@ -33,5 +36,6 @@ public record ScenarioDefinition(
     int TickLimit,
     ScenarioGoal Goal,
     ScenarioMedals Medals,
-    string? TerrainSeed = null
+    string? TerrainSeed = null,
+    IReadOnlyList<ZoneType>? DisabledZones = null
 );

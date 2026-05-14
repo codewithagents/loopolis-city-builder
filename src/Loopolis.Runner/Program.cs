@@ -1137,7 +1137,8 @@ static void WriteState(
         PolicyTotalCostPerTick:    engine.PolicySystem.GetCostPerTick(),
         LastUpgradeResult:         lastUpgradeResult,
         PendingEventType:          engine.PendingEventType,
-        PendingEventCost:          engine.PendingEventCost
+        PendingEventCost:          engine.PendingEventCost,
+        DisabledZones:             engine.ActiveScenario?.DisabledZones?.Select(z => z.ToString()).ToList()
     );
 
     var options = new JsonSerializerOptions
@@ -1539,6 +1540,118 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             return (g64rd, engineRd);
         }
 
+        case "polluted_legacy":
+        {
+            // 64×64 procedural terrain with a pre-built industrial cluster in the center.
+            // Player inherits a running industrial district and must clean it up and grow.
+            var seed = terrainSeed != 0 ? terrainSeed : 42;
+            var gPl = new CityGrid(64, 64);
+            var heightMapPl = Loopolis.Core.Grid.HeightMapGenerator.Generate(64, 64, seed);
+            var forestMapPl = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed);
+            gPl.ApplyHeightMap(heightMapPl);
+            gPl.ApplyForestMap(forestMapPl);
+            // Border connection at center of south edge — force flat terrain
+            gPl.SetHeightLevel(32, 63, 1);
+            gPl.PlaceBorderConnection(32, 63);
+            // Starter road spine heading north
+            gPl.SetHeightLevel(32, 62, 1); gPl.SetZone(32, 62, ZoneType.Road);
+            gPl.SetHeightLevel(32, 61, 1); gPl.SetZone(32, 61, ZoneType.Road);
+            gPl.SetHeightLevel(32, 60, 1); gPl.SetZone(32, 60, ZoneType.Road);
+
+            var budgetPl = new BudgetSystem(initialBalance: 7_000);
+            var enginePl = new SimulationEngine(gPl, budgetPl, population, power, roads, demand);
+            enginePl.SeedRoadGraphFromGrid();
+
+            // Set up pre-existing industrial cluster (inherited from old regime)
+            var cx = gPl.Width / 2;   // 32
+            var cy = gPl.Height / 2;  // 32
+
+            // Flatten the center cluster area so placement always succeeds
+            for (var fx = cx - 4; fx <= cx + 4; fx++)
+            for (var fy = cy - 4; fy <= cy + 4; fy++)
+            {
+                gPl.SetHeightLevel(fx, fy, 1);
+                gPl.SetForest(fx, fy, false);
+            }
+
+            // Power plant at center-north of cluster
+            enginePl.PlaceTile(cx, cy - 3, ZoneType.CoalPlant);
+            // Power lines southward through cluster
+            for (var py = cy - 2; py <= cy + 2; py++)
+                enginePl.PlaceTile(cx, py, ZoneType.PowerLine);
+
+            // Road through the center (E-W)
+            for (var rx = cx - 3; rx <= cx + 3; rx++)
+                enginePl.PlaceTile(rx, cy, ZoneType.Road);
+
+            // Industrial tiles north and south of road
+            for (var ix = cx - 2; ix <= cx + 2; ix += 2)
+            {
+                enginePl.PlaceTile(ix, cy - 1, ZoneType.Industrial);
+                enginePl.PlaceTile(ix, cy + 1, ZoneType.Industrial);
+            }
+
+            // Run a few ticks to let industry develop before player starts
+            enginePl.PowerNetwork.Propagate(gPl);
+            enginePl.RoadNetwork.Propagate(gPl);
+            for (var t = 0; t < 20; t++) enginePl.Tick();
+
+            // Restore starting balance AFTER setup costs (factories are already running)
+            var plScenario = Loopolis.Core.Scenarios.ScenarioLibrary.Find("polluted_legacy");
+            if (plScenario != null)
+                budgetPl.SetBalance(plScenario.StartingBalance);
+            else
+                budgetPl.SetBalance(7_000);
+
+            enginePl.ActiveScenario = Loopolis.Core.Scenarios.ScenarioLibrary.Find("polluted_legacy");
+            Console.WriteLine($"[polluted_legacy] Pre-built industrial cluster at ({cx},{cy}), 20 warm-up ticks, balance reset to ${budgetPl.Balance:N0}");
+            return (gPl, enginePl);
+        }
+
+        case "green_city":
+        {
+            // 64×64 procedural terrain — no industrial zones allowed (enforced by scenario DisabledZones).
+            var seed = terrainSeed != 0 ? terrainSeed : 77;
+            var gGc = new CityGrid(64, 64);
+            var heightMapGc = Loopolis.Core.Grid.HeightMapGenerator.Generate(64, 64, seed);
+            var forestMapGc = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed);
+            gGc.ApplyHeightMap(heightMapGc);
+            gGc.ApplyForestMap(forestMapGc);
+            gGc.SetHeightLevel(32, 63, 1);
+            gGc.PlaceBorderConnection(32, 63);
+            gGc.SetHeightLevel(32, 62, 1); gGc.SetZone(32, 62, ZoneType.Road);
+            gGc.SetHeightLevel(32, 61, 1); gGc.SetZone(32, 61, ZoneType.Road);
+            gGc.SetHeightLevel(32, 60, 1); gGc.SetZone(32, 60, ZoneType.Road);
+            var budgetGc = new BudgetSystem(initialBalance: 6_000);
+            Console.WriteLine($"[green_city] Border connection at (32,63), starter spine, seed={seed}");
+            var engineGc = new SimulationEngine(gGc, budgetGc, population, power, roads, demand);
+            engineGc.SeedRoadGraphFromGrid();
+            engineGc.ActiveScenario = Loopolis.Core.Scenarios.ScenarioLibrary.Find("green_city");
+            return (gGc, engineGc);
+        }
+
+        case "service_first":
+        {
+            // 64×64 procedural terrain — no commercial zones allowed (enforced by scenario DisabledZones).
+            var seed = terrainSeed != 0 ? terrainSeed : 55;
+            var gSf = new CityGrid(64, 64);
+            var heightMapSf = Loopolis.Core.Grid.HeightMapGenerator.Generate(64, 64, seed);
+            var forestMapSf = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed);
+            gSf.ApplyHeightMap(heightMapSf);
+            gSf.ApplyForestMap(forestMapSf);
+            gSf.SetHeightLevel(32, 63, 1);
+            gSf.PlaceBorderConnection(32, 63);
+            gSf.SetHeightLevel(32, 62, 1); gSf.SetZone(32, 62, ZoneType.Road);
+            gSf.SetHeightLevel(32, 61, 1); gSf.SetZone(32, 61, ZoneType.Road);
+            gSf.SetHeightLevel(32, 60, 1); gSf.SetZone(32, 60, ZoneType.Road);
+            var budgetSf = new BudgetSystem(initialBalance: 5_000);
+            Console.WriteLine($"[service_first] Border connection at (32,63), starter spine, seed={seed}");
+            var engineSf = new SimulationEngine(gSf, budgetSf, population, power, roads, demand);
+            engineSf.SeedRoadGraphFromGrid();
+            engineSf.ActiveScenario = Loopolis.Core.Scenarios.ScenarioLibrary.Find("service_first");
+            return (gSf, engineSf);
+        }
+
         default:
             // Empty new-game start with a border connection road from the south edge.
             // Player must build their own infrastructure.
@@ -1765,7 +1878,9 @@ record ServerState(
     string? LastUpgradeResult = null,
     // Event response system — set when an event fires and player hasn't responded yet
     string? PendingEventType = null,
-    int PendingEventCost = 0);
+    int PendingEventCost = 0,
+    // Zone constraints from active scenario (null = all zones allowed)
+    List<string>? DisabledZones = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

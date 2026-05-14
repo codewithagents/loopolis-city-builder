@@ -359,7 +359,15 @@ public partial class World : Node2D
 
 		// Attach scenario to engine so ScenarioEngine.CheckCompletion runs per tick
 		if (scenario != null)
+		{
 			_engine.ActiveScenario = scenario;
+			// Grey out zones that are disabled by this scenario
+			_toolbar.UpdateDisabledZones(scenario.DisabledZones?.Select(z => z.ToString()).ToList());
+		}
+		else
+		{
+			_toolbar.UpdateDisabledZones(null);
+		}
 
 		// Reset scenario overlay tracking
 		_scenarioCompleteFired = false;
@@ -1309,6 +1317,16 @@ public partial class World : Node2D
 			if (viewerGrid == null) return;
 			if (tileX < 0 || tileX >= viewerGrid.Width || tileY < 0 || tileY >= viewerGrid.Height) return;
 
+			// Scenario zone restriction check (viewer mode — server enforces too, but block early)
+			if (selectedZone != "Erase" && _reader?.LastState?.DisabledZones != null)
+			{
+				if (_reader.LastState.DisabledZones.Contains(selectedZone))
+				{
+					_toastSystem.AddToast($"⛔ {selectedZone} zones are disabled in this scenario", new Color(1f, 0.5f, 0.2f), 3f);
+					return;
+				}
+			}
+
 			// Tile protection: skip if the tile is occupied and we are not erasing
 			if (selectedZone != "Erase")
 			{
@@ -1371,6 +1389,13 @@ public partial class World : Node2D
 			}
 			else
 			{
+				// Scenario zone restriction check (standalone mode)
+				if (System.Enum.TryParse<ZoneType>(selectedZone, out var checkZone) && !_engine.IsZoneAllowed(checkZone))
+				{
+					_toastSystem.AddToast($"⛔ {selectedZone} zones are disabled in this scenario", new Color(1f, 0.5f, 0.2f), 3f);
+					return;
+				}
+
 				var terrain = _grid.GetTerrain(tileX, tileY);
 				var placementCost = Loopolis.Core.Simulation.BudgetSystem.GetPlacementCost(selectedZone, terrain);
 				if (_budget != null && !_budget.CanAfford(placementCost))

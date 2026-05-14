@@ -140,6 +140,14 @@ public class BudgetSystem
     public void Charge(double cost) => Balance -= cost;
 
     /// <summary>
+    /// Directly sets the balance to an exact value.
+    /// Intended for scenario setup: after running warm-up ticks that burn through money,
+    /// reset the balance to the scenario's specified starting amount so the player
+    /// begins from the expected financial position.
+    /// </summary>
+    public void SetBalance(double amount) => Balance = amount;
+
+    /// <summary>
     /// Basic tax income — population × tax rate (no land value modifier).
     /// Used when no grid context is available or in tests that don't use land value.
     /// </summary>
