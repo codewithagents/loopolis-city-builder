@@ -41,6 +41,7 @@ public partial class World : Node2D
 	private TopBar _topBar = null!;
 	private ToastSystem _toastSystem = null!;
 	private Minimap _minimap = null!;
+	private AudioSystem _audio = null!;
 	private bool _viewerMode = false;
 	private string _sharedDir = "";
 	private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
@@ -154,6 +155,10 @@ public partial class World : Node2D
 		_minimap = new Minimap();
 		AddChild(_minimap);
 		_minimap.SetCamera(_camera);
+
+		// Audio system — procedural sound, zero external assets
+		_audio = new AudioSystem();
+		AddChild(_audio);
 
 		// Tutorial panel (guided 5-step tutorial)
 		_tutorialPanel = new TutorialPanel();
@@ -1068,7 +1073,10 @@ public partial class World : Node2D
 
 			// Road pulse: white-flash confirmation on newly placed road/avenue tiles
 			if (selectedZone is "Road" or "Avenue")
+			{
 				_renderer.PulseRoad(new Vector2I(tileX, tileY));
+				_audio.PlayRoadPlaced();
+			}
 		}
 		else
 		{
@@ -1111,7 +1119,10 @@ public partial class World : Node2D
 
 					// Road pulse: white-flash confirmation on newly placed road/avenue tiles
 					if (selectedZone is "Road" or "Avenue")
+					{
 						_renderer.PulseRoad(new Vector2I(tileX, tileY));
+						_audio.PlayRoadPlaced();
+					}
 				}
 			}
 			_renderer.Refresh(_grid);
@@ -1141,6 +1152,9 @@ public partial class World : Node2D
 	/// </summary>
 	private void FireBuildingBirthToasts(System.Collections.Generic.IEnumerable<string> typeIds, int currentTick)
 	{
+		// One chime per tick batch regardless of how many buildings spawned
+		_audio.PlayBuildingBorn();
+
 		// Count occurrences per typeId
 		var counts = new System.Collections.Generic.Dictionary<string, int>();
 		foreach (var id in typeIds)
@@ -1610,6 +1624,7 @@ public partial class World : Node2D
 		_renderer.SetFireTile(_engine.EventSystem.FireTileX, _engine.EventSystem.FireTileY);
 		_toolbar.UpdateMilestoneLocks(_population.Population);
 		UpdateEventLog(state, milestone);
+		_audio.SetAmbientLevel(Math.Clamp((float)state.Population / 5000f, 0f, 1f));
 
 		// ── Toast routing ──────────────────────────────────────────────────────
 
@@ -1666,7 +1681,10 @@ public partial class World : Node2D
 
 		// Milestone toast
 		if (!string.IsNullOrEmpty(milestone) && milestone != _lastLoggedMilestone)
+		{
 			_toastSystem.AddMilestone($"🏆 {milestone} reached!");
+			_audio.PlayMilestone();
+		}
 
 		// Event banner toast
 		if (!string.IsNullOrEmpty(state.LatestEventBanner) && state.LatestEventBanner != _lastLoggedBanner)
