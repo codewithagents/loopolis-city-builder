@@ -563,6 +563,20 @@ public partial class World : Node2D
 					_charterPanel = null;
 				}
 
+				// Charter choice panel (viewer mode) — Metropolis era
+				if (viewerStateCopy.MetropolisCharterPending && _charterPanel == null)
+				{
+					_charterPanel = new CharterChoicePanel();
+					_charterPanel.CharterSelected += OnCharterSelected;
+					AddChild(_charterPanel);
+					_charterPanel.ShowMetropolisCharters();
+				}
+				else if (!viewerStateCopy.MetropolisCharterPending && _charterPanel != null && _charterPanel.IsForMetropolisEra)
+				{
+					_charterPanel.QueueFree();
+					_charterPanel = null;
+				}
+
 				// Service fatigue advisory toast (throttled to once per 200 ticks)
 				FireServiceFatigueToastIfNeeded(viewerStateCopy);
 			}
@@ -799,6 +813,20 @@ public partial class World : Node2D
 				_charterPanel.ShowCityCharters();
 			}
 			else if (!_engine.Charters.CityCharterPending && _charterPanel != null && _charterPanel.IsForCityEra)
+			{
+				_charterPanel.QueueFree();
+				_charterPanel = null;
+			}
+
+			// Charter choice panel (standalone mode) — Metropolis era
+			if (_engine.Charters.MetropolisCharterPending && _charterPanel == null)
+			{
+				_charterPanel = new CharterChoicePanel();
+				_charterPanel.CharterSelected += OnCharterSelected;
+				AddChild(_charterPanel);
+				_charterPanel.ShowMetropolisCharters();
+			}
+			else if (!_engine.Charters.MetropolisCharterPending && _charterPanel != null && _charterPanel.IsForMetropolisEra)
 			{
 				_charterPanel.QueueFree();
 				_charterPanel = null;
@@ -1276,7 +1304,14 @@ public partial class World : Node2D
 										   : _engine.Charters.CityCharter.ToString(),
 			CityActiveCharterDescription: _engine.Charters.CityCharter == Loopolis.Core.Charters.CharterType.None
 										   ? null
-										   : Loopolis.Core.Charters.CharterLibrary.Find(_engine.Charters.CityCharter)?.Effect
+										   : Loopolis.Core.Charters.CharterLibrary.Find(_engine.Charters.CityCharter)?.Effect,
+			MetropolisCharterPending:          _engine.Charters.MetropolisCharterPending,
+			MetropolisActiveCharter:           _engine.Charters.MetropolisCharter == Loopolis.Core.Charters.CharterType.None
+											       ? null
+											       : _engine.Charters.MetropolisCharter.ToString(),
+			MetropolisActiveCharterDescription: _engine.Charters.MetropolisCharter == Loopolis.Core.Charters.CharterType.None
+											       ? null
+											       : Loopolis.Core.Charters.CharterLibrary.Find(_engine.Charters.MetropolisCharter)?.Effect
 		);
 		_lastState = state;
 		_hud.UpdateStats(state);

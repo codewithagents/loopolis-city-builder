@@ -293,10 +293,10 @@ public partial class World : Node2D
 	// ── Charter selection ─────────────────────────────────────────────────────
 
 	/// <summary>
-	/// Called when the player clicks a charter card in CharterChoicePanel (Town or City era).
-	/// Reads _charterPanel.IsForCityEra to route to the correct command / engine call.
-	/// Standalone: calls engine.Charters.SelectCharter() / SelectCityCharter() directly.
-	/// Viewer: writes a select_charter / select_city_charter IPC command to the server.
+	/// Called when the player clicks a charter card in CharterChoicePanel (Town, City, or Metropolis era).
+	/// Reads _charterPanel.IsForCityEra / IsForMetropolisEra to route to the correct command / engine call.
+	/// Standalone: calls engine.Charters.SelectCharter() / SelectCityCharter() / SelectMetropolisCharter().
+	/// Viewer: writes a select_charter / select_city_charter / select_metropolis_charter IPC command.
 	/// </summary>
 	private void OnCharterSelected(string charterKey)
 	{
@@ -308,17 +308,23 @@ public partial class World : Node2D
 			"InnovationHub"   => "Innovation Hub",
 			"GreenCanopy"     => "Green Canopy",
 			"TradeCorridors"  => "Trade Corridors",
+			"NexusCity"       => "Nexus City",
+			"GreenUtopia"     => "Green Utopia",
+			"EmpireOfSteel"   => "Empire of Steel",
 			_                 => charterKey,
 		};
 
-		var isCityEra = _charterPanel?.IsForCityEra ?? false;
+		var isMetropolisEra = _charterPanel?.IsForMetropolisEra ?? false;
+		var isCityEra       = _charterPanel?.IsForCityEra ?? false;
 
 		if (_viewerMode)
 		{
 			var sid = _reader?.SessionId;
 			if (sid != null)
 			{
-				var cmd = isCityEra ? "select_city_charter" : "select_charter";
+				var cmd = isMetropolisEra ? "select_metropolis_charter"
+				        : isCityEra       ? "select_city_charter"
+				        :                   "select_charter";
 				WriteCommand($"{{\"cmd\":\"{cmd}\",\"charter\":\"{charterKey}\",\"sessionId\":\"{sid}\"}}");
 			}
 		}
@@ -326,10 +332,9 @@ public partial class World : Node2D
 		{
 			if (_engine != null && Enum.TryParse<Loopolis.Core.Charters.CharterType>(charterKey, out var charterType))
 			{
-				if (isCityEra)
-					_engine.Charters.SelectCityCharter(charterType);
-				else
-					_engine.Charters.SelectCharter(charterType);
+				if      (isMetropolisEra) _engine.Charters.SelectMetropolisCharter(charterType);
+				else if (isCityEra)       _engine.Charters.SelectCityCharter(charterType);
+				else                      _engine.Charters.SelectCharter(charterType);
 			}
 		}
 

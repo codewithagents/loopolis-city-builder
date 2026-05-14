@@ -4,15 +4,17 @@ using System;
 namespace LoopolisGodot;
 
 /// <summary>
-/// Full-screen modal panel shown when a charter milestone is reached (Town or City era).
+/// Full-screen modal panel shown when a charter milestone is reached (Town, City, or Metropolis era).
 /// Forces the player to pick one of three era charters that permanently modify city growth.
 /// There is no cancel button — a charter must be chosen.
 ///
-/// Dual-mode: in viewer mode it writes a select_charter / select_city_charter IPC command;
-/// in standalone mode it calls engine.Charters.SelectCharter() / SelectCityCharter() directly.
+/// Dual-mode: in viewer mode it writes a select_charter / select_city_charter / select_metropolis_charter
+/// IPC command; in standalone mode it calls engine.Charters.SelectCharter() / SelectCityCharter() /
+/// SelectMetropolisCharter() directly.
 ///
-/// Dual-era: call Show() for Town era cards, ShowCityCharters() for City era cards.
-/// World.cs reads IsForCityEra after CharterSelected fires to route the command correctly.
+/// Three-era: call Show() for Town era cards, ShowCityCharters() for City era cards,
+/// ShowMetropolisCharters() for Metropolis era cards.
+/// World.cs checks IsForCityEra / IsForMetropolisEra after CharterSelected fires to route correctly.
 ///
 /// Layer 15 — above all other panels (GameOverPanel=13, ScenarioResult=14).
 /// </summary>
@@ -22,17 +24,25 @@ public partial class CharterChoicePanel : CanvasLayer
     /// <summary>
     /// Fired when the player clicks a charter card.
     /// Parameter: charter name string ("Merchant", "Industrial", "Civic",
-    ///            "InnovationHub", "GreenCanopy", "TradeCorridors").
-    /// World.cs checks IsForCityEra to decide which IPC command or engine call to make.
+    ///            "InnovationHub", "GreenCanopy", "TradeCorridors",
+    ///            "NexusCity", "GreenUtopia", "EmpireOfSteel").
+    /// World.cs checks IsForCityEra / IsForMetropolisEra to decide which IPC command or engine call to make.
     /// </summary>
     public event Action<string>? CharterSelected;
 
     /// <summary>
     /// True when the panel is showing City era charter cards.
-    /// False when showing Town era cards (the default).
+    /// False when showing Town or Metropolis era cards.
     /// Read by World.cs inside the CharterSelected handler to route correctly.
     /// </summary>
     public bool IsForCityEra { get; private set; }
+
+    /// <summary>
+    /// True when the panel is showing Metropolis era charter cards.
+    /// False when showing Town or City era cards.
+    /// Read by World.cs inside the CharterSelected handler to route correctly.
+    /// </summary>
+    public bool IsForMetropolisEra { get; private set; }
 
     // ── Town charter data (mirrors CharterLibrary.AllTownCharters) ─────────────
     private static readonly (string Key, string Title, string Body, string Effect, Color Border)[] TownCharterCards =
@@ -86,6 +96,32 @@ public partial class CharterChoicePanel : CanvasLayer
         ),
     };
 
+    // ── Metropolis charter data (mirrors CharterLibrary.AllMetropolisCharters) ─────
+    private static readonly (string Key, string Title, string Body, string Effect, Color Border)[] MetropolisCharterCards =
+    {
+        (
+            Key:    "NexusCity",
+            Title:  "Nexus City",
+            Body:   "Every district is connected. A web of services and infrastructure that no other city can match.",
+            Effect: "Service radius +5 · Residential capacity +30% · Tax revenue +8%",
+            Border: new Color(0.20f, 0.70f, 1.00f) // electric blue
+        ),
+        (
+            Key:    "GreenUtopia",
+            Title:  "Green Utopia",
+            Body:   "Industrial age is over. Your city runs on clean energy, parks, and clear skies.",
+            Effect: "Pollution impact ×0.1 · Park happiness ×3.0 · Park radius +3 tiles",
+            Border: new Color(0.10f, 0.90f, 0.45f) // vivid green
+        ),
+        (
+            Key:    "EmpireOfSteel",
+            Title:  "Empire of Steel",
+            Body:   "Your factories define the continent's economy. What your city makes, the world buys.",
+            Effect: "Industrial growth ×1.60 · +25 jobs per factory tile · Commercial growth ×1.30",
+            Border: new Color(0.80f, 0.25f, 0.15f) // forge red
+        ),
+    };
+
     // ── Layout constants ───────────────────────────────────────────────────────
     private const float CardW       = 220f;
     private const float CardH       = 220f;
@@ -113,8 +149,9 @@ public partial class CharterChoicePanel : CanvasLayer
     /// <summary>Show the Town era charter panel (resets and rebuilds).</summary>
     public new void Show()
     {
-        _charterChosen = false;
-        IsForCityEra   = false;
+        _charterChosen     = false;
+        IsForCityEra       = false;
+        IsForMetropolisEra = false;
         RebuildPanelContent(
             title:    "Your Town Has a Character",
             subtitle: "Choose a charter that defines your city forever.",
@@ -125,12 +162,26 @@ public partial class CharterChoicePanel : CanvasLayer
     /// <summary>Show the City era charter panel (resets and rebuilds with City cards).</summary>
     public void ShowCityCharters()
     {
-        _charterChosen = false;
-        IsForCityEra   = true;
+        _charterChosen     = false;
+        IsForCityEra       = true;
+        IsForMetropolisEra = false;
         RebuildPanelContent(
             title:    "Your City Has an Identity",
             subtitle: "Choose a charter that shapes your city's future.",
             cards:    CityCharterCards);
+        Visible = true;
+    }
+
+    /// <summary>Show the Metropolis era charter panel (resets and rebuilds).</summary>
+    public void ShowMetropolisCharters()
+    {
+        _charterChosen     = false;
+        IsForCityEra       = false;
+        IsForMetropolisEra = true;
+        RebuildPanelContent(
+            title:    "Your Metropolis Has a Legacy",
+            subtitle: "Choose the charter that will define your city for history.",
+            cards:    MetropolisCharterCards);
         Visible = true;
     }
 

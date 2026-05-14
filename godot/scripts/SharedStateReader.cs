@@ -524,6 +524,10 @@ public record SharedState(
     bool CityCharterPending = false,
     string? CityActiveCharter = null,
     string? CityActiveCharterDescription = null,
+    // Charter system (Metropolis era)
+    bool MetropolisCharterPending = false,
+    string? MetropolisActiveCharter = null,
+    string? MetropolisActiveCharterDescription = null,
     // Service fatigue (City+ milestone)
     bool ServiceFatigueActive = false,
     ServiceFatigueEntry[]? DegradedServices = null
