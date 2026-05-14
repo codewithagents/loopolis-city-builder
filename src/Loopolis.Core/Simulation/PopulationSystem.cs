@@ -155,13 +155,23 @@ public class PopulationSystem
                 double commercialGrowthRate = CommercialBaseGrowthRate * (adjacentResidential / 100.0);
                 commercialGrowthRate = Math.Clamp(commercialGrowthRate, CommercialMinGrowthRate, CommercialMaxGrowthRate);
                 var rawGrowth = commercialGrowthRate * (ActivityCapacity - current);
-                // Guarantee at least 1 unit of progress when there is room to grow
-                var growth = current < ActivityCapacity ? Math.Max(1, (int)rawGrowth) : 0;
-                var newPop = Math.Min(ActivityCapacity, current + growth);
-
-                // Slow decline when no residents nearby
-                if (adjacentResidential < CommercialDeclineThreshold && current > 0)
+                int newPop;
+                if (current < ActivityCapacity)
+                {
+                    // Growing: guarantee at least 1 unit of progress
+                    var growth = Math.Max(1, (int)rawGrowth);
+                    newPop = Math.Min(ActivityCapacity, current + growth);
+                }
+                else if (adjacentResidential < CommercialDeclineThreshold && current > 0)
+                {
+                    // At capacity with no nearby residents: slow decline
+                    // This branch is mutually exclusive with growth — cannot overwrite a positive growth step
                     newPop = Math.Max(0, (int)(current - CommercialDeclineRate * current));
+                }
+                else
+                {
+                    newPop = current; // at capacity with customers — hold steady
+                }
 
                 if (newPop != current)
                     grid.SetPopulation(tile.X, tile.Y, newPop);

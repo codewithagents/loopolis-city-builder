@@ -207,6 +207,47 @@ public class PopulationSystemTests
     }
 
     [Test]
+    public void Commercial_GrowsWithoutAdjacentResidents_AtMinimumRate()
+    {
+        // Regression: decline check was overwriting growth when adjacentResidential < 5.
+        // Commercial tiles with no residential neighbours were stuck oscillating at 0-1 activity.
+        // Fix: decline is only applied as else-if, never overwriting a positive growth step.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Commercial);
+        grid.SetPower(5, 5, true);
+        grid.SetRoadAccess(5, 5, true);
+        grid.SetBuildingId(5, 5, "test");
+        // No residential neighbours at all
+
+        for (var i = 0; i < 60; i++) _pop.Tick(grid);
+
+        Assert.That(grid.GetTile(5, 5).Population, Is.GreaterThanOrEqualTo(40),
+            "Commercial must grow to near-capacity at minimum rate even without residential neighbours");
+    }
+
+    [Test]
+    public void Commercial_DeclineDoesNotOverwriteGrowth_WhenResidentialBelowThreshold()
+    {
+        // Regression: the old if-then-overwrite pattern meant that any time
+        // adjacentResidential < 5, the decline branch ran AFTER the growth branch,
+        // resetting newPop back to current*(1-0.02) and erasing the growth.
+        var grid = new CityGrid(10, 10);
+        grid.SetZone(5, 5, ZoneType.Commercial);
+        grid.SetPower(5, 5, true);
+        grid.SetRoadAccess(5, 5, true);
+        grid.SetBuildingId(5, 5, "test");
+        grid.SetPopulation(5, 5, 10); // pre-seeded activity
+
+        // One tick with no adjacent residents (adjacentResidential = 0 < threshold 5)
+        _pop.Tick(grid);
+
+        // With the fix: growth runs (current < capacity), so pop should increase
+        // With the bug: decline overwrites growth, pop drops from 10 to 9
+        Assert.That(grid.GetTile(5, 5).Population, Is.GreaterThan(10),
+            "Commercial with existing activity must grow even when no adjacent residential (<threshold)");
+    }
+
+    [Test]
     public void Industrial_GrowsWithPowerAndRoad()
     {
         var grid = new CityGrid(10, 10);

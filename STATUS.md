@@ -60,7 +60,9 @@
 | Park zone (ZoneType.Park) | ✅ Done | 11 new (ParkSystemTests) |
 | IsActiveBrownout (brownout Tier-1 fix) | ✅ Done | 4 new (PowerCapacitySystemTests) |
 
-**Total: 504 tests · 0 failures · ~0.71s runtime**
+| BuildingCatalog terrain-conditional industrial | ✅ Done | 6 new (TerrainConditionalIndustrialTests) |
+
+**Total: 512 tests · 0 failures · ~0.70s runtime**
 
 ---
 
@@ -145,6 +147,7 @@
 | 2026-05-11 | default | Traffic system: 2 road tiles, avg load = 4.0 (8 zone tiles / 2 roads), neither overloaded (threshold 8). System is dormant on light grids as designed — only activates at 9+ zone tiles per road. Avenue threshold of 16 gives meaningful upgrade path. | Working correctly |
 | 2026-05-11 | default + services | M8 service tiers: PoliceHQ/FireHQ radius-10 confirmed, Hospital event penalty halving confirmed in tests. default survives 500t (+$2.24/tick), services bankrupt as pre-existing (layout issue). All 245 tests green. | Working correctly |
 | 2026-05-11 | default | M8 Phase 2 power variants: CoalPlant/NuclearPlant added. Legacy PowerPlant tiles continue to work (alias). default scenario: 500 ticks, pop 102, balance +$4,989, +$2.24/tick. PowerCapacitySystem: 500 MW supply / 19 MW demand = ratio 26x, no brownout. Legacy PowerPlant now emits pollution at 0.4 strength (avg 0.068 on default grid). Brownout correctly triggers when 102 industrial tiles (510 MW) exceed 1 coal plant (500 MW). NuclearPlant correctly blocked below 500 pop. All 272 tests green. | Working correctly |
+| 2026-05-14 | powered_start | BUG: Commercial zones never grew — C tiles stuck oscillating at 0-1 activity forever. Root cause: decline check in PopulationSystem (line 163) was a plain `if`, not `else if`. It ran unconditionally AFTER the growth branch, overwriting newPop with current*(1-0.02). For current=1, adj=0: growth set newPop=2, decline overwrote to 0. Oscillated 0→1→0 each tick pair. Fix: changed growth/decline to if/else-if so they are mutually exclusive. Commercial now grows to capacity in ~50 ticks at minimum rate. 2 regression tests added. 506 tests green. | Fixed — `if` → `else if` in commercial growth branch |
 
 ---
 
@@ -217,4 +220,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-12 | cottage_start | Balance fixes: GrowthRate 0.05→0.07 (+40%), IndustrialGrowthRate 0.025→0.05 (2×). cottage_start scenario (7R + road + 7C, no power): pop=105 at tick 500 (all cottages at 15 pop cap). AverageNeglect metric added to HappinessSystem and exposed in happinessBreakdown JSON. 4 new tests. 489 total. | — |
 | 2026-05-12 | city_path | Park tiles: park at (11,13) near residential center. city_path happiness=0.901 (up from ~0.863 — park bonus confirmed). cottage_start runs 500 ticks cleanly (no brownout pause with supply=0). IsActiveBrownout guards early-game: false when no plant. 15 new tests. 504 total. | — |
 
-*Last updated: 2026-05-12 — park tiles (ZoneType.Park), IsActiveBrownout brownout guard, 504 tests*
+| 2026-05-14 | mixed | Terrain-conditional industrial: existing flat scenarios fully unaffected (warehouses still form). New ind_mill_2x2 / ind_quarry_2x2 verified in unit tests. PollutionStrength per-building type confirmed: mill source tile 0.55, quarry 1.65, warehouse 1.0. No per-scenario observable change because all named scenarios use SetFlatTerrain(). New types only activate when players place industrial on forest/elevated terrain in live play. 512 tests green. | — |
+
+*Last updated: 2026-05-14 — terrain-conditional industrial buildings (Timber Mill, Quarry), PollutionStrength per building type, 512 tests*
