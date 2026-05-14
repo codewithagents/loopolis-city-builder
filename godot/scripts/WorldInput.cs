@@ -549,11 +549,25 @@ public partial class World : Node2D
 				if (System.Enum.TryParse<ZoneType>(selectedZone, out var zoneType))
 				{
 					_budget?.Charge(placementCost);
+
+					// Score BEFORE placing (tile must still be Empty for the scorer to accept it)
+					var placementScore = Loopolis.Core.Simulation.PlacementScorer.Score(_grid, tileX, tileY, zoneType);
+
 					_grid.SetZone(tileX, tileY, zoneType);
 					// Immediately re-propagate road network so tooltips reflect current state
 					// even when the simulation is paused (e.g. build mode).
 					_engine.RoadNetwork.Propagate(_grid);
 					Log($"[T:{_standaloneTick}] Placed {selectedZone} at ({tileX},{tileY})");
+
+					// Floating placement-score label — drifts upward and fades (standalone only)
+					if (placementScore != null)
+					{
+						var worldPos = new Vector2(
+							tileX * TilemapRenderer.TileSize + TilemapRenderer.TileSize * 0.5f,
+							tileY * TilemapRenderer.TileSize);
+						var feedback = PlacementFeedback.Create(worldPos, placementScore.PrimaryLabel, placementScore.SecondaryLabel);
+						_renderer.AddChild(feedback);
+					}
 
 					// Ripple on road/power placement
 					if (selectedZone is "Road" or "Avenue" or "PowerPlant" or "CoalPlant" or "NuclearPlant")
