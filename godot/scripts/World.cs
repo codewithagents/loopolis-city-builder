@@ -103,6 +103,9 @@ public partial class World : Node2D
 	// Event response panel
 	private EventResponsePanel _eventResponsePanel = null!;
 
+	// Charter choice panel — shown once when Town milestone fires
+	private CharterChoicePanel? _charterPanel;
+
 	// Building info panel — click any building to inspect it
 	private BuildingInfoPanel _buildingInfoPanel = null!;
 
@@ -232,6 +235,9 @@ public partial class World : Node2D
 		_eventResponsePanel = new EventResponsePanel();
 		_eventResponsePanel.InterveneRequested += OnEventInterveneRequested;
 		AddChild(_eventResponsePanel);
+
+		// Charter choice panel (layer 15 — shown once at Town milestone; created on demand)
+		// Instantiated lazily in _Process when TownCharterPending first becomes true.
 
 		// Building info panel (layer 12 — floats near the clicked building)
 		_buildingInfoPanel = new BuildingInfoPanel();
@@ -503,6 +509,21 @@ public partial class World : Node2D
 					_lastShownEventType = null;
 					_eventResponsePanel.Hide();
 				}
+
+				// Charter choice panel (viewer mode)
+				if (viewerStateCopy.TownCharterPending && _charterPanel == null)
+				{
+					_charterPanel = new CharterChoicePanel();
+					_charterPanel.CharterSelected += OnCharterSelected;
+					AddChild(_charterPanel);
+					_charterPanel.Show();
+				}
+				else if (!viewerStateCopy.TownCharterPending && _charterPanel != null)
+				{
+					// Charter chosen (possibly from another client or the server auto-selected)
+					_charterPanel.QueueFree();
+					_charterPanel = null;
+				}
 			}
 
 			return;
@@ -695,6 +716,20 @@ public partial class World : Node2D
 					population:   _population!.Population,
 					targetPop:    _engine.ActiveScenario.Goal.TargetPopulation,
 					activeScenarioId: _engine.ActiveScenario.Id);
+			}
+
+			// Charter choice panel (standalone mode) — show once when Town milestone reached
+			if (_engine.Charters.TownCharterPending && _charterPanel == null)
+			{
+				_charterPanel = new CharterChoicePanel();
+				_charterPanel.CharterSelected += OnCharterSelected;
+				AddChild(_charterPanel);
+				_charterPanel.Show();
+			}
+			else if (!_engine.Charters.TownCharterPending && _charterPanel != null)
+			{
+				_charterPanel.QueueFree();
+				_charterPanel = null;
 			}
 		}
 	}
@@ -1155,7 +1190,14 @@ public partial class World : Node2D
 			PolicyIndustrialHub:       _engine.PolicySystem.IsActive(PolicyType.IndustrialHub),
 			PolicyCommercialBoost:     _engine.PolicySystem.IsActive(PolicyType.CommercialBoost),
 			PolicyOpenCity:            _engine.PolicySystem.IsActive(PolicyType.OpenCity),
-			PolicyTotalCostPerTick:    _engine.PolicySystem.GetCostPerTick()
+			PolicyTotalCostPerTick:    _engine.PolicySystem.GetCostPerTick(),
+			TownCharterPending:        _engine.Charters.TownCharterPending,
+			ActiveCharter:             _engine.Charters.ActiveCharter == Loopolis.Core.Charters.CharterType.None
+			                               ? null
+			                               : _engine.Charters.ActiveCharter.ToString(),
+			ActiveCharterDescription:  _engine.Charters.ActiveCharter == Loopolis.Core.Charters.CharterType.None
+			                               ? null
+			                               : Loopolis.Core.Charters.CharterLibrary.Find(_engine.Charters.ActiveCharter)?.Effect
 		);
 		_lastState = state;
 		_hud.UpdateStats(state);

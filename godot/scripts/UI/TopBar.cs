@@ -24,6 +24,7 @@ public partial class TopBar : CanvasLayer
     private Label _tickLabel      = null!;
     private Label _policyLabel    = null!;
     private Label _petitionLabel  = null!;
+    private Label _charterLabel   = null!;
 
     // ── Pause / build-mode banner ──────────────────────────────────────────
     private PanelContainer _pauseBanner = null!;
@@ -163,6 +164,7 @@ public partial class TopBar : CanvasLayer
         _tickLabel      = MakeLabel("T:0");
         _policyLabel    = MakeLabel("");
         _petitionLabel  = MakeLabel("");
+        _charterLabel   = MakeLabel("");
 
         // Balance — left aligned
         _balanceLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -208,6 +210,15 @@ public partial class TopBar : CanvasLayer
         _petitionLabel.TooltipText = "Active petitions — press I to view";
         _petitionLabel.Visible = false;
         hbox.AddChild(_petitionLabel);
+
+        AddSep(hbox);
+
+        // Active charter badge — only visible when a charter has been chosen
+        _charterLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+        _charterLabel.AddThemeColorOverride("font_color", new Color(0.90f, 0.78f, 0.40f)); // muted gold
+        _charterLabel.TooltipText = "Active era charter";
+        _charterLabel.Visible = false;
+        hbox.AddChild(_charterLabel);
 
         AddSep(hbox);
 
@@ -380,6 +391,24 @@ public partial class TopBar : CanvasLayer
         else
         {
             _petitionLabel.Visible = false;
+        }
+
+        // Charter badge — shown once a charter is active
+        if (!string.IsNullOrEmpty(state.ActiveCharter))
+        {
+            _charterLabel.Visible = true;
+            var charterPrefix = state.ActiveCharter switch
+            {
+                "Merchant"   => "[M]",
+                "Industrial" => "[I]",
+                "Civic"      => "[C]",
+                _            => "[?]",
+            };
+            _charterLabel.Text = $"Charter: {charterPrefix} {state.ActiveCharter}";
+        }
+        else
+        {
+            _charterLabel.Visible = false;
         }
 
         // ── Scenario strip ─────────────────────────────────────────────────────

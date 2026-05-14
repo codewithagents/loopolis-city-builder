@@ -511,7 +511,11 @@ public record SharedState(
     // Petition inbox fields (from PetitionSystem)
     PetitionEntry[]? ActivePetitions = null,
     string[]? NewPetitionThisTick = null,
-    string[]? ResolvedPetitionThisTick = null
+    string[]? ResolvedPetitionThisTick = null,
+    // Charter system (Town era)
+    bool TownCharterPending = false,
+    string? ActiveCharter = null,
+    string? ActiveCharterDescription = null
 )
 {
     /// <summary>

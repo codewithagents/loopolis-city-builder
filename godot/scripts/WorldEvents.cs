@@ -285,6 +285,41 @@ public partial class World : Node2D
 		return $"+{name}{exclaim}";
 	}
 
+	// ── Charter selection ─────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Called when the player clicks a charter card in CharterChoicePanel.
+	/// Standalone: calls engine.Charters.SelectCharter() directly.
+	/// Viewer: writes a select_charter IPC command to the server.
+	/// </summary>
+	private void OnCharterSelected(string charterKey)
+	{
+		var friendlyName = charterKey switch
+		{
+			"Merchant"   => "Merchant Charter",
+			"Industrial" => "Industrial Charter",
+			"Civic"      => "Civic Charter",
+			_            => charterKey,
+		};
+
+		if (_viewerMode)
+		{
+			var sid = _reader?.SessionId;
+			if (sid != null)
+				WriteCommand($"{{\"cmd\":\"select_charter\",\"charter\":\"{charterKey}\",\"sessionId\":\"{sid}\"}}");
+		}
+		else
+		{
+			if (_engine != null && Enum.TryParse<Loopolis.Core.Charters.CharterType>(charterKey, out var charterType))
+				_engine.Charters.SelectCharter(charterType);
+		}
+
+		_toastSystem?.AddMilestone($"Charter chosen: {friendlyName}");
+		_audio?.PlayMilestone();
+
+		// Panel hides itself on click; World._Process will QueueFree it next tick
+	}
+
 	// ── Petition toasts ────────────────────────────────────────────────────────
 
 	/// <summary>
