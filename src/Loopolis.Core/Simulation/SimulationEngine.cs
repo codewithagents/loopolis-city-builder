@@ -273,4 +273,29 @@ public class SimulationEngine
 
         TickCount++;
     }
+
+    // ── Manual upgrade ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Result of a manual upgrade attempt.
+    /// </summary>
+    public record ManualUpgradeResult(bool Success, string? Reason, string? NewBuildingTypeId, int? Cost);
+
+    /// <summary>
+    /// Let the player spend money to force a building tier-up before it reaches 80% capacity.
+    /// Looks up the building at (x, y), validates funds and conditions, then delegates to
+    /// <see cref="ManualUpgradeSystem.TryUpgrade"/>.
+    /// </summary>
+    public ManualUpgradeResult ManualUpgrade(int x, int y)
+    {
+        var tile = Grid.GetTile(x, y);
+        if (tile?.BuildingId == null) return new(false, "No building here", null, null);
+        if (!Grid.Buildings.TryGetValue(tile.BuildingId, out var rec))
+            return new(false, "Building not found", null, null);
+
+        var cost = ManualUpgradeSystem.GetUpgradeCost(rec.TypeId);
+        var (success, reason, newTypeId) = ManualUpgradeSystem.TryUpgrade(
+            Grid, x, y, Budget, MilestoneSystem);
+        return new(success, reason, newTypeId, success ? cost : null);
+    }
 }

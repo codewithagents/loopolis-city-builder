@@ -128,6 +128,7 @@ static void RunServer(string scenario, double initialSpeed, int terrainSeed = 0)
     var pauseOnEvent     = true;
     var skipPauseReason  = (string?)null;
     var recentEvents     = new List<string>();
+    var lastUpgradeResult = (string?)null;  // "ok:newTypeId:-cost" or "err:reason"
 
     WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents);
     Console.WriteLine($"[server] Started. Scenario: {scenario}, Speed: {speed} t/s, Session: {sessionId}");
@@ -140,14 +141,15 @@ static void RunServer(string scenario, double initialSpeed, int terrainSeed = 0)
         {
             // 1. Read command
             var pausedBefore = paused;
+            lastUpgradeResult = null;  // clear each iteration; set by ProcessCommand on manual_upgrade
             ProcessCommand(commandFile, sharedDir, tmpPath, stateFile, ref paused, ref speed,
                 ref skipRemaining, ref skipRequested, ref pauseAfterSkip, ref pauseOnEvent,
-                ref grid, ref engine, sessionId, recentEvents);
+                ref grid, ref engine, sessionId, recentEvents, ref lastUpgradeResult);
             // grid/engine may have been replaced by new_game — use current references below
 
             // If the game was just paused, immediately flush state so state.json reflects Paused: true
             if (!pausedBefore && paused)
-                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents);
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents, lastUpgradeResult: lastUpgradeResult);
 
             // 2. Tick (or skip, or wait)
             if (skipRemaining > 0)
@@ -205,7 +207,7 @@ static void RunServer(string scenario, double initialSpeed, int terrainSeed = 0)
             else if (!paused)
             {
                 engine.Tick();
-                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents);
+                WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents, lastUpgradeResult: lastUpgradeResult);
                 var milestone = engine.MilestoneSystem.LatestMilestone;
                 var milestoneTag = milestone != null ? $" [{milestone.Name} {milestone.Emoji}]" : "";
                 Console.WriteLine(
@@ -218,7 +220,11 @@ static void RunServer(string scenario, double initialSpeed, int terrainSeed = 0)
             }
             else
             {
-                // Paused — poll for commands at 20 Hz
+                // Paused — poll for commands at 20 Hz.
+                // If a manual_upgrade was just processed while paused, flush state immediately
+                // so the result is visible to the Godot client.
+                if (lastUpgradeResult != null)
+                    WriteState(tmpPath, stateFile, engine, grid, paused, sessionId, pauseReason: null, ticksRun: null, recentEvents: recentEvents, lastUpgradeResult: lastUpgradeResult);
                 Thread.Sleep(50);
             }
         }
@@ -433,7 +439,8 @@ static void ProcessCommand(
     ref CityGrid grid,
     ref SimulationEngine engine,
     string sessionId,
-    List<string> recentEvents)
+    List<string> recentEvents,
+    ref string? lastUpgradeResult)
 {
     string json;
     try
@@ -740,6 +747,35 @@ static void ProcessCommand(
                 }
                 break;
 
+            case "manual_upgrade":
+                if (root.TryGetProperty("x", out var muXProp) &&
+                    root.TryGetProperty("y", out var muYProp))
+                {
+                    var muX = muXProp.GetInt32();
+                    var muY = muYProp.GetInt32();
+                    if (!grid.IsInBounds(muX, muY))
+                    {
+                        var errMsg = $"manual_upgrade out of bounds: ({muX},{muY})";
+                        Console.WriteLine($"[manual_upgrade] {errMsg}");
+                        lastUpgradeResult = $"err:{errMsg}";
+                        break;
+                    }
+                    var upgradeResult = engine.ManualUpgrade(muX, muY);
+                    if (upgradeResult.Success)
+                    {
+                        lastUpgradeResult = $"ok:{upgradeResult.NewBuildingTypeId}:-{upgradeResult.Cost}";
+                        Console.WriteLine(
+                            $"[manual_upgrade] ({muX},{muY}) → {upgradeResult.NewBuildingTypeId} " +
+                            $"(cost: ${upgradeResult.Cost:N0}, balance: ${engine.Budget.Balance:N0})");
+                    }
+                    else
+                    {
+                        lastUpgradeResult = $"err:{upgradeResult.Reason}";
+                        Console.WriteLine($"[manual_upgrade] failed at ({muX},{muY}): {upgradeResult.Reason}");
+                    }
+                }
+                break;
+
             default:
                 Console.WriteLine($"[command] Unknown: {cmd}");
                 break;
@@ -773,7 +809,8 @@ static void WriteState(
     int? ticksRun = null,
     List<string>? recentEvents = null,
     string? error = null,
-    string? lastCommand = null)
+    string? lastCommand = null,
+    string? lastUpgradeResult = null)
 {
     // Build a lookup from buildingId → typeId for tile population
     var buildingTypeLookup = grid.Buildings.ToDictionary(
@@ -1087,7 +1124,8 @@ static void WriteState(
         PolicyIndustrialHub:       engine.PolicySystem.IsActive(PolicyType.IndustrialHub),
         PolicyCommercialBoost:     engine.PolicySystem.IsActive(PolicyType.CommercialBoost),
         PolicyOpenCity:            engine.PolicySystem.IsActive(PolicyType.OpenCity),
-        PolicyTotalCostPerTick:    engine.PolicySystem.GetCostPerTick()
+        PolicyTotalCostPerTick:    engine.PolicySystem.GetCostPerTick(),
+        LastUpgradeResult:         lastUpgradeResult
     );
 
     var options = new JsonSerializerOptions
@@ -1710,7 +1748,9 @@ record ServerState(
     bool PolicyIndustrialHub = false,
     bool PolicyCommercialBoost = false,
     bool PolicyOpenCity = false,
-    int PolicyTotalCostPerTick = 0);
+    int PolicyTotalCostPerTick = 0,
+    // Manual upgrade result: "ok:newTypeId:-cost" or "err:reason" — null when no upgrade was attempted
+    string? LastUpgradeResult = null);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 
