@@ -74,8 +74,9 @@
 
 | M11-P1 PetitionSystem (DistrictNamer + PetitionSystem + wiring) | ✅ Done | 27 new (PetitionSystemTests) |
 | M11-P2 CharterSystem (Town era: Merchant/Industrial/Civic) | ✅ Done | 33 new (CharterSystemTests) |
+| M11-P3 ServiceFatigueSystem (service fatigue rule 1) | ✅ Done | 24 new (ServiceFatigueSystemTests) |
 
-**Total: 782 tests · 0 failures · ~6s runtime**
+**Total: 806 tests · 0 failures · ~6s runtime**
 
 ---
 
@@ -250,4 +251,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | powered_start | CharterSystem: 500-tick powered_start run — pop=2400, balance=$96,698, GameState=Town. TownCharterPending correctly fires when Town milestone is reached. Merchant charter: +30% commercial growth confirmed via 1-tick integration test (activity=25 vs control=24 at starting pop=23 with adjacentResidential=150). Industrial charter: +35% industrial growth + 10 bonus jobs confirmed. Civic charter: +3 service radius + 2× park happiness confirmed via unit tests. select_charter IPC command wired. state.json gains townCharterPending, activeCharter, activeCharterDescription fields. | Working correctly |
 
-*Last updated: 2026-05-14 — M11-P2 CharterSystem implemented, 782 tests*
+| 2026-05-14 | city_path + powered_start | ServiceFatigueSystem: city_path (Active, pop=357) and powered_start (Town, pop=2400) both ran 500 ticks with zero regression — fatigue dormant as designed below City milestone. Decay confirmed at 0.002/tick in unit tests. 300-tick integration test: capacity reaches 0.40 (clamped minimum), NeedsRenovation=true. | Working correctly |
+
+*Last updated: 2026-05-14 — M11-P3 ServiceFatigueSystem implemented, 806 tests*
