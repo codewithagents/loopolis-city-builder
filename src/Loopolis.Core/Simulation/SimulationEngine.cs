@@ -268,12 +268,12 @@ public class SimulationEngine
             EraseTile(EventSystem.FireTileX, EventSystem.FireTileY);
         }
         HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph, PolicySystem.HappinessBonusFromPolicy,
-            Charters.ServiceCoverageRadiusBonus + Charters.MetropolisServiceRadiusBonus,
-            Charters.ParkHappinessMultiplier * Charters.MetropolisParkHappinessMultiplier,
-            pollutionMultiplier: Charters.CityPollutionMultiplier * Charters.MetropolisPollutionMultiplier,
-            parkRadiusBonus: Charters.CityParkRadiusBonus + Charters.MetropolisParkRadiusBonus);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus + charter bonuses
+            Charters.EffectiveServiceCoverageRadiusBonus,
+            Charters.EffectiveParkHappinessMultiplier,
+            pollutionMultiplier: Charters.EffectivePollutionMultiplier,
+            parkRadiusBonus: Charters.EffectiveParkRadiusBonus);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus + charter bonuses
         LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph, ServiceFatigue);  // capacity-aware service coverage snapshot (fatigue-adjusted)
-        LandValueSystem.Propagate(Grid, Charters.LandValueBonus + Charters.CityLandValueBonus);  // land value after happiness is computed
+        LandValueSystem.Propagate(Grid, Charters.EffectiveLandValueBonus);  // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition
         var avgHappiness = HappinessSystem.AverageHappiness(Grid);
@@ -307,46 +307,23 @@ public class SimulationEngine
                 LastNewBuildingTypeIds.Add(kvp.Value.TypeId);
         }
         // Combine policy + charter job bonus (additive stacking)
-        var totalJobsBonus = PolicySystem.JobsPerIndustrialTileBonus + Charters.JobsPerTileBonus + Charters.MetropolisJobsPerTileBonus;
+        var totalJobsBonus = PolicySystem.JobsPerIndustrialTileBonus + Charters.EffectiveJobsPerTileBonus;
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population, totalJobsBonus);
 
         // Combine policy + charter growth multipliers (multiplicative stacking)
-        var industrialGrowthMult = PolicySystem.IndustrialGrowthMultiplier * Charters.IndustrialGrowthMultiplier * Charters.MetropolisIndustrialGrowthMultiplier;
-        var commercialGrowthMult = PolicySystem.CommercialGrowthMultiplier * Charters.CommercialGrowthMultiplier * Charters.CityCommercialGrowthMultiplier * Charters.MetropolisCommercialGrowthMultiplier;
+        var industrialGrowthMult = PolicySystem.IndustrialGrowthMultiplier * Charters.EffectiveIndustrialGrowthMultiplier;
+        var commercialGrowthMult = PolicySystem.CommercialGrowthMultiplier * Charters.EffectiveCommercialGrowthMultiplier;
 
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph,
-            industrialGrowthMult, commercialGrowthMult, PolicySystem.ResidentialCapacityBonus + Charters.CityResidentialCapacityBonus + Charters.MetropolisResidentialCapacityBonus);
+            industrialGrowthMult, commercialGrowthMult, PolicySystem.ResidentialCapacityBonus + Charters.EffectiveResidentialCapacityBonus);
         Budget.SetPopulation(Population.Population);
-        Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier + Charters.CityTaxRateModifier + Charters.MetropolisTaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
+        Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier + Charters.EffectiveTaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
         Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
         PolicySystem.Tick(Budget);  // deduct active policy costs after maintenance
         MilestoneSystem.Check(Population.Population, Budget.Balance, Budget.NetIncomePerTick, TickCount);
 
-        // Charter notification: when the city just reached Town for the first time, prompt charter selection
-        if (_previousMilestoneState != GameState.Town
-            && MilestoneSystem.CurrentState == GameState.Town
-            && !MilestoneSystem.IsOver)
-        {
-            Charters.NotifyTownMilestone();
-        }
-
-        // Charter notification: when the city just reached City milestone for the first time, prompt city charter selection
-        if (_previousMilestoneState == GameState.Town
-            && MilestoneSystem.CurrentState is GameState.City or GameState.Metropolis or GameState.Loopolis
-            && !MilestoneSystem.IsOver)
-        {
-            Charters.NotifyCityMilestone();
-        }
-
-        // Charter notification: when the city just reached Metropolis milestone for the first time, prompt metropolis charter selection
-        if (_previousMilestoneState == GameState.City
-            && MilestoneSystem.CurrentState is GameState.Metropolis or GameState.Loopolis
-            && !MilestoneSystem.IsOver)
-        {
-            Charters.NotifyMetropolisMilestone();
-        }
-
+        NotifyCharterMilestonesIfNeeded();
         _previousMilestoneState = MilestoneSystem.CurrentState;
 
         // Service fatigue: decay service building capacity post-City milestone
@@ -448,6 +425,35 @@ public class SimulationEngine
             NextMilestoneThreshold: threshold,
             NextMilestoneName:     name
         );
+    }
+
+    // ── Charter milestone notifications ────────────────────────────────────
+
+    private void NotifyCharterMilestonesIfNeeded()
+    {
+        // When the city just reached Town for the first time, prompt charter selection
+        if (_previousMilestoneState != GameState.Town
+            && MilestoneSystem.CurrentState == GameState.Town
+            && !MilestoneSystem.IsOver)
+        {
+            Charters.NotifyTownMilestone();
+        }
+
+        // When the city just reached City milestone for the first time, prompt city charter selection
+        if (_previousMilestoneState is GameState.Active or GameState.Town
+            && MilestoneSystem.CurrentState is GameState.City or GameState.Metropolis or GameState.Loopolis
+            && !MilestoneSystem.IsOver)
+        {
+            Charters.NotifyCityMilestone();
+        }
+
+        // When the city just reached Metropolis milestone for the first time, prompt metropolis charter selection
+        if (_previousMilestoneState == GameState.City
+            && MilestoneSystem.CurrentState is GameState.Metropolis or GameState.Loopolis
+            && !MilestoneSystem.IsOver)
+        {
+            Charters.NotifyMetropolisMilestone();
+        }
     }
 
     // ── Service renovation ──────────────────────────────────────────────────

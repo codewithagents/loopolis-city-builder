@@ -13,7 +13,6 @@ public record CityEvent(CityEventType Type, string Name, string Description, int
 public record PendingEventResponse(
     string EventType,   // "FireBreak", "CrimeWave", "PowerOutage", "DemandSlump"
     int Cost,           // $ cost of the Intervene option
-    int TickFired,      // when this event fired
     bool Responded      // true once the player has chosen to intervene
 );
 
@@ -146,24 +145,17 @@ public class EventSystem
         if (population < 200)
         {
             // Small cities only get fire/crime events (teaches player early services)
-            if (!hasFireStation && !hasPoliceStation)
-                type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
-            else if (!hasFireStation)
-                type = CityEventType.FireBreak;
-            else if (!hasPoliceStation)
-                type = CityEventType.CrimeWave;
-            else
-                type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
+            type = PickUncoveredServiceEvent(hasFireStation, hasPoliceStation)
+                   ?? (_rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave);
         }
         else
         {
             // Larger cities: prefer uncovered service events, but also PowerOutage / DemandSlump
-            if (!hasFireStation && !hasPoliceStation)
-                type = _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
-            else if (!hasFireStation)
-                type = CityEventType.FireBreak;
-            else if (!hasPoliceStation)
-                type = CityEventType.CrimeWave;
+            var uncovered = PickUncoveredServiceEvent(hasFireStation, hasPoliceStation);
+            if (uncovered != null)
+            {
+                type = uncovered.Value;
+            }
             else
             {
                 // All services covered — weighted pick across all 4 types
@@ -229,9 +221,21 @@ public class EventSystem
         ActiveResponse = new PendingEventResponse(
             EventType:  type.ToString(),
             Cost:       GetInterventionCost(type),
-            TickFired:  0,   // caller (SimulationEngine) can stamp TickCount if needed; 0 is fine for logic
             Responded:  false);
 
         return _activeEvent;
+    }
+
+    /// <summary>
+    /// Returns the event type to fire when a service gap exists, or null when both services are covered.
+    /// When both are missing, randomly picks one; when only one is missing, returns that type directly.
+    /// </summary>
+    private CityEventType? PickUncoveredServiceEvent(bool hasFireStation, bool hasPoliceStation)
+    {
+        if (!hasFireStation && !hasPoliceStation)
+            return _rng.NextDouble() < 0.5 ? CityEventType.FireBreak : CityEventType.CrimeWave;
+        if (!hasFireStation)  return CityEventType.FireBreak;
+        if (!hasPoliceStation) return CityEventType.CrimeWave;
+        return null;
     }
 }

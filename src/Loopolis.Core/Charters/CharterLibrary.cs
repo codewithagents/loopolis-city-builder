@@ -38,7 +38,7 @@ public static class CharterLibrary
             "Pollution impact ×0.25 · Park happiness ×3.0 · Park radius +3 tiles", "Metropolis"),
         new CharterDefinition(CharterType.EmpireOfSteel, "Empire of Steel",
             "Your factories define the continent's economy. What your city makes, the world buys.",
-            "Industrial growth ×1.60 · +25 jobs per factory tile · Commercial growth ×1.30", "Metropolis"),
+            "Industrial growth ×1.60 · +25 jobs per factory tile · Commercial growth ×1.30 · Land value +10%", "Metropolis"),
     };
 
     public static CharterDefinition? Find(CharterType type) =>

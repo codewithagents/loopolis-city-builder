@@ -100,4 +100,47 @@ public class CharterSystem
     public double MetropolisIndustrialGrowthMultiplier  => MetropolisCharter == CharterType.EmpireOfSteel ? 1.6  : 1.0;
     public int    MetropolisJobsPerTileBonus            => MetropolisCharter == CharterType.EmpireOfSteel ? 25   : 0;
     public double MetropolisCommercialGrowthMultiplier  => MetropolisCharter == CharterType.EmpireOfSteel ? 1.3  : 1.0;
+    public double MetropolisLandValueBonus              => MetropolisCharter == CharterType.EmpireOfSteel ? 0.10 : 0.0;
+
+    // ── Effective combined accessors (all eras stacked) ─────────────────────
+
+    /// Commercial growth — Town × City × Metropolis (multiplicative)
+    public double EffectiveCommercialGrowthMultiplier =>
+        CommercialGrowthMultiplier * CityCommercialGrowthMultiplier * MetropolisCommercialGrowthMultiplier;
+
+    /// Industrial growth — Town × Metropolis (multiplicative)
+    public double EffectiveIndustrialGrowthMultiplier =>
+        IndustrialGrowthMultiplier * MetropolisIndustrialGrowthMultiplier;
+
+    /// Land value bonus — Town + City + Metropolis (additive)
+    public double EffectiveLandValueBonus =>
+        LandValueBonus + CityLandValueBonus + MetropolisLandValueBonus;
+
+    /// Residential capacity bonus — City + Metropolis (additive)
+    public double EffectiveResidentialCapacityBonus =>
+        CityResidentialCapacityBonus + MetropolisResidentialCapacityBonus;
+
+    /// Tax rate modifier — City + Metropolis (additive)
+    public double EffectiveTaxRateModifier =>
+        CityTaxRateModifier + MetropolisTaxRateModifier;
+
+    /// Pollution multiplier — City × Metropolis (multiplicative; default 1.0 × 1.0 = 1.0)
+    public float EffectivePollutionMultiplier =>
+        CityPollutionMultiplier * MetropolisPollutionMultiplier;
+
+    /// Service coverage radius bonus — Town + Metropolis (additive)
+    public float EffectiveServiceCoverageRadiusBonus =>
+        ServiceCoverageRadiusBonus + MetropolisServiceRadiusBonus;
+
+    /// Park radius bonus — City + Metropolis (additive)
+    public int EffectiveParkRadiusBonus =>
+        CityParkRadiusBonus + MetropolisParkRadiusBonus;
+
+    /// Jobs per tile bonus — Town + Metropolis (additive)
+    public int EffectiveJobsPerTileBonus =>
+        JobsPerTileBonus + MetropolisJobsPerTileBonus;
+
+    /// Park happiness multiplier — Town × Metropolis (multiplicative)
+    public double EffectiveParkHappinessMultiplier =>
+        ParkHappinessMultiplier * MetropolisParkHappinessMultiplier;
 }

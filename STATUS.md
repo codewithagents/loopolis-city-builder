@@ -78,7 +78,7 @@
 | M11-P4 City era charters (InnovationHub/GreenCanopy/TradeCorridors) | ✅ Done | 26 new (CityCharterSystemTests) |
 | M11-P5 Metropolis era charters (NexusCity/GreenUtopia/EmpireOfSteel) | ✅ Done | 29 new (MetropolisCharterSystemTests) |
 
-**Total: 874 tests · 0 failures · ~9s runtime**
+**Total: 918 tests · 0 failures · ~9s runtime**
 
 ---
 
@@ -265,4 +265,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | metropolis | Metropolis era charters: three end-game specializations unlocked at Metropolis milestone (25,000 pop). NexusCity: service radius +5, residential capacity +30%, tax +8% (efficiency city). GreenUtopia: pollution ×0.1, park happiness ×3.0, park radius +3 (near-zero pollution with GreenCanopy stack = ×0.05). EmpireOfSteel: industrial growth ×1.60, +25 jobs/tile, commercial ×1.30 (stacks with Merchant ×1.30 + TradeCorridors ×1.25 = ×2.11 total). CharterChoicePanel extended to triple-era with IsForMetropolisEra flag. Godot UI: electric-blue/vivid-green/forge-red color scheme. 29 new tests (MetropolisCharterSystemTests). Full suite: 874 · 0 failures. | Done — CharterType + CharterSystem + CharterLibrary + SimulationEngine + Runner IPC + Godot full stack |
 
-*Last updated: 2026-05-14 — Metropolis era charters complete (all 3 eras done), 874 tests*
+| 2026-05-14 | refactor | Core refactoring pass: (1) EmpireOfSteel now grants +10% land value via new MetropolisLandValueBonus property — was a silent gameplay omission. (2) Dead `TickFired` field removed from PendingEventResponse (was always 0, never read). (3) CharterSystem gains 10 Effective* properties that stack all eras; SimulationEngine updated at 8 call-sites to use them (no behavior change except Fix 1). (4) NotifyCharterMilestonesIfNeeded() extracted from Tick() — reduces Tick() by 18 lines. (5) PickUncoveredServiceEvent() extracted in EventSystem — eliminates duplicated guard logic across small/large city branches. 44 new tests (CharterSystemEffectiveTests + MetropolisCharterSystemTests additions). | — |
+
+*Last updated: 2026-05-14 — Core refactoring pass, 918 tests*

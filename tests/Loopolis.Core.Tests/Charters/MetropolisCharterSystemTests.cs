@@ -295,6 +295,37 @@ public class MetropolisCharterSystemTests
         Assert.That(def.Era,   Is.EqualTo("Metropolis"));
     }
 
+    // ── EmpireOfSteel land value bonus ───────────────────────────────────────
+
+    [Test]
+    public void EmpireOfSteel_LandValueBonus_Is0_10()
+    {
+        _system.SelectMetropolisCharter(CharterType.EmpireOfSteel);
+        Assert.That(_system.MetropolisLandValueBonus, Is.EqualTo(0.10).Within(0.001));
+    }
+
+    [Test]
+    public void NexusCity_LandValueBonus_IsZero()
+    {
+        var cs = new CharterSystem();
+        cs.SelectMetropolisCharter(CharterType.NexusCity);
+        Assert.That(cs.MetropolisLandValueBonus, Is.EqualTo(0.0).Within(0.001));
+    }
+
+    [Test]
+    public void GreenUtopia_LandValueBonus_IsZero()
+    {
+        var cs = new CharterSystem();
+        cs.SelectMetropolisCharter(CharterType.GreenUtopia);
+        Assert.That(cs.MetropolisLandValueBonus, Is.EqualTo(0.0).Within(0.001));
+    }
+
+    [Test]
+    public void NoMetropolisCharter_LandValueBonus_IsZero()
+    {
+        Assert.That(_system.MetropolisLandValueBonus, Is.EqualTo(0.0).Within(0.001));
+    }
+
     // ── SimulationEngine integration ─────────────────────────────────────────
 
     [Test]
