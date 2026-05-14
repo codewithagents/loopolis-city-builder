@@ -100,6 +100,17 @@
 
 SaveGame version bumped 3→4. All v3 saves load correctly (null fields → safe defaults).
 
+### Second Bug Hunt (2026-05-14)
+
+| Bug | Severity | Fix |
+|---|---|---|
+| FireBreak on empty grid: event fired with no buildings → player prompted to pay $800 for nothing, happiness penalised 60 ticks for nonexistent fire | HIGH | Skip event if `candidates.Length == 0` in EventSystem |
+| Policy+Charter stacking: `EffectivePollutionMultiplier` had no floor — GreenCanopy×0.5 + GreenUtopia×0.25 = ×0.125, combined with GreenCity policy = ×0.08, making pollution effectively zero | MEDIUM | Floor added: `Math.Max(0.10f, ...)` — industrial always carries some cost |
+| Stale comment: SimulationEngine line 328 said "OpenCity reduces by 12%" — OpenCity was redesigned to use capacity bonus, never touches tax | LOW | Comment updated |
+| BuildingGrowth concurrent collision, grid boundary, unknown TypeId, absorbed pop: all confirmed **not bugs** — properly guarded | — | No fix needed |
+| EventSystem: second event during active event, honeymoon on new game, DemandSlump on empty C, PowerOutage restore: all confirmed **not bugs** | — | No fix needed |
+| Policy+Charter max stacks: commercial ×2.64, industrial growth ×2.70, jobs +43/tile, residential capacity +62%, all bounded — **no runaway values** | — | No fix needed |
+
 ---
 
 ## Short-Term Task Queue (Next 2–3 Sessions)
