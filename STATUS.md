@@ -75,8 +75,9 @@
 | M11-P1 PetitionSystem (DistrictNamer + PetitionSystem + wiring) | ✅ Done | 27 new (PetitionSystemTests) |
 | M11-P2 CharterSystem (Town era: Merchant/Industrial/Civic) | ✅ Done | 33 new (CharterSystemTests) |
 | M11-P3 ServiceFatigueSystem (service fatigue rule 1) | ✅ Done | 24 new (ServiceFatigueSystemTests) |
+| M11-P4 City era charters (InnovationHub/GreenCanopy/TradeCorridors) | ✅ Done | 26 new (CityCharterSystemTests) |
 
-**Total: 819 tests · 0 failures · ~9s runtime**
+**Total: 845 tests · 0 failures · ~9s runtime**
 
 ---
 
@@ -255,4 +256,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | powered_start | Seeded deterministic RNG: EventSystem now takes a seeded Random (default new Random()). SimulationEngine constructor accepts optional seed (null → Environment.TickCount). Seed is distributed: EventSystem uses Random(seed), BuildingDegradationSystem uses Random(seed+1). All 14 test files updated to pass seed:42 → every SimulationEngine call in tests is deterministic. CharterSystem SelectCharter(None) bug fixed: no-op guard added. 12 new tests (CityAdvisor, ServiceFatigue, Petitions, CharterSystem edge cases). TutorialScenario passes with peak population tracking. 819 tests green. | Working correctly |
 
-*Last updated: 2026-05-14 — seeded deterministic RNG, quality pass, 819 tests*
+| 2026-05-14 | powered_start + city_path | Scenario layout fix: both scenarios now reach City milestone (5,000 pop). Root causes: (1) interior R tiles in 2-row strips had no road adjacency (only directly road-adjacent tiles get buildings), (2) employment stall — with few industrial tiles, employmentMultiplier drops to 0.2 (MinGrowthMultiplier) which makes house rawGrowth round to 0 → freeze. Fix: 3 E-W roads + vertical spurs create a grid so ALL 4 R rows are road-adjacent. No industrial → EmploymentSystem returns 1.0 multiplier. Starting balance raised to $10k/$8k. powered_start: City at tick 15, pop=14,600, happiness=0.699. city_path: City at tick 16, pop=9,800, happiness=0.793. | Fixed — ScenarioSetup.cs only |
+
+*Last updated: 2026-05-14 — scenario layout fixes (powered_start, city_path now reach City milestone), 819 tests*
