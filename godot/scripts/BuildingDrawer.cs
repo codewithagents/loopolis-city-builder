@@ -208,6 +208,55 @@ public static class BuildingDrawer
 				break;
 			}
 
+			case "res_villa_hillside_3x3":
+			{
+				// 3w×3h = 96×96 px. Hillside villa: stone lower floor, cream upper floor.
+				var upperColor  = new Color(0.95f, 0.92f, 0.85f); // cream upper floor
+				var stoneColor  = new Color(0.63f, 0.56f, 0.50f); // stone lower floor
+				var stoneLine   = new Color(0.48f, 0.42f, 0.36f, 0.7f); // mortar lines
+				var roofColor   = new Color(0.40f, 0.52f, 0.26f); // green roof
+				var winColor    = new Color(0.75f, 0.88f, 1.0f, 0.85f);
+				var doorColor   = new Color(0.38f, 0.22f, 0.10f);
+				var gardenColor = new Color(0.30f, 0.68f, 0.22f, 0.75f);
+
+				// Stone lower floor (bottom half)
+				R(4, 52, 88, 40, stoneColor);
+				// Horizontal mortar lines on stone
+				L(4f, 61f, 92f, 61f, stoneLine, 1f);
+				L(4f, 70f, 92f, 70f, stoneLine, 1f);
+				L(4f, 79f, 92f, 79f, stoneLine, 1f);
+				// Vertical mortar lines (staggered)
+				L(20f, 52f, 20f, 61f, stoneLine, 1f);
+				L(36f, 61f, 36f, 70f, stoneLine, 1f);
+				L(52f, 52f, 52f, 61f, stoneLine, 1f);
+				L(68f, 61f, 68f, 70f, stoneLine, 1f);
+				L(20f, 70f, 20f, 79f, stoneLine, 1f);
+				L(52f, 70f, 52f, 79f, stoneLine, 1f);
+
+				// Cream upper floor
+				R(8, 20, 80, 34, upperColor);
+				// Pitched roof over upper floor
+				T(6, 20, 90, 20, 48, 6, roofColor);
+				// Dormer window hint: small darker rect in roof
+				R(40, 10, 16, 10, new Color(0.36f, 0.46f, 0.22f));
+				R(44, 10, 8, 8, winColor);
+
+				// Upper floor windows — 3 across
+				R(12, 26, 14, 10, winColor);
+				R(41, 26, 14, 10, winColor);
+				R(70, 26, 14, 10, winColor);
+
+				// Front door on stone lower floor (centered)
+				R(38, 68, 10, 24, doorColor);
+				// Small window either side of stone ground floor
+				R(10, 60, 10, 8, winColor);
+				R(76, 60, 10, 8, winColor);
+
+				// Garden/patio strip at bottom
+				R(4, 88, 88, 8, gardenColor);
+				break;
+			}
+
 			case "res_apartment_4x4":
 			{
 				// 4w×4h = 128×128 px. Concrete slab apartment block.

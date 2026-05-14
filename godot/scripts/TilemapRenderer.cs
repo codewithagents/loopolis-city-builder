@@ -803,6 +803,163 @@ public partial class TilemapRenderer : Node2D
 		DrawRect(new Rect2(px + TileSize - 3, py, 2, TileSize), ColorHillShadow);
 	}
 
+	// ── Service / utility zone art ──────────────────────────────────────────
+
+	/// <summary>
+	/// Draws procedural facade detail on top of the flat color rectangle for service and
+	/// utility zone tiles (FireStation, PoliceStation, School, Hospital, FireHQ, PoliceHQ,
+	/// CoalPlant, NuclearPlant, PowerLine).
+	///
+	/// All coordinates are in local tile-space (0,0) = top-left of the tile.
+	/// <paramref name="px"/> / <paramref name="py"/> are the world-pixel origin of the tile.
+	/// </summary>
+	private void DrawServiceZoneArt(ZoneType zone, float px, float py)
+	{
+		float ts = TileSize; // 32
+
+		switch (zone)
+		{
+			case ZoneType.FireStation:
+			case ZoneType.FireHQ:
+			{
+				// White garage door (bottom 40%)
+				DrawRect(new Rect2(px + 4, py + 18, ts - 8, 12), new Color(0.95f, 0.95f, 0.95f, 0.90f));
+				// Horizontal door panel lines
+				DrawLine(new Vector2(px + 4, py + 22), new Vector2(px + ts - 4, py + 22),
+					new Color(0.60f, 0.60f, 0.60f, 0.6f), 1f);
+				DrawLine(new Vector2(px + 4, py + 26), new Vector2(px + ts - 4, py + 26),
+					new Color(0.60f, 0.60f, 0.60f, 0.6f), 1f);
+				// Yellow signal band at top
+				DrawRect(new Rect2(px, py, ts, 5), new Color(1.0f, 0.82f, 0.0f, 0.85f));
+				// Dark badge strip just below yellow band
+				DrawRect(new Rect2(px + 8, py + 5, ts - 16, 5), new Color(0.15f, 0.10f, 0.10f, 0.80f));
+				// Small red cross in badge (fire cross variant — two white rects)
+				DrawRect(new Rect2(px + 13, py + 6, 6, 3), new Color(1.0f, 1.0f, 1.0f, 0.90f));
+				DrawRect(new Rect2(px + 15, py + 5, 2, 5), new Color(1.0f, 1.0f, 1.0f, 0.90f));
+				break;
+			}
+
+			case ZoneType.PoliceStation:
+			case ZoneType.PoliceHQ:
+			{
+				// White accent band at top
+				DrawRect(new Rect2(px, py, ts, 5), new Color(0.95f, 0.95f, 1.0f, 0.80f));
+				// Dark blue sign band below
+				DrawRect(new Rect2(px + 3, py + 5, ts - 6, 5), new Color(0.08f, 0.12f, 0.36f, 0.90f));
+				// Shield/badge shape: gold pentagon outline (5 filled triangles + rect approximation)
+				var shCx = px + ts * 0.5f;
+				var shTop = py + 12f;
+				// Shield body: dark rect with rounded top suggestion
+				DrawRect(new Rect2(shCx - 5f, shTop, 10f, 9f), new Color(0.85f, 0.72f, 0.12f, 0.90f)); // gold
+				// Shield chevron point at bottom
+				DrawTriangle(
+					new Vector2(shCx - 5f, shTop + 9f),
+					new Vector2(shCx + 5f, shTop + 9f),
+					new Vector2(shCx,      shTop + 13f),
+					new Color(0.85f, 0.72f, 0.12f, 0.90f));
+				// White star in center of shield
+				DrawRect(new Rect2(shCx - 2f, shTop + 3f, 4f, 4f), new Color(1.0f, 1.0f, 1.0f, 0.95f));
+				break;
+			}
+
+			case ZoneType.School:
+			{
+				// Warm brick top band
+				DrawRect(new Rect2(px, py, ts, 5), new Color(0.76f, 0.54f, 0.22f, 0.80f));
+				// Clock face: white circle at top-center
+				DrawCircle(new Vector2(px + ts * 0.5f, py + 10f), 5f, new Color(0.96f, 0.96f, 0.92f, 0.95f));
+				// Clock outline
+				DrawLine(
+					new Vector2(px + ts * 0.5f, py + 6f),
+					new Vector2(px + ts * 0.5f, py + 10f),
+					new Color(0.30f, 0.25f, 0.20f, 0.90f), 1f); // 12-o-clock hand
+				DrawLine(
+					new Vector2(px + ts * 0.5f, py + 10f),
+					new Vector2(px + ts * 0.5f + 3.5f, py + 10f),
+					new Color(0.30f, 0.25f, 0.20f, 0.90f), 1f); // 3-o-clock hand
+				// Two windows (symmetric)
+				DrawRect(new Rect2(px + 4, py + 17, 7, 6), new Color(0.75f, 0.88f, 1.0f, 0.85f));
+				DrawRect(new Rect2(px + 21, py + 17, 7, 6), new Color(0.75f, 0.88f, 1.0f, 0.85f));
+				// Flagpole in top-left corner
+				DrawLine(new Vector2(px + 3f, py + 2f), new Vector2(px + 3f, py + 14f),
+					new Color(0.65f, 0.65f, 0.65f, 0.80f), 1f);
+				// Small flag rect
+				DrawRect(new Rect2(px + 3f, py + 2f, 6f, 4f), new Color(0.85f, 0.12f, 0.12f, 0.85f));
+				break;
+			}
+
+			case ZoneType.Hospital:
+			{
+				// Clean white top parapet
+				DrawRect(new Rect2(px, py, ts, 4), new Color(0.96f, 0.96f, 0.96f, 0.85f));
+				// Red cross centered on facade — vertical bar
+				DrawRect(new Rect2(px + 13f, py + 7f, 6f, 18f), new Color(0.85f, 0.10f, 0.10f, 0.90f));
+				// Red cross — horizontal bar
+				DrawRect(new Rect2(px + 7f, py + 13f, 18f, 6f), new Color(0.85f, 0.10f, 0.10f, 0.90f));
+				// Green canopy strip at bottom
+				DrawRect(new Rect2(px, py + 26f, ts, 6f), new Color(0.18f, 0.62f, 0.28f, 0.80f));
+				break;
+			}
+
+			case ZoneType.CoalPlant:
+			case ZoneType.PowerPlant:
+			{
+				// Building mass: darker rect offset from tile edges
+				DrawRect(new Rect2(px + 4, py + 14, 16, 16), new Color(0.20f, 0.20f, 0.20f, 0.80f));
+				// Two chimneys
+				DrawRect(new Rect2(px + 20, py + 4, 4, 14), new Color(0.18f, 0.18f, 0.18f, 0.90f));
+				DrawRect(new Rect2(px + 26, py + 7, 4, 11), new Color(0.18f, 0.18f, 0.18f, 0.90f));
+				// Chimney caps (slightly wider)
+				DrawRect(new Rect2(px + 19, py + 3, 6, 2), new Color(0.14f, 0.14f, 0.14f, 0.90f));
+				DrawRect(new Rect2(px + 25, py + 6, 6, 2), new Color(0.14f, 0.14f, 0.14f, 0.90f));
+				// Control window: orange glow
+				DrawRect(new Rect2(px + 6, py + 18, 9, 7), new Color(1.0f, 0.60f, 0.10f, 0.75f));
+				break;
+			}
+
+			case ZoneType.NuclearPlant:
+			{
+				// Cooling tower silhouette: wide base tapering inward then out at top
+				// Approximated as three stacked rects of varying widths (trapezoid suggestion)
+				var towerX = px + 4f;
+				var towerY = py + 8f;
+				DrawRect(new Rect2(towerX,       towerY + 14f, 24f, 8f), new Color(0.88f, 0.88f, 0.86f, 0.85f)); // wide base
+				DrawRect(new Rect2(towerX + 2f,  towerY + 8f,  20f, 8f), new Color(0.88f, 0.88f, 0.86f, 0.85f)); // mid section
+				DrawRect(new Rect2(towerX + 4f,  towerY,       16f, 8f), new Color(0.88f, 0.88f, 0.86f, 0.85f)); // narrow top
+				// Steam vent opening at very top (dark opening)
+				DrawRect(new Rect2(towerX + 7f, towerY,        10f, 4f), new Color(0.30f, 0.30f, 0.30f, 0.70f));
+				// Warning stripe at bottom of tower
+				DrawRect(new Rect2(towerX, py + 26f, 24f, 4f), new Color(0.92f, 0.72f, 0.0f, 0.60f));
+				DrawLine(new Vector2(towerX + 6f, py + 26f), new Vector2(towerX + 6f, py + 30f),
+					new Color(0.18f, 0.18f, 0.18f, 0.60f), 1f);
+				DrawLine(new Vector2(towerX + 12f, py + 26f), new Vector2(towerX + 12f, py + 30f),
+					new Color(0.18f, 0.18f, 0.18f, 0.60f), 1f);
+				DrawLine(new Vector2(towerX + 18f, py + 26f), new Vector2(towerX + 18f, py + 30f),
+					new Color(0.18f, 0.18f, 0.18f, 0.60f), 1f);
+				break;
+			}
+
+			case ZoneType.PowerLine:
+			{
+				// Pylon X-frame: two diagonal crossed lines suggesting a transmission tower
+				var lineColor = new Color(0.06f, 0.55f, 0.55f, 0.85f); // slightly darker than the cyan base
+				// Cross brace from top-left to bottom-right
+				DrawLine(new Vector2(px + 6f,  py + 4f),  new Vector2(px + 26f, py + 28f), lineColor, 1.5f);
+				// Cross brace from top-right to bottom-left
+				DrawLine(new Vector2(px + 26f, py + 4f),  new Vector2(px + 6f,  py + 28f), lineColor, 1.5f);
+				// Vertical center post
+				DrawLine(new Vector2(px + 16f, py + 2f),  new Vector2(px + 16f, py + 30f), lineColor, 2f);
+				// Top cross-arm (horizontal)
+				DrawLine(new Vector2(px + 6f,  py + 8f),  new Vector2(px + 26f, py + 8f),  lineColor, 1.5f);
+				// Insulator dots at arm ends and center
+				DrawCircle(new Vector2(px + 6f,  py + 8f),  2f, new Color(0.88f, 0.88f, 0.88f, 0.90f));
+				DrawCircle(new Vector2(px + 26f, py + 8f),  2f, new Color(0.88f, 0.88f, 0.88f, 0.90f));
+				DrawCircle(new Vector2(px + 16f, py + 8f),  2f, new Color(0.88f, 0.88f, 0.88f, 0.90f));
+				break;
+			}
+		}
+	}
+
 	// ── Overlay color helpers ───────────────────────────────────────────────
 
 	private static Color HappinessOverlayColor(float h)
@@ -1269,6 +1426,66 @@ public partial class TilemapRenderer : Node2D
 						}
 					}
 
+					// ── Lane markings ────────────────────────────────────────────
+					// Road: dashed white center line along the tile's primary axis.
+					// Avenue: double yellow center lines (highway-style).
+					{
+						bool hasHoriz = rLeft || rRight;
+						bool hasVert  = rUp   || rDown;
+						// Prefer the primary axis; for isolated/intersection tiles draw both.
+						bool drawH = hasHoriz || (!hasHoriz && !hasVert);
+						bool drawV = hasVert  || (!hasHoriz && !hasVert);
+
+						if (tile.Zone == ZoneType.Road)
+						{
+							// 3 short white dashes: 6px dash, 4px gap, centered on the tile axis.
+							var dashColor = new Color(1f, 1f, 1f, 0.45f);
+							const float dashLen = 6f;
+							const float dashGap = 4f;
+							const float dashPeriod = dashLen + dashGap;
+							// Start offset so dashes are centered (3 dashes + 2 gaps = 26px, offset = (32-26)/2 = 3)
+							const float dashStart = 3f;
+							if (drawH && !drawV)
+							{
+								float cy2 = py + TileSize * 0.5f;
+								for (var d = 0; d < 3; d++)
+								{
+									float x0 = px + dashStart + d * dashPeriod;
+									DrawLine(new Vector2(x0, cy2), new Vector2(x0 + dashLen, cy2), dashColor, 1.5f);
+								}
+							}
+							else if (drawV && !drawH)
+							{
+								float cx2 = px + TileSize * 0.5f;
+								for (var d = 0; d < 3; d++)
+								{
+									float y0 = py + dashStart + d * dashPeriod;
+									DrawLine(new Vector2(cx2, y0), new Vector2(cx2, y0 + dashLen), dashColor, 1.5f);
+								}
+							}
+							// Intersections: skip lane markings (they would overlap confusingly)
+						}
+						else if (tile.Zone == ZoneType.Avenue)
+						{
+							// Double yellow center lines, 3px apart, 2px wide each.
+							var yellowLine = new Color(1.0f, 0.88f, 0.10f, 0.55f);
+							const float lineOffset = 1.5f; // half-separation from center
+							if (drawH && !drawV)
+							{
+								float cy2 = py + TileSize * 0.5f;
+								DrawLine(new Vector2(px, cy2 - lineOffset), new Vector2(px + TileSize, cy2 - lineOffset), yellowLine, 1.5f);
+								DrawLine(new Vector2(px, cy2 + lineOffset), new Vector2(px + TileSize, cy2 + lineOffset), yellowLine, 1.5f);
+							}
+							else if (drawV && !drawH)
+							{
+								float cx2 = px + TileSize * 0.5f;
+								DrawLine(new Vector2(cx2 - lineOffset, py), new Vector2(cx2 - lineOffset, py + TileSize), yellowLine, 1.5f);
+								DrawLine(new Vector2(cx2 + lineOffset, py), new Vector2(cx2 + lineOffset, py + TileSize), yellowLine, 1.5f);
+							}
+							// Intersections: skip lane markings
+						}
+					}
+
 					// Border connection tile: yellow downward triangle + yellow border outline
 					if (tile.IsBorderConnection)
 					{
@@ -1423,6 +1640,10 @@ public partial class TilemapRenderer : Node2D
 			// Service buildings and utility tiles
 			var rect = new Rect2(px, py, TileSize, TileSize);
 			DrawRect(rect, color);
+
+			// Procedural art overlay for service and utility zones
+			if (ActiveOverlay == OverlayMode.None && _currentZoom > 0.5f)
+				DrawServiceZoneArt(tile.Zone, px, py);
 		}
 
 		// ── Procedural building detail pass ─────────────────────────────────
