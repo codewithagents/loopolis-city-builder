@@ -159,6 +159,16 @@ Each milestone unlocks new zone types or building options (design TBD).
 
 > **M1–M7 features (DemandSystem, SimEngine, Godot, Services, Happiness, Win conditions, Disasters, Building Growth, Pollution, Employment, Save/Load) — all shipped. See CLAUDE.md.**
 
+### M11 — "Identity & Replay" (next priority — selected 2026-05-14)
+
+> Selected 2026-05-14 as the next three priority features. Petition Inbox is the game's differentiator and the hook that turns Loopolis from "a city builder" into "the city that talks back." Era Charters give every existing scenario 3× replay value with one system. Service Crisis Loops give late-game a shape.
+
+| # | Feature | Why it matters |
+|---|---|---|
+| P1 | **Petition Inbox** | The game's differentiator. A passive event feed driven entirely by existing simulation thresholds — no new sim systems. Auto-names districts (terrain-based: forest→Pine/Oak, elevated→Ridge/Heights, water-adjacent→Shore/River). Up to 12 petition templates × 4 text variants. Hard cap: 1 petition per district, max 3 active citywide. Resolve within 50–100 ticks or face -0.05 happiness penalty. The hook: "city that talks back in simulation-grounded specific language." |
+| P2 | **Era Unlock Charters** | At each milestone (Town/City/Metropolis) present 3 charter options as choice cards — permanent specializations for that run. Implemented as a PolicySystem extension (Charters = always-active milestone policies). Creates 3× replay value for every existing scenario. 80/20: ship only Town charter first. |
+| P3 | **Service Crisis Loops** | Service capacity decays 0.2%/tick after City milestone — late-game renovation loop. Today late-game has no shape; this gives it one. 80/20: ship only service fatigue (rule 1), not migrant pressure or maintenance creep. |
+
 ### M8 — "Strategic Depth" (next)
 
 | # | Feature | Why it matters |
@@ -238,6 +248,12 @@ Each milestone unlocks new zone types or building options (design TBD).
 - **Industrial unpowered = no jobs at all** (rejected 2026-05-12) — Too punitive on pre-zoning. Bare-minimum jobs at 0.1× lets the player stake industrial sites near the border without losing budget; powering them is the *productivity* decision, not the *existence* decision.
 
 ---
+- **Procedural disasters scaling with city size** (rejected 2026-05-14) — EventSystem already covers disaster space. Adding more disasters without a new mental model is just volume, not depth.
+- **Citizen happiness factions / political system** (rejected 2026-05-14) — Too complex for indie scope. Would require a parallel UI and balance pass on top of the existing happiness pipeline. Petition Inbox delivers the "the city talks back" feel with one system instead of three.
+- **Steam achievements / meta-progression** (deferred 2026-05-14) — Defer until near ship. Premature meta-progression locks in scope before the core loop is finalized.
+- **Tutorial overhaul** (rejected 2026-05-14) — Petition Inbox doubles as an always-on advisor that names the bottleneck in plain language, solving the same onboarding problem at much lower cost. A separate tutorial mode would compete with it.
+- **Mod support / level editor** (rejected 2026-05-14) — 10/10 territory, not 8/10. Ship the game first; mods only matter if there's a community to make them.
+- **More scenarios beyond 16** (rejected 2026-05-14) — Era Charters give each existing scenario 3× replay value for free (3 Town × 3 City × 3 Metropolis = 27 distinct paths per scenario). Adding more scenarios has worse ROI than adding charters.
 
 ## M8 Feature Specs
 
@@ -939,6 +955,13 @@ Total milestones from now to graph-Loopolis: 8 sessions. Honest. Doable. Each on
 - **P1 power-as-density (new 2026-05-12):** Should unpowered industrial generate any pollution? Lean no — pollution is a productivity-side externality; unpowered industrial at 0.1× jobs and 0 Output is just a parked lot. (Reduces the "stake industrial sites far from residential" anti-pattern.)
 
 ---
+- **Petition Inbox (2026-05-14):** District naming — terrain-based (forest→Pine, elevated→Heights, water-adjacent→Shore) vs sequential (District A, B, C) vs predefined name pool? Terrain-based feels grounded but may be repetitive on uniform maps; sequential is boring; pool risks "fake" names. Lean terrain-based with a fallback pool for indistinct districts.
+- **Petition Inbox (2026-05-14):** 12 templates × 4 text variants = 48 unique petitions. Is that enough to avoid feeling repetitive across a 2000-tick run? Validate on a real playthrough before locking the template count.
+- **Era Charters (2026-05-14):** How to prevent one charter always dominating? Needs balancer pass on all 9 combinations (3 Town × 3 City × 3 Metropolis) after implementation. If one path is clearly optimal, the choice isn't real.
+- **Era Charters (2026-05-14):** Should charters be visible in the Steam screenshot moment (top-of-HUD badges) or just in the policy panel? Visible badges sell the run identity; panel-only hides the differentiator. Lean visible badges.
+- **Service Crisis Loops (2026-05-14):** Service fatigue rate = 0.2%/tick → 70% capacity loss over 1500 ticks. Right-sized for late-game pacing? Validate with balancer on a Metropolis-target scenario before locking.
+- **Service Crisis Loops (2026-05-14):** Is "renovate" a binary toggle (click → reset to 100% for $X) or a slider (pay more, recover more)? Binary is more legible; slider is more interesting. Lean binary for v1.
+- **City Chronicle (2026-05-14):** End-of-run petition summary — valuable for screenshot/sharing moment, but how much writing effort? Auto-generated from petition log keeps the writing zero; curated narrative beats are higher effort. Lean auto-generated for v1, curate if it lands.
 
 ## Session Notes
 
@@ -1004,3 +1027,9 @@ Total milestones from now to graph-Loopolis: 8 sessions. Honest. Doable. Each on
 | 2026-05-12 | P1 tutorial hint rewrite: old "Place a power plant — your city needs power to grow" replaced with "Zone homes along the road to attract residents. Build a power plant to unlock larger buildings and businesses." Reframes power as acceleration, not ignition. |
 | 2026-05-12 | P1 F3 extension: Building Birth Announcement now fires on Cottage → Powered Cottage transition. Same chime, "+$1/tick" floating label. Treats the power upgrade as a tier event because functionally it is one. |
 
+| 2026-05-14 | **Reviewer score: 6.5/10** (up from 5.8). Top gap: late-game has no shape. Top strength: feedback layer (placement scores, trend arrows, distress indicators). |
+| 2026-05-14 | **CityAdvisor shipped this session** — live bottleneck hint in TopBar. Projected +0.5–0.8 score boost. Surfaces the "why isn't this growing?" answer in plain text without forcing the player to open a panel. |
+| 2026-05-14 | **Next priority #1: Petition Inbox.** Selected as the game's differentiator. A passive event feed driven entirely by existing simulation thresholds — zero new sim systems. Auto-names districts (terrain-based: forest→Pine/Oak, elevated→Ridge/Heights, water-adjacent→Shore/River). Up to 12 petition templates × 4 text variants. Hard cap: 1 petition per district, max 3 active citywide. Resolve within 50–100 ticks or face -0.05 happiness penalty. The hook: "city that talks back in simulation-grounded specific language." Doubles as always-on tutorial/advisor for new players. |
+| 2026-05-14 | **Next priority #2: Era Unlock Charters.** At each milestone (Town/City/Metropolis) present 3 charter options as choice cards — permanent specializations for that run. Implemented as a PolicySystem extension (Charters = always-active milestone policies, not a new system). Creates 3× replay value for every existing scenario (3³ = 27 paths per scenario). 80/20: ship only the Town charter first; validate before adding City and Metropolis tiers. |
+| 2026-05-14 | **Next priority #3: Service Crisis Loops.** Service capacity decays 0.2%/tick after the City milestone — late-game renovation loop. Addresses the top reviewer gap: "late-game has no shape." 80/20: ship only service fatigue (rule 1), not migrant pressure or maintenance creep — those are illegible compounding effects until fatigue ships and we see how it plays. |
+| 2026-05-14 | Rejected this session: procedural disasters scaling with city size (EventSystem covers it), citizen happiness factions / political system (too complex for indie scope), Steam achievements / meta-progression (defer until near ship), tutorial overhaul (Petition Inbox doubles as always-on advisor), mod support / level editor (10/10 territory), more scenarios beyond 16 (Charters give existing scenarios 3× replay for free — better ROI). |
