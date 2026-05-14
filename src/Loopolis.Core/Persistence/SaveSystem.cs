@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Loopolis.Core.Buildings;
+using Loopolis.Core.Charters;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Policies;
 using Loopolis.Core.Simulation;
@@ -8,7 +9,7 @@ namespace Loopolis.Core.Persistence;
 
 public static class SaveSystem
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -43,6 +44,22 @@ public static class SaveSystem
             ? engine.PolicySystem.ActivePolicies.Select(p => p.ToString()).ToArray()
             : null;
 
+        // Persist charter state
+        var activeCharterStr     = engine.Charters.ActiveCharter     != CharterType.None ? engine.Charters.ActiveCharter.ToString()     : null;
+        var cityCharterStr       = engine.Charters.CityCharter       != CharterType.None ? engine.Charters.CityCharter.ToString()       : null;
+        var metropolisCharterStr = engine.Charters.MetropolisCharter != CharterType.None ? engine.Charters.MetropolisCharter.ToString() : null;
+
+        // Persist milestone history (names only — compact, forward-compat)
+        var milestonesReached = engine.MilestoneSystem.Reached.Count > 0
+            ? engine.MilestoneSystem.Reached.Select(m => m.Name).ToArray()
+            : null;
+
+        // Persist service fatigue snapshot (only when fatigue is active, i.e. City milestone reached)
+        var fatigueSnapshot = engine.ServiceFatigue.GetSnapshot();
+        var serviceFatigue  = fatigueSnapshot.Count > 0
+            ? fatigueSnapshot.Select(kvp => new SavedFatigueEntry(kvp.Key.x, kvp.Key.y, kvp.Value)).ToArray()
+            : null;
+
         return new SaveGame(
             Version:    CurrentVersion,
             Tick:       tick,
@@ -56,7 +73,15 @@ public static class SaveSystem
             ForestMap:  forestMap,
             GridWidth:  grid.Width,
             GridHeight: grid.Height,
-            ActivePolicies: activePolicies
+            ActivePolicies:          activePolicies,
+            ActiveCharter:           activeCharterStr,
+            CityCharter:             cityCharterStr,
+            MetropolisCharter:       metropolisCharterStr,
+            TownCharterPending:      engine.Charters.TownCharterPending,
+            CityCharterPending:      engine.Charters.CityCharterPending,
+            MetropolisCharterPending: engine.Charters.MetropolisCharterPending,
+            MilestonesReached:       milestonesReached,
+            ServiceFatigue:          serviceFatigue
         );
     }
 
@@ -161,5 +186,44 @@ public static class SaveSystem
             if (Enum.TryParse<PolicyType>(name, out var policyType))
                 policySystem.ActivatePolicy(policyType);
         }
+    }
+
+    /// <summary>
+    /// Restores charter state (Town, City, Metropolis charters and Pending flags) from the save.
+    /// Safe to call even when charter fields are null (older saves) — leaves CharterSystem at defaults.
+    /// </summary>
+    public static void RestoreCharters(Charters.CharterSystem charters, SaveGame save)
+    {
+        charters.RestoreFromSave(
+            activeCharterName:           save.ActiveCharter,
+            cityCharterName:             save.CityCharter,
+            metropolisCharterName:       save.MetropolisCharter,
+            townCharterPending:          save.TownCharterPending,
+            cityCharterPending:          save.CityCharterPending,
+            metropolisCharterPending:    save.MetropolisCharterPending
+        );
+    }
+
+    /// <summary>
+    /// Restores MilestoneSystem state (CurrentState + Reached list) from the save.
+    /// Must be called BEFORE RestoreCharters so charter Pending flags are computed correctly
+    /// in relation to milestone state.
+    /// </summary>
+    public static void RestoreMilestones(MilestoneSystem milestones, SaveGame save)
+    {
+        milestones.RestoreFromSave(save.GameState, save.MilestonesReached);
+    }
+
+    /// <summary>
+    /// Restores service fatigue capacity snapshot from the save.
+    /// Safe to call when save.ServiceFatigue is null (older saves or pre-City cities) — no-op.
+    /// </summary>
+    public static void RestoreServiceFatigue(ServiceFatigueSystem serviceFatigue, SaveGame save)
+    {
+        if (save.ServiceFatigue == null || save.ServiceFatigue.Length == 0) return;
+
+        var snapshot = save.ServiceFatigue
+            .ToDictionary(e => (e.X, e.Y), e => e.Capacity);
+        serviceFatigue.RestoreSnapshot(snapshot);
     }
 }

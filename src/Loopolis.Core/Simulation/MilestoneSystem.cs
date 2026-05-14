@@ -73,6 +73,56 @@ public class MilestoneSystem
 
     public bool IsOver => CurrentState == GameState.Bankrupt || CurrentState == GameState.Abandoned || CurrentState == GameState.Loopolis;
 
+    // ── Save / restore ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Restores milestone state from a save snapshot.
+    /// <para>
+    /// <paramref name="gameState"/> — the persisted GameState string (e.g. "City").
+    ///   Parsed and applied directly, overriding the default Active state.
+    /// </para>
+    /// <para>
+    /// <paramref name="reachedNames"/> — optional ordered list of milestone names already reached
+    ///   (e.g. ["Town", "City"]). When null (older saves), the Reached list is reconstructed
+    ///   from the GameState string alone (best-effort).
+    /// </para>
+    /// Safe to call multiple times — resets state before applying.
+    /// </summary>
+    public void RestoreFromSave(string gameState, string[]? reachedNames)
+    {
+        // Reset
+        CurrentState = GameState.Active;
+        Reached.Clear();
+
+        // Restore Reached list
+        if (reachedNames != null)
+        {
+            foreach (var name in reachedNames)
+            {
+                var milestone = Milestones.FirstOrDefault(m => m.Name == name);
+                if (milestone.Name != null)
+                    Reached.Add(new MilestoneReached(milestone.Name, milestone.Emoji, milestone.Population, 0));
+            }
+        }
+        else
+        {
+            // Older save: reconstruct Reached from GameState string
+            if (Enum.TryParse<GameState>(gameState, out var gs))
+            {
+                foreach (var (req, name, emoji, state) in Milestones)
+                {
+                    // Add all milestones up to and including the current state
+                    Reached.Add(new MilestoneReached(name, emoji, req, 0));
+                    if (state == gs) break;
+                }
+            }
+        }
+
+        // Apply CurrentState from saved string
+        if (Enum.TryParse<GameState>(gameState, out var parsedState))
+            CurrentState = parsedState;
+    }
+
     /// <summary>
     /// Returns whether a zone type is available to place given the current milestone state.
     /// Town-milestone-gated types (NuclearPlant) require population ≥ 500.

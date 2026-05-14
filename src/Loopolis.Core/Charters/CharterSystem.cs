@@ -102,6 +102,42 @@ public class CharterSystem
     public double MetropolisCommercialGrowthMultiplier  => MetropolisCharter == CharterType.EmpireOfSteel ? 1.3  : 1.0;
     public double MetropolisLandValueBonus              => MetropolisCharter == CharterType.EmpireOfSteel ? 0.10 : 0.0;
 
+    // ── Save / restore ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Restores full charter state from a save game snapshot.
+    /// Bypasses the "already chosen" guards because this is an explicit restore operation.
+    /// Safe to call with null or "None" values — they are treated as no charter selected.
+    /// </summary>
+    public void RestoreFromSave(
+        string? activeCharterName,
+        string? cityCharterName,
+        string? metropolisCharterName,
+        bool townCharterPending,
+        bool cityCharterPending,
+        bool metropolisCharterPending)
+    {
+        // Reset to clean state first
+        ActiveCharter     = CharterType.None;
+        CityCharter       = CharterType.None;
+        MetropolisCharter = CharterType.None;
+        TownCharterPending       = false;
+        CityCharterPending       = false;
+        MetropolisCharterPending = false;
+
+        if (activeCharterName     != null && Enum.TryParse<CharterType>(activeCharterName,     true, out var ac)  && ac != CharterType.None)
+            ActiveCharter = ac;
+        if (cityCharterName       != null && Enum.TryParse<CharterType>(cityCharterName,       true, out var cc)  && cc != CharterType.None)
+            CityCharter = cc;
+        if (metropolisCharterName != null && Enum.TryParse<CharterType>(metropolisCharterName, true, out var mc)  && mc != CharterType.None)
+            MetropolisCharter = mc;
+
+        // Only restore Pending flag when no charter is chosen (a chosen charter clears its Pending)
+        TownCharterPending       = townCharterPending       && ActiveCharter     == CharterType.None;
+        CityCharterPending       = cityCharterPending       && CityCharter       == CharterType.None;
+        MetropolisCharterPending = metropolisCharterPending && MetropolisCharter == CharterType.None;
+    }
+
     // ── Effective combined accessors (all eras stacked) ─────────────────────
 
     /// Commercial growth — Town × City × Metropolis (multiplicative)

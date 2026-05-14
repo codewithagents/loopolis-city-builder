@@ -1011,6 +1011,11 @@ public partial class World : Node2D
 			var demand  = new DemandSystem();
 
 			_engine           = new SimulationEngine(_grid, _budget, _population, power, roads, demand);
+			SaveSystem.RestorePolicies(_engine.PolicySystem, save);
+			SaveSystem.RestoreMilestones(_engine.MilestoneSystem, save);
+			SaveSystem.RestoreCharters(_engine.Charters, save);
+			SaveSystem.RestoreServiceFatigue(_engine.ServiceFatigue, save);
+			_engine.SeedRoadGraphFromGrid();
 			_standaloneTick   = save.Tick;
 			_standalonePaused = false;
 			_buildModePaused  = false;
