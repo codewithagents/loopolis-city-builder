@@ -61,14 +61,22 @@ static class HeadlessRunner
             var residentialTiles      = cliGrid.TilesOfType(ZoneType.Residential).ToList();
             var poweredResidential    = residentialTiles.Count(t => t.HasPower);
             var roadAccessResidential = residentialTiles.Count(t => t.HasRoadAccess);
-            var readyResidential      = residentialTiles.Count(t => t.IsReadyToDevelop);
+            // IsReadyToDevelopUnpowered = road-adjacent only; matches BuildingGrowthSystem's
+            // actual spawn predicate (cottages form without power via P1 density unlock).
+            // Using IsReadyToDevelop (power+road) produced ReadyResidentialZones=0 in no_power
+            // despite population=25 existing there — a self-contradicting report.
+            var readyResidential      = residentialTiles.Count(t => t.IsReadyToDevelopUnpowered);
 
             var report = new SimulationReport(
                 Scenario: cliScene,
                 TotalTicks: ticks,
                 FinalPopulation: population.Population,
                 FinalBalance: Math.Round(budget.Balance, 2),
-                Survived: !budget.IsInDeficit,
+                // Survived = city is still standing (not Bankrupt or Abandoned).
+                // Using balance >= 0 was wrong: an abandoned city with positive cash falsely reported true.
+                Survived: cliEngine.MilestoneSystem.CurrentState is not
+                          (Loopolis.Core.Simulation.GameState.Bankrupt or
+                           Loopolis.Core.Simulation.GameState.Abandoned),
                 ResidentialZones: residentialTiles.Count,
                 PoweredResidentialZones: poweredResidential,
                 RoadAccessResidentialZones: roadAccessResidential,
