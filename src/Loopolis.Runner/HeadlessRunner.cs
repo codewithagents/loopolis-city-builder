@@ -80,7 +80,11 @@ static class HeadlessRunner
                 AverageHappiness: Math.Round(cliEngine.HappinessSystem.AverageHappiness(cliGrid), 3),
                 GameState: cliEngine.MilestoneSystem.CurrentState.ToString(),
                 MilestonesReached: cliEngine.MilestoneSystem.Reached.Select(m => $"{m.Name} {m.Emoji} (tick {m.ReachedAtTick})").ToList(),
-                History: tickHistory
+                History: tickHistory,
+                FinalTick: ticks,
+                TownCharterPending: cliEngine.Charters.TownCharterPending,
+                CityCharterPending: cliEngine.Charters.CityCharterPending,
+                MetropolisCharterPending: cliEngine.Charters.MetropolisCharterPending
             );
             Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }

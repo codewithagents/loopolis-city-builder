@@ -35,7 +35,7 @@ public static class CharterLibrary
             "Service radius +5 · Residential capacity +30% · Tax revenue +8%", "Metropolis"),
         new CharterDefinition(CharterType.GreenUtopia, "Green Utopia",
             "Industrial age is over. Your city runs on clean energy, parks, and clear skies.",
-            "Pollution impact ×0.1 · Park happiness ×3.0 · Park radius +3 tiles", "Metropolis"),
+            "Pollution impact ×0.25 · Park happiness ×3.0 · Park radius +3 tiles", "Metropolis"),
         new CharterDefinition(CharterType.EmpireOfSteel, "Empire of Steel",
             "Your factories define the continent's economy. What your city makes, the world buys.",
             "Industrial growth ×1.60 · +25 jobs per factory tile · Commercial growth ×1.30", "Metropolis"),

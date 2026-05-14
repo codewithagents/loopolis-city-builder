@@ -588,6 +588,57 @@ static class ScenarioSetup
                 return (gBt, engineBt);
             }
 
+            case "metro_test":
+                // Metropolis-scale validation scenario: dense road grid fills a 32×32 map with
+                // ~200 road-adjacent R tiles, all powered. Pre-selects Town+City charters so the
+                // engine never stalls waiting for charter selection. Should reach Metropolis
+                // milestone (25,000 pop) around tick 200–500, confirming MetropolisCharterPending fires.
+                //
+                // Layout:
+                //   CoalPlant at (0,0), PowerLine east along y=0 to x=16, then south along x=16 to y=20
+                //   Horizontal roads at y=2,5,8,11,14,17,20 — full width x=1..30
+                //   Vertical road spurs at x=5,10,15,20,25 — connecting all horizontal roads
+                //   Residential: all tiles between roads not occupied by road/power
+                //   Commercial: two rows at y=23–24, x=1..30
+                //   Services: Fire(1,26), Police(8,26), School(15,26), Hospital(22,26)
+                //   Starting balance: $50,000
+                budget.SetBalance(50_000);
+                grid.SetFlatTerrain();
+
+                // Power: CoalPlant at (0,0), line east to x=16, then south to y=20
+                grid.SetZone(0, 0, ZoneType.CoalPlant);
+                for (var x = 1; x <= 16; x++) grid.SetZone(x, 0, ZoneType.PowerLine);
+                for (var y = 1; y <= 20; y++) grid.SetZone(16, y, ZoneType.PowerLine);
+
+                // Horizontal roads at y=2,5,8,11,14,17,20 (x=1..30)
+                foreach (var ry in new[] { 2, 5, 8, 11, 14, 17, 20 })
+                    for (var x = 1; x <= 30; x++) grid.SetZone(x, ry, ZoneType.Road);
+
+                // Vertical road spurs at x=5,10,15,20,25 connecting y=2..20
+                foreach (var rx in new[] { 5, 10, 15, 20, 25 })
+                    for (var y = 2; y <= 20; y++) grid.SetZone(rx, y, ZoneType.Road);
+
+                // Residential: fill tiles between roads (rows y=3–4, 6–7, 9–10, 12–13, 15–16, 18–19)
+                // Skip tiles occupied by road spurs or power lines
+                foreach (var ry in new[] { 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19 })
+                    for (var x = 1; x <= 30; x++)
+                        if (grid.GetTile(x, ry).Zone == ZoneType.Empty)
+                            grid.SetZone(x, ry, ZoneType.Residential);
+
+                // Commercial: y=23–24, x=1..30
+                for (var x = 1; x <= 30; x++) grid.SetZone(x, 23, ZoneType.Commercial);
+                for (var x = 1; x <= 30; x++) grid.SetZone(x, 24, ZoneType.Commercial);
+
+                // Services: four buildings south of commercial
+                grid.SetZone(1,  26, ZoneType.FireStation);
+                grid.SetZone(8,  26, ZoneType.PoliceStation);
+                grid.SetZone(15, 26, ZoneType.School);
+                grid.SetZone(22, 26, ZoneType.Hospital);
+
+                // Road connecting services to the main grid
+                for (var x = 1; x <= 22; x++) grid.SetZone(x, 25, ZoneType.Road);
+                break;
+
             default:
                 // Empty new-game start with a border connection road from the south edge.
                 // Player must build their own infrastructure.

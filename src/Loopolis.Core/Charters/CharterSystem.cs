@@ -94,7 +94,7 @@ public class CharterSystem
     public float  MetropolisServiceRadiusBonus          => MetropolisCharter == CharterType.NexusCity     ? 5.0f : 0f;
     public double MetropolisResidentialCapacityBonus    => MetropolisCharter == CharterType.NexusCity     ? 0.30 : 0.0;
     public double MetropolisTaxRateModifier             => MetropolisCharter == CharterType.NexusCity     ? 0.08 : 0.0;
-    public float  MetropolisPollutionMultiplier         => MetropolisCharter == CharterType.GreenUtopia   ? 0.1f : 1.0f;
+    public float  MetropolisPollutionMultiplier         => MetropolisCharter == CharterType.GreenUtopia   ? 0.25f : 1.0f;
     public double MetropolisParkHappinessMultiplier     => MetropolisCharter == CharterType.GreenUtopia   ? 3.0  : 1.0;
     public int    MetropolisParkRadiusBonus             => MetropolisCharter == CharterType.GreenUtopia   ? 3    : 0;
     public double MetropolisIndustrialGrowthMultiplier  => MetropolisCharter == CharterType.EmpireOfSteel ? 1.6  : 1.0;

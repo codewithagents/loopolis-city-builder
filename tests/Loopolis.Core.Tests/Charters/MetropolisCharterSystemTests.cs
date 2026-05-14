@@ -109,10 +109,10 @@ public class MetropolisCharterSystemTests
     // ── GreenUtopia modifier tests ────────────────────────────────────────────
 
     [Test]
-    public void GreenUtopia_PollutionMultiplier_Is0_1()
+    public void GreenUtopia_PollutionMultiplier_Is0_25()
     {
         _system.SelectMetropolisCharter(CharterType.GreenUtopia);
-        Assert.That(_system.MetropolisPollutionMultiplier, Is.EqualTo(0.1f).Within(0.001f));
+        Assert.That(_system.MetropolisPollutionMultiplier, Is.EqualTo(0.25f).Within(0.001f));
     }
 
     [Test]

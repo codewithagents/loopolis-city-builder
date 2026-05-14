@@ -16,7 +16,7 @@ record TickSnapshot(
 record SimulationReport(
     string Scenario,
     int TotalTicks,
-    int FinalPopulation,
+    [property: JsonPropertyName("population")] int FinalPopulation,
     double FinalBalance,
     bool Survived,
     int ResidentialZones,
@@ -28,9 +28,13 @@ record SimulationReport(
     int IndustrialZones,
     double AveragePollution,
     double AverageHappiness,
-    string GameState,
+    [property: JsonPropertyName("gameState")] string GameState,
     List<string> MilestonesReached,
-    List<TickSnapshot> History);
+    List<TickSnapshot> History,
+    [property: JsonPropertyName("tick")] int FinalTick = 0,
+    [property: JsonPropertyName("townCharterPending")] bool TownCharterPending = false,
+    [property: JsonPropertyName("cityCharterPending")] bool CityCharterPending = false,
+    [property: JsonPropertyName("metropolisCharterPending")] bool MetropolisCharterPending = false);
 
 /// <summary>Enriched building entry in state.json — includes population and capacity.</summary>
 record BuildingStateInfo(
