@@ -258,6 +258,28 @@ public partial class World : Node2D
 				return;
 			}
 
+			// 'V' toggles the city statistics panel
+			if (key.Keycode == Key.V)
+			{
+				if (_statsPanel.IsVisible)
+				{
+					_statsPanel.Hide();
+				}
+				else
+				{
+					_statsPanel.Show();
+					// Populate immediately so the panel is not blank on first open
+					if (_viewerMode && _reader?.LastState != null)
+						_statsPanel.UpdateFromState(_reader.LastState);
+					else if (!_viewerMode && _engine != null && _population != null)
+						_statsPanel.UpdateFromEngine(_engine, _population.Population,
+							_budget?.Balance ?? 0.0,
+							(float)_engine.HappinessSystem.AverageHappiness(_grid));
+				}
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			// G — toggle Upgrade tool
 			if (key.Keycode == Key.G && !key.CtrlPressed)
 			{
@@ -273,9 +295,16 @@ public partial class World : Node2D
 				return;
 			}
 
-			// Escape: close policy panel, then shortcuts panel, then upgrade tool, then cancel tool
+			// Escape: close stats panel, policy panel, shortcuts panel, upgrade tool, cancel tool
 			if (key.Keycode == Key.Escape)
 			{
+				if (_statsPanel.IsVisible)
+				{
+					_statsPanel.Hide();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
 				if (_policyPanel.IsVisible)
 				{
 					_policyPanel.Hide();

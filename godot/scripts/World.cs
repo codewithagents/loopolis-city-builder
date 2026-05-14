@@ -94,6 +94,9 @@ public partial class World : Node2D
 	private bool _scenarioFailedFired   = false;
 	private ScenarioResultPanel? _scenarioResultPanel;
 
+	// City statistics panel (V key)
+	private CityStatsPanel _statsPanel = null!;
+
 	// Event response panel
 	private EventResponsePanel _eventResponsePanel = null!;
 
@@ -210,6 +213,10 @@ public partial class World : Node2D
 		// Policy panel (press 'O' to toggle)
 		_policyPanel = new PolicyPanel();
 		AddChild(_policyPanel);
+
+		// City statistics panel (press 'V' to toggle)
+		_statsPanel = new CityStatsPanel();
+		AddChild(_statsPanel);
 
 		// Event response panel (layer 12 — shown when a crisis event fires)
 		_eventResponsePanel = new EventResponsePanel();
@@ -452,6 +459,10 @@ public partial class World : Node2D
 			// Keep policy panel live while open (server mode)
 			if (_policyPanel.IsVisible)
 				_policyPanel.Update(false, null, _reader?.LastState, _reader?.SessionId);
+
+			// Keep stats panel live while open (server mode)
+			if (_statsPanel.IsVisible && _reader?.LastState != null)
+				_statsPanel.UpdateFromState(_reader.LastState);
 
 			// Poll for upgrade results from server
 			PollViewerUpgradeResult();
@@ -1130,6 +1141,10 @@ public partial class World : Node2D
 		_lastState = state;
 		_hud.UpdateStats(state);
 		_topBar.UpdateStats(state);
+
+		// Refresh stats panel (standalone mode) — only if open to avoid overhead
+		if (_statsPanel.IsVisible)
+			_statsPanel.UpdateFromEngine(_engine, _population!.Population, snapshot.Balance, (float)happiness);
 		_hintOverlay.UpdateHints(state);
 		_cityHealth.UpdateWarnings(state);
 		_renderer.SetBrownout(pcs.IsBrownout);

@@ -126,6 +126,7 @@ public partial class ShortcutsPanel : CanvasLayer
         AddRow(rightCol, "H",      "Toggle HUD stats");
         AddRow(rightCol, "M",      "Toggle minimap");
         AddRow(rightCol, "O",      "City Policies");
+        AddRow(rightCol, "V",      "City Statistics");
         AddRow(rightCol, "?",      "This help panel");
 
         rightCol.AddChild(MakeSpacer(8));

@@ -487,7 +487,15 @@ public record SharedState(
     string? PendingEventType = null,
     int PendingEventCost = 0,
     // Zone constraints from active scenario (null = all zones allowed)
-    List<string>? DisabledZones = null
+    List<string>? DisabledZones = null,
+    // City statistics (written by Runner from CityStatisticsSystem)
+    string PopulationTrend = "→",
+    string HappinessTrend = "→",
+    string BalanceTrend = "→",
+    int PeakPopulation = 0,
+    double PeakBalance = 0.0,
+    float PopulationGrowthRate = 0f,
+    List<StatsSnapshot>? StatsHistory = null
 )
 {
     /// <summary>
@@ -576,4 +584,16 @@ public record SharedTile(
     // Growth-diagnosis fields (populated in RebuildGrid after tile list is processed)
     bool IsRoadAdjacent = false,  // true when any orthogonal neighbour is Road or Avenue (for 1×1 building formation)
     float HappinessValue = 0f     // per-tile happiness, copied from Happiness; explicit for growth diagnosis
+);
+
+/// <summary>
+/// Per-tick statistics snapshot deserialized from the StatsHistory array in state.json.
+/// Mirrors the Runner's StatsSnapshot record (camelCase JSON, case-insensitive deserialisation).
+/// </summary>
+public record StatsSnapshot(
+    int Tick,
+    int Population,
+    double Balance,
+    float AvgHappiness,
+    float AvgPollution
 );
