@@ -46,6 +46,7 @@ public partial class TilemapRenderer : Node2D
 	// ── Time accumulator for animated effects ───────────────────────────────
 	private float _time = 0f;
 	private bool _hasWaterTiles = false; // set by Refresh(); drives continuous shimmer redraws
+	private bool _hasUpgradeReadyBuildings = false; // set each _Draw(); drives per-frame redraw for pulsing badge
 
 	// ── Smoke particles ──────────────────────────────────────────────────────
 	private record SmokeParticle(Vector2 WorldPos, float Age, float MaxAge, float BaseRadius);
@@ -242,9 +243,14 @@ public partial class TilemapRenderer : Node2D
 		var dt = (float)delta;
 		var needsRedraw = false;
 
-		// ── Time accumulator (water shimmer) ─────────────────────────────────
+		// ── Time accumulator (water shimmer + upgrade badge pulse) ──────────
 		_time += dt;
 		if (_hasWaterTiles && ActiveOverlay == OverlayMode.None)
+			needsRedraw = true;
+
+		// ── Upgrade-ready badge pulse ─────────────────────────────────────
+		// When any building is at 80%+ capacity, the gold badge pulses — keep redrawing.
+		if (_hasUpgradeReadyBuildings && ActiveOverlay == OverlayMode.None && !World.UpgradeToolActive && _currentZoom > 0.5f)
 			needsRedraw = true;
 
 		// ── Road pulse ───────────────────────────────────────────────────────
@@ -2244,6 +2250,88 @@ public partial class TilemapRenderer : Node2D
 					// Tiles with both road and power (eligible to grow) get no badge —
 					// the absence of any badge signals readiness.
 				}
+			}
+		}
+
+		// ── Upgrade-ready badge pass ─────────────────────────────────────────
+		// Pulsing golden diamond badge on tiles whose building is at ≥80% population capacity.
+		// Suppressed when: upgrade tool is active (full gold highlight covers it), any overlay
+		// is active, or zoom ≤ 0.5× (icon mode, badges would be sub-pixel noise).
+		// Resets _hasUpgradeReadyBuildings so _Process can gate per-frame redraws.
+		_hasUpgradeReadyBuildings = false;
+		if (_grid != null && ActiveOverlay == OverlayMode.None && !World.UpgradeToolActive && _currentZoom > 0.5f)
+		{
+			// Slow pulse: 0.7–1.0 opacity, 1.2-second cycle
+			var badgeTime = Time.GetTicksMsec() / 1000.0f;
+			var badgePulse = 0.7f + 0.3f * Mathf.Sin(badgeTime * Mathf.Pi * 2f / 1.2f);
+			var badgeColor = new Color(1.0f, 0.85f, 0.1f, badgePulse);
+
+			foreach (var building in _grid.Buildings.Values)
+			{
+				if (!UpgradeableTypes.Contains(building.TypeId)) continue;
+
+				// Iterate every tile in the building — show a badge on each qualifying tile
+				foreach (var (tx, ty) in building.Tiles())
+				{
+					if (!_grid.IsInBounds(tx, ty)) continue;
+					var t = _grid.GetTile(tx, ty);
+					if (t.Population <= 0) continue;
+
+					// 80% of per-tile effective capacity
+					var capacity = BuildingGrowthSystem.GetEffectiveCapacity(building.TypeId, t.HasPower);
+					var threshold = (int)(capacity * 0.8f);
+					if (t.Population < threshold) continue;
+
+					_hasUpgradeReadyBuildings = true;
+
+					// Draw a small 6×6 golden diamond in the top-right corner of the tile
+					float bpx = tx * TileSize;
+					float bpy = ty * TileSize;
+					const float diamondHalf = 4f;
+					const float margin = 4f;
+					// Centre the diamond in the top-right area: (TileSize - margin - 1, margin + 1)
+					var cx = bpx + TileSize - margin - 1f;
+					var cy = bpy + margin + 1f;
+					DrawPolygon(
+						new[]
+						{
+							new Vector2(cx,               cy - diamondHalf), // top
+							new Vector2(cx + diamondHalf, cy),               // right
+							new Vector2(cx,               cy + diamondHalf), // bottom
+							new Vector2(cx - diamondHalf, cy),               // left
+						},
+						new[] { badgeColor, badgeColor, badgeColor, badgeColor });
+				}
+			}
+		}
+
+		// ── Happiness-distress indicator ─────────────────────────────────────
+		// Small red downward triangle on tiles with severe happiness deficit (< 0.28).
+		// Signals that the distress decay system is actively working on this tile.
+		// Suppressed in overlay modes (the happiness overlay covers this info already).
+		if (_grid != null && ActiveOverlay == OverlayMode.None && _currentZoom > 0.5f)
+		{
+			var distressColor = new Color(0.9f, 0.2f, 0.2f, 0.8f);
+			foreach (var t in _grid.AllTiles())
+			{
+				if (t.Zone != ZoneType.Residential && t.Zone != ZoneType.Commercial && t.Zone != ZoneType.Industrial)
+					continue;
+				if (t.BuildingId == null) continue; // only developed tiles
+				if ((float)t.Happiness >= 0.28f) continue;
+
+				float bpx = t.X * TileSize;
+				float bpy = t.Y * TileSize;
+				// Downward-pointing 5×5 triangle in the bottom-left corner
+				const float triHalf = 3f;
+				const float triMarg = 3f;
+				var tcx = bpx + triMarg + triHalf;
+				var tcy = bpy + TileSize - triMarg - 1f;
+				// Triangle: top-left, top-right, bottom-center (points downward)
+				DrawTriangle(
+					new Vector2(tcx - triHalf, tcy - triHalf * 1.2f),
+					new Vector2(tcx + triHalf, tcy - triHalf * 1.2f),
+					new Vector2(tcx,           tcy),
+					distressColor);
 			}
 		}
 
