@@ -94,6 +94,10 @@ public partial class World : Node2D
 	private bool _scenarioFailedFired   = false;
 	private ScenarioResultPanel? _scenarioResultPanel;
 
+	// Event response panel
+	private EventResponsePanel _eventResponsePanel = null!;
+	private string? _lastShownEventType; // track which event we showed so we don't re-show after dismiss
+
 	// Tutorial hint progression (passive hints — separate from the guided tutorial)
 	private int _tutorialHintIndex = 0;
 	private static readonly string[] TutorialHints =
@@ -242,6 +246,11 @@ public partial class World : Node2D
 		// Policy panel (press 'O' to toggle)
 		_policyPanel = new PolicyPanel();
 		AddChild(_policyPanel);
+
+		// Event response panel (layer 12 — shown when a crisis event fires)
+		_eventResponsePanel = new EventResponsePanel();
+		_eventResponsePanel.InterveneRequested += OnEventInterveneRequested;
+		AddChild(_eventResponsePanel);
 
 		// Wire toolbar signals
 		_toolbar.ZoneSelected   += OnZoneSelected;
@@ -461,6 +470,24 @@ public partial class World : Node2D
 			// Poll for upgrade results from server
 			PollViewerUpgradeResult();
 
+			// Event response panel (viewer mode) — check latest server state
+			var viewerStateCopy = _reader?.LastState;
+			if (viewerStateCopy != null)
+			{
+				if (!string.IsNullOrEmpty(viewerStateCopy.PendingEventType) &&
+				    _lastShownEventType != viewerStateCopy.PendingEventType)
+				{
+					_lastShownEventType = viewerStateCopy.PendingEventType;
+					var canAfford = viewerStateCopy.Balance >= viewerStateCopy.PendingEventCost;
+					_eventResponsePanel.ShowEvent(viewerStateCopy.PendingEventType, viewerStateCopy.PendingEventCost, canAfford);
+				}
+				else if (string.IsNullOrEmpty(viewerStateCopy.PendingEventType))
+				{
+					_lastShownEventType = null;
+					_eventResponsePanel.Hide();
+				}
+			}
+
 			return;
 		}
 
@@ -474,6 +501,22 @@ public partial class World : Node2D
 			_tutorialStepFlashTimer -= (float)delta;
 			if (_tutorialStepFlashTimer <= 0f)
 				AdvanceTutorialDelayed();
+		}
+
+		// Event response panel (standalone mode) — runs every frame so panel stays responsive
+		if (_engine != null)
+		{
+			if (_engine.HasPendingEvent && _lastShownEventType != _engine.PendingEventType)
+			{
+				_lastShownEventType = _engine.PendingEventType;
+				var canAfford = _engine.Budget.Balance >= _engine.PendingEventCost;
+				_eventResponsePanel.ShowEvent(_engine.PendingEventType!, _engine.PendingEventCost, canAfford);
+			}
+			else if (!_engine.HasPendingEvent)
+			{
+				_lastShownEventType = null;
+				_eventResponsePanel.Hide();
+			}
 		}
 
 		if (_standalonePaused) return;
@@ -1134,6 +1177,46 @@ public partial class World : Node2D
 		_tickInterval = 1.0 / ticksPerSecond;
 		if (_viewerMode && _reader?.SessionId != null)
 			WriteCommand($"{{\"cmd\":\"set_speed\",\"ticksPerSecond\":{ticksPerSecond}}}");
+	}
+
+	/// <summary>
+	/// Called when the player presses "Intervene" on the EventResponsePanel.
+	/// Standalone: calls engine.RespondToCurrentEvent() directly.
+	/// Viewer: sends event_respond command to the running server.
+	/// </summary>
+	private void OnEventInterveneRequested()
+	{
+		if (_viewerMode)
+		{
+			var sid = _reader?.SessionId;
+			if (sid != null)
+				WriteCommand($"{{\"cmd\":\"event_respond\",\"sessionId\":\"{sid}\"}}");
+			// Show a generic toast — we don't know the cost in viewer mode until next state tick
+			_toastSystem.AddToast("Crisis intervention requested!", new Color(1f, 0.72f, 0.18f), 5f);
+		}
+		else
+		{
+			var cost = _engine.PendingEventCost;
+			var eventType = _engine.PendingEventType;
+			var success = _engine.RespondToCurrentEvent();
+			if (success)
+			{
+				var label = eventType switch
+				{
+					"FireBreak"   => "Fire contained",
+					"CrimeWave"   => "Crime suppressed",
+					"PowerOutage" => "Grid restored",
+					"DemandSlump" => "Businesses subsidised",
+					_             => "Crisis resolved",
+				};
+				_toastSystem.AddToast($"{label}! (-${cost:N0})", new Color(1f, 0.72f, 0.18f), 6f);
+				_eventLog?.AddEntry($"Player intervened: {label} (-${cost:N0})");
+			}
+			else
+			{
+				_toastSystem.AddToast("Cannot afford intervention!", new Color(0.9f, 0.3f, 0.2f), 4f);
+			}
+		}
 	}
 
 	// ── Click/drag-to-place ────────────────────────────────────────────────

@@ -480,7 +480,10 @@ public record SharedState(
     int PolicyTotalCostPerTick = 0,
     // Manual upgrade result from ManualUpgradeSystem (set by Runner after processing upgrade command)
     // Format: "ok:building_type_id:-cost" on success, "err:reason" on failure, null when no result pending
-    string? LastUpgradeResult = null
+    string? LastUpgradeResult = null,
+    // Event response system — set when an event fires and the player hasn't responded yet
+    string? PendingEventType = null,
+    int PendingEventCost = 0
 )
 {
     /// <summary>

@@ -776,6 +776,16 @@ static void ProcessCommand(
                 }
                 break;
 
+            case "event_respond":
+            {
+                var success = engine.RespondToCurrentEvent();
+                if (success)
+                    Console.WriteLine($"[event_respond] Player intervened. Cost: ${engine.EventSystem.ActiveResponse?.Cost ?? 0}, Balance: ${engine.Budget.Balance:N0}");
+                else
+                    Console.WriteLine($"[event_respond] No pending event or insufficient funds.");
+                break;
+            }
+
             default:
                 Console.WriteLine($"[command] Unknown: {cmd}");
                 break;
@@ -1125,7 +1135,9 @@ static void WriteState(
         PolicyCommercialBoost:     engine.PolicySystem.IsActive(PolicyType.CommercialBoost),
         PolicyOpenCity:            engine.PolicySystem.IsActive(PolicyType.OpenCity),
         PolicyTotalCostPerTick:    engine.PolicySystem.GetCostPerTick(),
-        LastUpgradeResult:         lastUpgradeResult
+        LastUpgradeResult:         lastUpgradeResult,
+        PendingEventType:          engine.PendingEventType,
+        PendingEventCost:          engine.PendingEventCost
     );
 
     var options = new JsonSerializerOptions
@@ -1750,7 +1762,10 @@ record ServerState(
     bool PolicyOpenCity = false,
     int PolicyTotalCostPerTick = 0,
     // Manual upgrade result: "ok:newTypeId:-cost" or "err:reason" — null when no upgrade was attempted
-    string? LastUpgradeResult = null);
+    string? LastUpgradeResult = null,
+    // Event response system — set when an event fires and player hasn't responded yet
+    string? PendingEventType = null,
+    int PendingEventCost = 0);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

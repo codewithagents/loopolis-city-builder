@@ -7,6 +7,16 @@ public enum CityEventType { None, FireBreak, CrimeWave, PowerOutage, DemandSlump
 
 public record CityEvent(CityEventType Type, string Name, string Description, int DurationTicks);
 
+/// <summary>
+/// Tracks an active event that is awaiting (or has received) a player response.
+/// </summary>
+public record PendingEventResponse(
+    string EventType,   // "FireBreak", "CrimeWave", "PowerOutage", "DemandSlump"
+    int Cost,           // $ cost of the Intervene option
+    int TickFired,      // when this event fired
+    bool Responded      // true once the player has chosen to intervene
+);
+
 public class EventSystem
 {
     private readonly Random _rng;
@@ -25,8 +35,24 @@ public class EventSystem
     // SimulationEngine reads this flag each tick and demolishes the tile if set.
     public bool FireDamageOccurred { get; private set; }
 
+    /// <summary>
+    /// Set when an event fires; cleared when the event ends (naturally or via player response).
+    /// Non-null and Responded==false means a response is awaiting player input.
+    /// </summary>
+    public PendingEventResponse? ActiveResponse { get; private set; }
+
     public CityEvent? ActiveEvent => _activeEvent;
     public bool HasActiveEvent => _activeEvent != null;
+
+    /// <summary>Intervention costs per event type.</summary>
+    private static int GetInterventionCost(CityEventType type) => type switch
+    {
+        CityEventType.FireBreak    => 800,
+        CityEventType.CrimeWave   => 600,
+        CityEventType.PowerOutage  => 1200,
+        CityEventType.DemandSlump  => 1500,
+        _                          => 0,
+    };
 
     public double HappinessPenalty => _activeEvent?.Type switch
     {
@@ -41,6 +67,32 @@ public class EventSystem
     {
         _rng = rng ?? Random.Shared;
         _cooldownTicks = 60; // give player time to set up before first event
+    }
+
+    /// <summary>
+    /// Player chooses to intervene in the current event.
+    /// Deducts the intervention cost from <paramref name="budget"/> and resolves the event in 5 ticks.
+    /// Returns false if there is no active event, it was already responded to, or funds are insufficient.
+    /// </summary>
+    public bool RespondToEvent(BudgetSystem budget)
+    {
+        if (ActiveResponse == null) return false;
+        if (ActiveResponse.Responded) return false;
+        if (budget.Balance < ActiveResponse.Cost) return false;
+
+        budget.Charge(ActiveResponse.Cost);
+        ActiveResponse = ActiveResponse with { Responded = true };
+
+        // For FireBreak: prevent demolition — clear the fire tile so it is treated as if
+        // a fire station extinguished it.
+        if (_activeEvent?.Type == CityEventType.FireBreak)
+            FireTileX = FireTileY = -1;
+
+        // Resolve in at most 5 more ticks instead of the full remaining duration
+        if (_ticksRemaining > 5)
+            _ticksRemaining = 5;
+
+        return true;
     }
 
     /// <summary>Run each simulation tick. Returns a new event if one just fired (for banner display).</summary>
@@ -59,6 +111,7 @@ public class EventSystem
             if (_ticksRemaining <= 0)
             {
                 // FireBreak ends: if no fire station covered the tile, mark fire damage
+                // (skip if the player already intervened — fire tile was already cleared)
                 if (_activeEvent.Type == CityEventType.FireBreak && FireTileX >= 0)
                 {
                     bool fireStationExists = grid.AllTiles().Any(t => t.Zone == ZoneType.FireStation);
@@ -70,6 +123,7 @@ public class EventSystem
                 }
 
                 _activeEvent = null;
+                ActiveResponse = null;   // clear response tracking when event ends
                 _cooldownTicks = _rng.Next(MinCooldown, MaxCooldown);
             }
             return null;
@@ -167,6 +221,14 @@ public class EventSystem
                 duration),
         };
         _ticksRemaining = duration;
+
+        // Set pending response for the newly fired event
+        ActiveResponse = new PendingEventResponse(
+            EventType:  type.ToString(),
+            Cost:       GetInterventionCost(type),
+            TickFired:  0,   // caller (SimulationEngine) can stamp TickCount if needed; 0 is fine for logic
+            Responded:  false);
+
         return _activeEvent;
     }
 }

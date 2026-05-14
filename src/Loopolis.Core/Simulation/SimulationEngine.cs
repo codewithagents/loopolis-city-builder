@@ -95,6 +95,24 @@ public class SimulationEngine
     /// <summary>Set each tick when a new event fires; cleared at the start of the next tick.</summary>
     public string? LatestEventBanner { get; private set; }
 
+    // ── Event response helpers (for Godot / Runner) ─────────────────────────────
+
+    /// <summary>True when an event is active and the player has not yet responded.</summary>
+    public bool HasPendingEvent => EventSystem.ActiveResponse != null && !EventSystem.ActiveResponse.Responded;
+
+    /// <summary>Type string of the pending event (e.g. "FireBreak"), or null when none.</summary>
+    public string? PendingEventType => EventSystem.ActiveResponse?.EventType;
+
+    /// <summary>Intervention cost for the current pending event, or 0 when none.</summary>
+    public int PendingEventCost => EventSystem.ActiveResponse?.Cost ?? 0;
+
+    /// <summary>
+    /// Processes the player's Intervene response for the current event.
+    /// Deducts cost from budget and fast-resolves the event.
+    /// Returns true on success, false when no event is pending or funds are insufficient.
+    /// </summary>
+    public bool RespondToCurrentEvent() => EventSystem.RespondToEvent(Budget);
+
     private int _lowHappinessTicks = 0;
     private const int LowHappinessLimit = 50;   // give player time to react before abandonment
     private const double AbandonThreshold = 0.25; // lowered from 0.30 — no-service cities shouldn't auto-abandon
