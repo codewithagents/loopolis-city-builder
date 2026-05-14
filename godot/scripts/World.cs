@@ -1324,34 +1324,16 @@ public partial class World : Node2D
 			if (_grid == null || _engine == null) return;
 			if (tileX < 0 || tileX >= _grid.Width || tileY < 0 || tileY >= _grid.Height) return;
 
-#if MANUAL_UPGRADE_AVAILABLE
-			// TODO: uncomment when ManualUpgradeSystem is available in Core
 			var result = _engine.ManualUpgrade(tileX, tileY);
 			if (result.Success)
 			{
 				_renderer.Refresh(_grid);
-				_toastSystem.ShowToast($"Upgraded to {GetFriendlyBuildingName(result.NewBuildingTypeId!)} (-${result.Cost:N0})");
+				_toastSystem.AddToast($"💰 Upgraded to {GetFriendlyBuildingName(result.NewBuildingTypeId!)} (-${result.Cost:N0})", new Color(1f, 0.85f, 0.2f), 5f);
 			}
 			else
 			{
-				_toastSystem.ShowToast($"Can't upgrade: {result.Reason}", ToastType.Warning);
+				_toastSystem.AddToast($"Can't upgrade: {result.Reason}", new Color(0.9f, 0.4f, 0.2f), 3f);
 			}
-#else
-			// Stub: check if the tile has an upgradeable building and show a preview toast
-			var tile = _grid.GetTile(tileX, tileY);
-			if (tile.BuildingId != null && _grid.Buildings.TryGetValue(tile.BuildingId, out var building))
-			{
-				var upgradeInfo = GetUpgradeInfoForType(building.TypeId);
-				if (upgradeInfo.HasValue)
-					_toastSystem.AddToast($"[Upgrade] {GetFriendlyBuildingName(building.TypeId)} → {upgradeInfo.Value.TargetName} (${upgradeInfo.Value.Cost:N0})", new Color(1f, 0.85f, 0.2f), 4f);
-				else
-					_toastSystem.AddToast($"Can't upgrade: no higher tier available", new Color(0.8f, 0.5f, 0.2f), 3f);
-			}
-			else
-			{
-				_toastSystem.AddToast("No upgradeable building here", new Color(0.6f, 0.6f, 0.6f), 2f);
-			}
-#endif
 		}
 	}
 
