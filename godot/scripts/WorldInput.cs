@@ -312,6 +312,14 @@ public partial class World : Node2D
 				return;
 			}
 
+			// 'B' toggles the advisor bar
+			if (key.Keycode == Key.B)
+			{
+				_advisorBar.Toggle();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			// G — toggle Upgrade tool
 			if (key.Keycode == Key.G && !key.CtrlPressed)
 			{

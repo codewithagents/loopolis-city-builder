@@ -97,6 +97,9 @@ public partial class World : Node2D
 	// City statistics panel (V key)
 	private CityStatsPanel _statsPanel = null!;
 
+	// Advisor bar (B key) — persistent bottom strip with CityAdvisor hints
+	private AdvisorBar _advisorBar = null!;
+
 	// Petition inbox panel (I key)
 	private PetitionInboxPanel _petitionPanel = null!;
 
@@ -232,6 +235,10 @@ public partial class World : Node2D
 		// City statistics panel (press 'V' to toggle)
 		_statsPanel = new CityStatsPanel();
 		AddChild(_statsPanel);
+
+		// Advisor bar (press 'B' to toggle) — persistent bottom strip
+		_advisorBar = new AdvisorBar();
+		AddChild(_advisorBar);
 
 		// Petition inbox panel (press 'I' to toggle)
 		_petitionPanel = new PetitionInboxPanel();
@@ -1239,6 +1246,7 @@ public partial class World : Node2D
 		_lastState = state;
 		_hud.UpdateStats(state);
 		_topBar.UpdateStats(state);
+		_advisorBar.UpdateFromEngine(_engine);
 
 		// Refresh stats panel (standalone mode) — only if open to avoid overhead
 		if (_statsPanel.IsVisible)

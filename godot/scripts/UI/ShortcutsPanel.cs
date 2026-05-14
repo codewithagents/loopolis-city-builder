@@ -124,6 +124,7 @@ public partial class ShortcutsPanel : CanvasLayer
         AddRow(rightCol, "F4",     "Land Value overlay");
         AddRow(rightCol, "F5",     "Pollution overlay");
         AddRow(rightCol, "H",      "Toggle HUD stats");
+        AddRow(rightCol, "B",      "Toggle advisor bar");
         AddRow(rightCol, "M",      "Toggle minimap");
         AddRow(rightCol, "I",      "Petition Inbox");
         AddRow(rightCol, "O",      "City Policies");
