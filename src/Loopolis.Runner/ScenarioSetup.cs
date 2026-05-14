@@ -208,58 +208,102 @@ static class ScenarioSetup
 
             case "city_path":
                 // Compact mixed-use foundation designed to reach City milestone (5,000 pop).
+                // No industrial → employment multiplier = 1.0 (no throttle when no factories).
+                // Budget set to $8,000 for initial deficit coverage.
+                //
+                // Grid layout:
+                //   CoalPlant:   (2,15)
+                //   Main road:   y=15, x=3..22
+                //   Secondary:   y=12, x=8..22
+                //   Top road:    y=9,  x=8..22
+                //   Left spur:   x=8,  y=9..15
+                //   Right spur:  x=22, y=9..15
+                //
+                // Residential — 4 rows × 13 tiles (x=9..21) = 52 R tiles, all road-adjacent:
+                //   y=14 adj to main road (y=15)
+                //   y=13 adj to secondary (y=12)
+                //   y=11 adj to secondary (y=12)
+                //   y=10 adj to top road  (y=9)
+                //
+                // Commercial: y=16, x=10..16 — south of main, Chebyshev-3 covers R at y=13..15
+                // Services: Fire at (9,16), Police at (17,16), School at (9,8), Hospital at (17,8)
+                //   Road-graph dist from R(9,10) to School(9,8) = 3 hops via spur ≤ 10 ✓
+                //   Road-graph dist from R(21,10) to School(9,8) = 13+3 hops — distribute second service
+                budget.SetBalance(8_000);
                 grid.SetFlatTerrain();
-                // Power — plant at (2,15), road starts at (3,15) immediately adjacent
                 grid.SetZone(2, 15, ZoneType.CoalPlant);
-
-                // Roads
-                for (var x = 3; x <= 24; x++) grid.SetZone(x, 15, ZoneType.Road);    // main E-W spine
-                for (var y = 11; y <= 14; y++) grid.SetZone(16, y, ZoneType.Road);    // north spur
-
-                // Residential — west row (road access via y=15 main road)
-                for (var x = 7; x <= 15; x++) grid.SetZone(x, 14, ZoneType.Residential);
-
-                // Residential — east column (road access via x=16 north spur)
-                for (var y = 11; y <= 14; y++) grid.SetZone(17, y, ZoneType.Residential);
-
-                // Commercial south of main road — Chebyshev-3 demand boost to west + center residential
-                for (var x = 9; x <= 12; x++) grid.SetZone(x, 16, ZoneType.Commercial);
-
-                // Industrial — two tiles placed so every residential tile is within 8 Manhattan distance
-                // (7,16): covers west residential; (16,16): covers east residential + center
-                grid.SetZone(7,  16, ZoneType.Industrial);
-                grid.SetZone(16, 16, ZoneType.Industrial);
-
-                // Services
-                grid.SetZone(8,  16, ZoneType.FireStation);    // covers west residential cluster (road-adjacent to spine)
-                grid.SetZone(14, 16, ZoneType.PoliceStation);  // covers center + east residential (road-adjacent to spine)
-                // School at (13,16): road-adjacent to (13,15). Graph distance to west residential (7,14) ≈ 7.
-                // Graph distance to east residential (17,14) ≈ 5. Both well within School radius 10.0.
-                grid.SetZone(13, 16, ZoneType.School);
-
-                // Park near residential center — gives +0.08/tile happiness to Chebyshev-3 neighbours (cap +0.20)
-                grid.SetZone(11, 13, ZoneType.Park);
+                for (var x = 3;  x <= 22; x++) grid.SetZone(x, 15, ZoneType.Road);   // main E-W spine
+                for (var x = 8;  x <= 22; x++) grid.SetZone(x, 12, ZoneType.Road);   // secondary road
+                for (var x = 8;  x <= 22; x++) grid.SetZone(x, 9,  ZoneType.Road);   // top road
+                for (var y = 9;  y <= 15; y++) grid.SetZone(8,  y,  ZoneType.Road);  // left spur
+                for (var y = 9;  y <= 15; y++) grid.SetZone(22, y,  ZoneType.Road);  // right spur
+                // Residential — all 4 rows road-adjacent:
+                for (var x = 9; x <= 21; x++) grid.SetZone(x, 14, ZoneType.Residential);  // adj to y=15
+                for (var x = 9; x <= 21; x++) grid.SetZone(x, 13, ZoneType.Residential);  // adj to y=12
+                for (var x = 9; x <= 21; x++) grid.SetZone(x, 11, ZoneType.Residential);  // adj to y=12
+                for (var x = 9; x <= 21; x++) grid.SetZone(x, 10, ZoneType.Residential);  // adj to y=9
+                // Commercial south of main road (demand boost for residential)
+                for (var x = 10; x <= 16; x++) grid.SetZone(x, 16, ZoneType.Commercial);
+                // Services — distributed to cover all R tiles within road-graph radius:
+                grid.SetZone(9,  16, ZoneType.FireStation);
+                grid.SetZone(17, 16, ZoneType.PoliceStation);
+                grid.SetZone(9,  8,  ZoneType.School);
+                grid.SetZone(17, 8,  ZoneType.Hospital);
+                // Park near residential center for happiness boost
+                grid.SetZone(15, 10, ZoneType.Park);
                 break;
 
             case "powered_start":
-                // Like default but pre-built with fire+police coverage — tests mid-game growth without neglect cascade.
+                // Like default but pre-built with full service coverage — tests mid-game growth toward City milestone.
+                // No industrial: employment multiplier = 1.0 (no throttle when no factories exist).
+                // Budget set to $10,000 (represents an established city with savings).
+                //
+                // Grid layout (32×32):
+                //   CoalPlant:    (5,14) — adjacent to main road
+                //   Main road:    y=14, x=6..26
+                //   Secondary:    y=11, x=6..26
+                //   Top road:     y=8,  x=6..26
+                //   Left spur:    x=6,  y=8..14  (connects all three E-W roads)
+                //   Right spur:   x=26, y=8..14
+                //
+                // Residential (4 rows × 19 tiles = 76 R tiles, all road-adjacent):
+                //   y=13: adj to main road (y=14)
+                //   y=12: adj to secondary (y=11)
+                //   y=10: adj to secondary (y=11)
+                //   y=9:  adj to top road (y=8)
+                //
+                // Services: Fire at (7,15), Police at (14,15), School at (7,7), Hospital at (19,7)
+                //   All adjacent to main or top road → road-graph connected.
+                //   Fire/Police at y=15 adj to y=14 main road → dist to R at y=9: spur path ≤ 12 ✓
+                //   School/Hospital at y=7 adj to y=8 top road → dist to R at y=13: spur path ≤ 12 ✓
+                //
+                // Commercial: y=15, x=8..13 (south of main, Chebyshev-3 covers R at y=12..14)
+                //   demand boost raises DemandFactor to 1.5× for adjacent R tiles
+                //
+                // Happiness target: 0.60 base + 0.30 (2 service categories) + 0.25 (commercial adj) = 1.15 → capped 1.0
+                // Growth at pop 5000 from 76 townhouse tiles: rawGrowth = 0.07×200×0.90×1.0 = 12.6 → 12/tick
+                // Townhouse tier (80% of 200 = 160 per tile) → tries to form apartment at City milestone
+                budget.SetBalance(10_000);
                 grid.SetFlatTerrain();
-                grid.SetZone(5, 12, ZoneType.CoalPlant);
-                for (var x = 6; x <= 16; x++) grid.SetZone(x, 12, ZoneType.Road);
-                // Residential north of road — two rows so res_townhouse_2x2 (2×2 footprint) can grow
-                for (var x = 9; x <= 14; x++) grid.SetZone(x, 11, ZoneType.Residential);
-                for (var x = 9; x <= 14; x++) grid.SetZone(x, 10, ZoneType.Residential);
-                // Commercial south of road
-                grid.SetZone(9,  13, ZoneType.Commercial);
-                grid.SetZone(10, 13, ZoneType.Commercial);
-                grid.SetZone(11, 13, ZoneType.Commercial);
-                // Industrial far west, south of road (away from residential)
-                grid.SetZone(6,  13, ZoneType.Industrial);
-                grid.SetZone(7,  13, ZoneType.Industrial);
-                // Services — pre-built so players see what covered growth looks like
-                grid.SetZone(8,  13, ZoneType.FireStation);
-                grid.SetZone(13, 13, ZoneType.PoliceStation);
-                grid.SetZone(15, 11, ZoneType.School);
+                grid.SetZone(5, 14, ZoneType.CoalPlant);
+                for (var x = 6;  x <= 26; x++) grid.SetZone(x, 14, ZoneType.Road);   // main E-W spine
+                for (var x = 6;  x <= 26; x++) grid.SetZone(x, 11, ZoneType.Road);   // secondary road
+                for (var x = 6;  x <= 26; x++) grid.SetZone(x, 8,  ZoneType.Road);   // top road
+                for (var y = 8;  y <= 14; y++) grid.SetZone(6,  y,  ZoneType.Road);  // left spur
+                for (var y = 8;  y <= 14; y++) grid.SetZone(26, y,  ZoneType.Road);  // right spur
+                // Residential — 4 rows, each directly adjacent to a road:
+                for (var x = 7; x <= 25; x++) grid.SetZone(x, 13, ZoneType.Residential);  // adj to y=14
+                for (var x = 7; x <= 25; x++) grid.SetZone(x, 12, ZoneType.Residential);  // adj to y=11
+                for (var x = 7; x <= 25; x++) grid.SetZone(x, 10, ZoneType.Residential);  // adj to y=11
+                for (var x = 7; x <= 25; x++) grid.SetZone(x, 9,  ZoneType.Residential);  // adj to y=8
+                // Commercial south of main road (demand boost for residential)
+                for (var x = 8; x <= 15; x++) grid.SetZone(x, 15, ZoneType.Commercial);
+                // Services: Fire+Police south of main road; School+Hospital north of top road.
+                // Distributed to ensure road-graph coverage of all 4 R rows:
+                grid.SetZone(7,  15, ZoneType.FireStation);
+                grid.SetZone(16, 15, ZoneType.PoliceStation);
+                grid.SetZone(7,  7,  ZoneType.School);
+                grid.SetZone(19, 7,  ZoneType.Hospital);
                 break;
 
             case "stress_test":
