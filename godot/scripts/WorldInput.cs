@@ -741,10 +741,38 @@ public partial class World : Node2D
 		else
 		{
 			if (_engine == null) return false;
-			_buildingInfoPanel.ShowForBuilding(building, grid, _engine, mouseScreenPos, viewportSize);
+			// Build a lightweight ServiceFatigueEntry array from engine state for the panel
+			var fatigueEntries = BuildFatigueEntries(_engine, grid);
+			_buildingInfoPanel.ShowForBuilding(building, grid, _engine, mouseScreenPos, viewportSize, fatigueEntries);
 		}
 
 		return true;
+	}
+
+	/// <summary>
+	/// Builds a ServiceFatigueEntry array from the engine's ServiceFatigueSystem
+	/// for use in standalone BuildingInfoPanel display.
+	/// Only tiles with capacity below the warning threshold (60%) are included.
+	/// </summary>
+	private static ServiceFatigueEntry[] BuildFatigueEntries(
+		Loopolis.Core.Simulation.SimulationEngine engine,
+		Loopolis.Core.Grid.CityGrid grid)
+	{
+		var list = new System.Collections.Generic.List<ServiceFatigueEntry>();
+		foreach (var (x, y) in engine.ServiceFatigue.DeprecatedTiles)
+		{
+			if (!grid.IsInBounds(x, y)) continue;
+			var tile = grid.GetTile(x, y);
+			var capacity = engine.ServiceFatigue.GetCapacity(x, y);
+			list.Add(new ServiceFatigueEntry(
+				X: x,
+				Y: y,
+				Zone: tile.Zone.ToString(),
+				Capacity: capacity,
+				NeedsRenovation: engine.ServiceFatigue.NeedsRenovation(x, y)
+			));
+		}
+		return list.ToArray();
 	}
 
 	/// <summary>

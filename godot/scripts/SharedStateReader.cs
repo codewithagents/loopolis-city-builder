@@ -185,6 +185,7 @@ public partial class SharedStateReader : Node
             _renderer.RefreshWithHeight(grid, heightMap, forestMap);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _renderer.SetFireTile(state.EventTileX, state.EventTileY);
+            _renderer.SetDegradedServices(state.DegradedServices);
             _hud.UpdateStats(state);
             _topBar.UpdateStats(state);
             _hintOverlay.UpdateHints(state);
@@ -515,7 +516,10 @@ public record SharedState(
     // Charter system (Town era)
     bool TownCharterPending = false,
     string? ActiveCharter = null,
-    string? ActiveCharterDescription = null
+    string? ActiveCharterDescription = null,
+    // Service fatigue (City+ milestone)
+    bool ServiceFatigueActive = false,
+    ServiceFatigueEntry[]? DegradedServices = null
 )
 {
     /// <summary>
@@ -630,4 +634,16 @@ public record PetitionEntry(
     int IssuedTick = 0,
     int DeadlineTick = 0,
     int UrgencyTicks = 0
+);
+
+/// <summary>
+/// A single service tile with its current fatigue capacity.
+/// Mirrors the Runner's ServiceFatigueEntry record (camelCase JSON, case-insensitive deserialisation).
+/// </summary>
+public record ServiceFatigueEntry(
+    int X = 0,
+    int Y = 0,
+    string Zone = "",
+    double Capacity = 1.0,
+    bool NeedsRenovation = false
 );

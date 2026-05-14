@@ -13,6 +13,9 @@ public partial class World : Node2D
 	// Event response panel tracking — which event we last showed so we don't re-show after dismiss
 	private string? _lastShownEventType;
 
+	// Service fatigue toast cooldown — prevent spam (1 toast per 200 ticks max)
+	private int _lastFatigueWarnTick = -999;
+
 	// ── Building birth toasts ──────────────────────────────────────────────
 
 	/// <summary>
@@ -318,6 +321,54 @@ public partial class World : Node2D
 		_audio?.PlayMilestone();
 
 		// Panel hides itself on click; World._Process will QueueFree it next tick
+	}
+
+	// ── Service fatigue renovation ─────────────────────────────────────────────
+
+	/// <summary>
+	/// Called when the player clicks the Renovate button in BuildingInfoPanel.
+	/// Standalone: calls engine.RenovateService() directly.
+	/// Viewer: writes renovate_service IPC command to the server.
+	/// </summary>
+	private void OnRenovateServiceRequested(int tileX, int tileY)
+	{
+		if (_viewerMode)
+		{
+			var sid = _reader?.SessionId;
+			if (sid != null)
+				WriteCommand($"{{\"cmd\":\"renovate_service\",\"x\":{tileX},\"y\":{tileY},\"sessionId\":\"{sid}\"}}");
+			_toastSystem.AddToast("Service renovated! (-$500)", new Color(0.40f, 0.85f, 0.40f), 5f);
+		}
+		else
+		{
+			if (_engine == null) return;
+			var success = _engine.RenovateService(tileX, tileY);
+			if (success)
+			{
+				_toastSystem.AddToast("Service renovated! (-$500)", new Color(0.40f, 0.85f, 0.40f), 5f);
+				_buildingInfoPanel.ClosePanel();
+			}
+			else
+			{
+				_toastSystem.AddToast("Cannot renovate — insufficient funds ($500)", new Color(0.9f, 0.3f, 0.2f), 4f);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Shows a periodic reminder toast when service buildings need renovation.
+	/// Throttled to once per 200 ticks to avoid spam.
+	/// Call this from the viewer state update path.
+	/// </summary>
+	internal void FireServiceFatigueToastIfNeeded(SharedState state)
+	{
+		if (!state.ServiceFatigueActive) return;
+		if (state.DegradedServices == null || state.DegradedServices.Length == 0) return;
+		if (state.Tick - _lastFatigueWarnTick < 200) return;
+
+		_lastFatigueWarnTick = state.Tick;
+		var count = state.DegradedServices.Length;
+		_toastSystem.AddAlert($"{count} service building(s) need renovation — click to repair ($500 each)");
 	}
 
 	// ── Petition toasts ────────────────────────────────────────────────────────

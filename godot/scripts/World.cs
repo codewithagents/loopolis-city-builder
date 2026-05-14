@@ -241,6 +241,7 @@ public partial class World : Node2D
 
 		// Building info panel (layer 12 — floats near the clicked building)
 		_buildingInfoPanel = new BuildingInfoPanel();
+		_buildingInfoPanel.RenovateRequested += OnRenovateServiceRequested;
 		AddChild(_buildingInfoPanel);
 
 		// Wire toolbar signals
@@ -524,6 +525,9 @@ public partial class World : Node2D
 					_charterPanel.QueueFree();
 					_charterPanel = null;
 				}
+
+				// Service fatigue advisory toast (throttled to once per 200 ticks)
+				FireServiceFatigueToastIfNeeded(viewerStateCopy);
 			}
 
 			return;

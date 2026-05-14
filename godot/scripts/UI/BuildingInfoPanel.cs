@@ -2,6 +2,7 @@ using Godot;
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Simulation;
+using System;
 
 namespace LoopolisGodot;
 
@@ -40,6 +41,13 @@ public partial class BuildingInfoPanel : CanvasLayer
     // ── State ─────────────────────────────────────────────────────────────────────
     /// <summary>The building ID currently shown, or null when the panel is hidden.</summary>
     public string? ShownBuildingId { get; private set; }
+
+    // ── Renovation callback ───────────────────────────────────────────────────────
+    /// <summary>
+    /// Fired when the player clicks the "Renovate" button on a degraded service tile.
+    /// Parameters: tileX, tileY.
+    /// </summary>
+    public event Action<int, int>? RenovateRequested;
 
     // ── Friendly name lookup (same set as TileTooltip) ───────────────────────────
     private static string GetFriendlyName(string typeId) => typeId switch
@@ -128,7 +136,8 @@ public partial class BuildingInfoPanel : CanvasLayer
         CityGrid grid,
         SimulationEngine engine,
         Vector2 worldPos,       // world-space top-left corner of the anchor tile
-        Vector2 screenSize)
+        Vector2 screenSize,
+        ServiceFatigueEntry[]? degradedServices = null)
     {
         if (ShownBuildingId == building.Id)
         {
@@ -138,7 +147,7 @@ public partial class BuildingInfoPanel : CanvasLayer
         }
 
         ShownBuildingId = building.Id;
-        PopulatePanel(building, grid, engine, null);
+        PopulatePanel(building, grid, engine, null, degradedServices);
         PositionPanel(worldPos, screenSize);
         _panel.Visible = true;
     }
@@ -160,7 +169,7 @@ public partial class BuildingInfoPanel : CanvasLayer
         }
 
         ShownBuildingId = buildingInfo.Id;
-        PopulatePanelViewer(buildingInfo, state);
+        PopulatePanelViewer(buildingInfo, state, state.DegradedServices);
         PositionPanel(worldPos, screenSize);
         _panel.Visible = true;
     }
@@ -177,7 +186,7 @@ public partial class BuildingInfoPanel : CanvasLayer
 
     // ── Panel content — standalone mode ──────────────────────────────────────────
 
-    private void PopulatePanel(Building building, CityGrid grid, SimulationEngine engine, SharedState? state)
+    private void PopulatePanel(Building building, CityGrid grid, SimulationEngine engine, SharedState? state, ServiceFatigueEntry[]? degradedServices = null)
     {
         ClearContent();
 
@@ -268,11 +277,14 @@ public partial class BuildingInfoPanel : CanvasLayer
             AddLabel($"Cost: ${upgradeEntry.Cost:N0}  (press G then click)", 12,
                 canAfford ? new Color(0.80f, 0.70f, 0.35f) : ColBad);
         }
+
+        // ── Service fatigue (standalone) ─────────────────────────────────────
+        AddServiceFatigueSection(building.AnchorX, building.AnchorY, degradedServices, engine.Budget.Balance);
     }
 
     // ── Panel content — viewer mode ───────────────────────────────────────────────
 
-    private void PopulatePanelViewer(BuildingInfo info, SharedState state)
+    private void PopulatePanelViewer(BuildingInfo info, SharedState state, ServiceFatigueEntry[]? degradedServices = null)
     {
         ClearContent();
 
@@ -322,6 +334,9 @@ public partial class BuildingInfoPanel : CanvasLayer
 
         AddSeparator();
         AddLabel("Detailed stats: use standalone mode", 11, ColSubtitle);
+
+        // ── Service fatigue (viewer) ──────────────────────────────────────────
+        AddServiceFatigueSection(info.X, info.Y, degradedServices, state.Balance);
     }
 
     // ── Positioning ───────────────────────────────────────────────────────────────
@@ -400,6 +415,61 @@ public partial class BuildingInfoPanel : CanvasLayer
         var sep = new HSeparator();
         sep.AddThemeColorOverride("color", ColSep);
         _vbox.AddChild(sep);
+    }
+
+    /// <summary>
+    /// Appends a service fatigue condition row (and optional Renovate button) if the
+    /// anchor tile (anchorX, anchorY) appears in the degradedServices list.
+    /// Shows nothing when the tile is not a tracked service tile.
+    /// </summary>
+    private void AddServiceFatigueSection(
+        int anchorX, int anchorY,
+        ServiceFatigueEntry[]? degradedServices,
+        double currentBalance)
+    {
+        if (degradedServices == null || degradedServices.Length == 0) return;
+
+        ServiceFatigueEntry? entry = null;
+        foreach (var e in degradedServices)
+        {
+            if (e.X == anchorX && e.Y == anchorY)
+            {
+                entry = e;
+                break;
+            }
+        }
+        if (entry == null) return;
+
+        AddSeparator();
+
+        // Condition row
+        var pct = (int)(entry.Capacity * 100);
+        var condColor = entry.Capacity <= 0.40 ? ColBad
+                      : entry.Capacity < 0.60  ? ColWarn
+                                               : ColGood;
+        AddRow("Condition", $"{pct}%", condColor);
+
+        // Renovate button (only when NeedsRenovation is true)
+        if (entry.NeedsRenovation)
+        {
+            const int RenovationCost = 500;
+            var canAfford = currentBalance >= RenovationCost;
+
+            var btn = new Button();
+            btn.Text = $"Renovate (${RenovationCost:N0})";
+            btn.AddThemeFontSizeOverride("font_size", 13);
+            btn.Disabled = !canAfford;
+            btn.TooltipText = canAfford
+                ? "Reset this service building to full capacity"
+                : $"Insufficient funds (need ${RenovationCost:N0})";
+
+            // Capture for closure
+            var capturedX = anchorX;
+            var capturedY = anchorY;
+            btn.Pressed += () => RenovateRequested?.Invoke(capturedX, capturedY);
+
+            _vbox.AddChild(btn);
+        }
     }
 
     private static string HappinessEmoji(float h) =>

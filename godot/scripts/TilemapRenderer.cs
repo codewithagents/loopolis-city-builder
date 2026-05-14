@@ -334,6 +334,21 @@ public partial class TilemapRenderer : Node2D
 	private int _fireTileX = -1;
 	private int _fireTileY = -1;
 
+	// Service fatigue — degraded service tiles
+	private static readonly Color FatigueAmber = new Color(1.00f, 0.70f, 0.00f); // amber for 40–59% capacity
+	private static readonly Color FatigueRed   = new Color(0.95f, 0.20f, 0.20f); // red for exactly at minimum (40%)
+	private ServiceFatigueEntry[]? _degradedServices;
+
+	/// <summary>
+	/// Updates the list of degraded service tiles for the next redraw.
+	/// Pass null or empty array to clear all fatigue indicators.
+	/// </summary>
+	public void SetDegradedServices(ServiceFatigueEntry[]? entries)
+	{
+		_degradedServices = entries;
+		QueueRedraw();
+	}
+
 	// Upgrade tool highlight — gold border on buildings that can be upgraded
 	private static readonly Color UpgradeBorderColor = new Color(0.85f, 0.70f, 0.15f, 0.90f);  // gold
 	private static readonly Color UpgradeTintColor   = new Color(0.85f, 0.70f, 0.15f, 0.12f);  // subtle gold tint
@@ -1764,6 +1779,33 @@ public partial class TilemapRenderer : Node2D
 
 			// Queue another redraw so the tool remains live (no continuous animation needed, but
 			// if World state changes we want the overlay to update)
+		}
+
+		// ── Service fatigue indicator ────────────────────────────────────────
+		// Small 8×8px square in the top-right corner of each degraded service tile.
+		// Amber (40–59% capacity) or red (at minimum 40%) — only drawn at normal zoom.
+		if (_degradedServices != null && _degradedServices.Length > 0 && _currentZoom > 0.5f)
+		{
+			foreach (var entry in _degradedServices)
+			{
+				// Capacity < 0.60 → show indicator. At minimum (≤0.40) → red, otherwise amber.
+				if (entry.Capacity >= 0.60) continue;
+				var indicatorColor = entry.Capacity <= 0.40
+					? FatigueRed
+					: FatigueAmber;
+				// 8×8px square in the top-right corner (2px margin from edge)
+				const float indSize = 8f;
+				const float indMargin = 2f;
+				var ix = entry.X * TileSize + TileSize - indMargin - indSize;
+				var iy = entry.Y * TileSize + indMargin;
+				DrawRect(new Rect2(ix, iy, indSize, indSize), indicatorColor);
+				// 1px dark border for readability
+				var borderColor = new Color(0f, 0f, 0f, 0.65f);
+				DrawRect(new Rect2(ix, iy, indSize, 1f), borderColor);                          // top
+				DrawRect(new Rect2(ix, iy + indSize - 1f, indSize, 1f), borderColor);           // bottom
+				DrawRect(new Rect2(ix, iy, 1f, indSize), borderColor);                          // left
+				DrawRect(new Rect2(ix + indSize - 1f, iy, 1f, indSize), borderColor);           // right
+			}
 		}
 
 		// ── Fire tile overlay ────────────────────────────────────────────────
