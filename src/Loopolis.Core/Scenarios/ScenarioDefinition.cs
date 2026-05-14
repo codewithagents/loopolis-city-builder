@@ -21,6 +21,7 @@ public record ScenarioMedals(
 /// <summary>
 /// Immutable definition of a single scenario.
 /// TickLimit = 0 means no tick limit (sandbox / pure goal mode).
+/// TerrainSeed = null means use the default scenario setup logic (no procedural terrain).
 /// </summary>
 public record ScenarioDefinition(
     string Id,
@@ -31,5 +32,6 @@ public record ScenarioDefinition(
     int StartingBalance,
     int TickLimit,
     ScenarioGoal Goal,
-    ScenarioMedals Medals
+    ScenarioMedals Medals,
+    string? TerrainSeed = null
 );

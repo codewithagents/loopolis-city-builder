@@ -139,6 +139,45 @@ public static class ScenarioLibrary
             Goal:            new ScenarioGoal(TargetPopulation: 1_000),
             Medals:          new ScenarioMedals(Bronze: 500, Silver: 400, Gold: 280)
         ),
+
+        new ScenarioDefinition(
+            Id:              "island_chain",
+            Name:            "The Island Chain",
+            Description:     "A scattered archipelago. Connect the islands and build a city across the water.",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 6_500,
+            TickLimit:       700,
+            Goal:            new ScenarioGoal(TargetPopulation: 2_500),
+            Medals:          new ScenarioMedals(Bronze: 700, Silver: 560, Gold: 420),
+            TerrainSeed:     "island_chain"
+        ),
+
+        new ScenarioDefinition(
+            Id:              "narrow_valley",
+            Name:            "The Narrow Valley",
+            Description:     "Hemmed in by mountains on both sides. Build smart — the valley is all you have.",
+            MapWidth:        128,
+            MapHeight:       128,
+            StartingBalance: 7_000,
+            TickLimit:       1_200,
+            Goal:            new ScenarioGoal(TargetPopulation: 7_500),
+            Medals:          new ScenarioMedals(Bronze: 1_200, Silver: 950, Gold: 700),
+            TerrainSeed:     "narrow_valley"
+        ),
+
+        new ScenarioDefinition(
+            Id:              "river_delta",
+            Name:            "The Delta",
+            Description:     "A river delta with fertile land cut by water channels. Plan your road crossings carefully.",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 5_000,
+            TickLimit:       800,
+            Goal:            new ScenarioGoal(TargetPopulation: 3_000),
+            Medals:          new ScenarioMedals(Bronze: 800, Silver: 640, Gold: 480),
+            TerrainSeed:     "river_delta"
+        ),
     };
 
     /// <summary>Returns the scenario with the given ID, or null if not found.</summary>

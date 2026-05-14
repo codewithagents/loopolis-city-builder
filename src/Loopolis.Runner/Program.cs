@@ -1423,6 +1423,72 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             // No power plant — cottages should still appear
             break;
 
+        case "island_chain":
+        {
+            // Island Chain challenge: 64×64 archipelago with ~40% water.
+            var g64ic = new CityGrid(64, 64);
+            var heightMapIc = Loopolis.Core.Grid.HeightMapGenerator.GenerateNamed("island_chain", 64, 64);
+            var forestMapIc = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed: 0xC0FFEE);
+            g64ic.ApplyHeightMap(heightMapIc);
+            g64ic.ApplyForestMap(forestMapIc);
+            // Border connection at center of south edge — force flat terrain
+            g64ic.SetHeightLevel(32, 63, 1);
+            g64ic.PlaceBorderConnection(32, 63);
+            // Starter road spine heading north
+            g64ic.SetHeightLevel(32, 62, 1); g64ic.SetZone(32, 62, ZoneType.Road);
+            g64ic.SetHeightLevel(32, 61, 1); g64ic.SetZone(32, 61, ZoneType.Road);
+            g64ic.SetHeightLevel(32, 60, 1); g64ic.SetZone(32, 60, ZoneType.Road);
+            var budgetIc = new BudgetSystem(initialBalance: 6_500);
+            Console.WriteLine("[island_chain] Border connection at (32,63), starter spine (32,62–60)");
+            var engineIc = new SimulationEngine(g64ic, budgetIc, population, power, roads, demand);
+            engineIc.SeedRoadGraphFromGrid();
+            return (g64ic, engineIc);
+        }
+
+        case "narrow_valley":
+        {
+            // Narrow Valley challenge: 128×128 map with mountain walls on east/west.
+            var g128nv = new CityGrid(128, 128);
+            var heightMapNv = Loopolis.Core.Grid.HeightMapGenerator.GenerateNamed("narrow_valley", 128, 128);
+            var forestMapNv = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(128, 128, seed: 0xBADC0DE);
+            g128nv.ApplyHeightMap(heightMapNv);
+            g128nv.ApplyForestMap(forestMapNv);
+            // Border connection at center of south edge — force flat terrain
+            g128nv.SetHeightLevel(64, 127, 1);
+            g128nv.PlaceBorderConnection(64, 127);
+            // Starter road spine heading north
+            g128nv.SetHeightLevel(64, 126, 1); g128nv.SetZone(64, 126, ZoneType.Road);
+            g128nv.SetHeightLevel(64, 125, 1); g128nv.SetZone(64, 125, ZoneType.Road);
+            g128nv.SetHeightLevel(64, 124, 1); g128nv.SetZone(64, 124, ZoneType.Road);
+            var budgetNv = new BudgetSystem(initialBalance: 7_000);
+            Console.WriteLine("[narrow_valley] Border connection at (64,127), starter spine (64,126–124)");
+            var engineNv = new SimulationEngine(g128nv, budgetNv, population, power, roads, demand);
+            engineNv.SeedRoadGraphFromGrid();
+            return (g128nv, engineNv);
+        }
+
+        case "river_delta":
+        {
+            // River Delta challenge: 64×64 mostly flat with diagonal water channels.
+            var g64rd = new CityGrid(64, 64);
+            var heightMapRd = Loopolis.Core.Grid.HeightMapGenerator.GenerateNamed("river_delta", 64, 64);
+            var forestMapRd = Loopolis.Core.Grid.HeightMapGenerator.GenerateForest(64, 64, seed: 0xDE17A1);
+            g64rd.ApplyHeightMap(heightMapRd);
+            g64rd.ApplyForestMap(forestMapRd);
+            // Border connection at center of south edge — force flat terrain
+            g64rd.SetHeightLevel(32, 63, 1);
+            g64rd.PlaceBorderConnection(32, 63);
+            // Starter road spine heading north
+            g64rd.SetHeightLevel(32, 62, 1); g64rd.SetZone(32, 62, ZoneType.Road);
+            g64rd.SetHeightLevel(32, 61, 1); g64rd.SetZone(32, 61, ZoneType.Road);
+            g64rd.SetHeightLevel(32, 60, 1); g64rd.SetZone(32, 60, ZoneType.Road);
+            var budgetRd = new BudgetSystem(initialBalance: 5_000);
+            Console.WriteLine("[river_delta] Border connection at (32,63), starter spine (32,62–60)");
+            var engineRd = new SimulationEngine(g64rd, budgetRd, population, power, roads, demand);
+            engineRd.SeedRoadGraphFromGrid();
+            return (g64rd, engineRd);
+        }
+
         default:
             // Empty new-game start with a border connection road from the south edge.
             // Player must build their own infrastructure.
