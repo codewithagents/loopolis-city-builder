@@ -61,10 +61,11 @@
 | IsActiveBrownout (brownout Tier-1 fix) | ✅ Done | 4 new (PowerCapacitySystemTests) |
 
 | BuildingCatalog terrain-conditional industrial | ✅ Done | 6 new (TerrainConditionalIndustrialTests) |
+| HighTierBuildings (res_highrise_6x6, com_office_4x4, ind_complex_4x4) | ✅ Done | 16 new (HighTierBuildingTests) |
 | ScenarioEngine + ScenarioLibrary + ScenarioDefinition | ✅ Done | 14 new (ScenarioEngineTests) |
 | BuildingGrowthIntegration flaky fix | ✅ Done | FireStation added to test grid (prevents random fire demolition) |
 
-**Total: 534 tests · 0 failures · ~0.69s runtime**
+**Total: 550 tests · 0 failures · ~0.69s runtime**
 
 ---
 
@@ -229,4 +230,4 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | default | 5 new scenarios (coastal_town/polluted_legacy/forest_reserve/boom_town/founders_challenge) added to ScenarioLibrary (10 total). LeaderboardSystem: Save/Load per-scenario personal best — Gold>Silver>Bronze, same medal lower tick wins. SharedState gains WorkingAge+EmploymentWarning+PersonalBestMedal+PersonalBestTick. HudOverlay employment ratio line (green/orange/red). World.cs fires low-employment toast at <40%, resets at >55%. 6 new tests. | All green, Godot build clean |
 
-*Last updated: 2026-05-14 — 5 new scenarios, LeaderboardSystem, employment visibility, 534 tests*
+*Last updated: 2026-05-14 — high-tier buildings (res_highrise_6x6, com_office_4x4, ind_complex_4x4), 550 tests*

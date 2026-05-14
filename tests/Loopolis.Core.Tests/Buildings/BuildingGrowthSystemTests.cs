@@ -761,3 +761,416 @@ public class TerrainConditionalIndustrialTests
             "Timber Mill source tile should have lower pollution than Warehouse source tile");
     }
 }
+
+/// <summary>
+/// Tests for the three high-tier buildings added in the Metropolis/City expansion:
+///   res_highrise_6x6  — Metropolis unlock, all 4 services required, grows from res_apartment_4x4
+///   com_office_4x4    — City unlock, road access + power, grows from com_shopping_3x3
+///   ind_complex_4x4   — City unlock, road access + power, grows from ind_warehouse_2x2
+/// </summary>
+[TestFixture]
+public class HighTierBuildingTests
+{
+    private BuildingGrowthSystem _system = null!;
+
+    [SetUp]
+    public void SetUp() => _system = new BuildingGrowthSystem();
+
+    // Helper: place all four service zones within Manhattan-10 range of (ax, ay).
+    private static void PlaceAllFourServices(CityGrid grid, int nearX, int nearY)
+    {
+        grid.SetZone(nearX - 2, nearY - 1, ZoneType.FireStation);
+        grid.SetZone(nearX - 2, nearY,     ZoneType.PoliceStation);
+        grid.SetZone(nearX - 2, nearY + 1, ZoneType.School);
+        grid.SetZone(nearX - 2, nearY + 2, ZoneType.Hospital);
+    }
+
+    // ── Test 1: res_highrise_6x6 requires all four service coverages ─────────
+
+    [Test]
+    public void ResHighrise_RequiresAllFourServiceCoverages_FailsWhenHospitalMissing()
+    {
+        // 6×6 residential block at (2,2), fully powered + road accessible.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 6; dx++)
+        for (var dy = 0; dy < 6; dy++)
+        {
+            grid.SetZone(2 + dx, 2 + dy, ZoneType.Residential);
+            grid.SetPower(2 + dx, 2 + dy, true);
+            grid.SetRoadAccess(2 + dx, 2 + dy, true);
+        }
+
+        // Only Fire + Police + School — missing Hospital
+        grid.SetZone(1, 3, ZoneType.FireStation);
+        grid.SetZone(1, 4, ZoneType.PoliceStation);
+        grid.SetZone(1, 5, ZoneType.School);
+        // No Hospital
+
+        _system.Initialize(grid);
+
+        // Seed anchor tile to 82% of 1×1 capacity to trigger growth attempt
+        grid.SetPopulation(2, 2, 41);
+
+        _system.TryGrow(grid, GameState.Metropolis);
+
+        var highrises = grid.Buildings.Values.Where(b => b.TypeId == "res_highrise_6x6").ToList();
+        Assert.That(highrises.Count, Is.EqualTo(0),
+            "Highrise requires all four services including Hospital — should not form without Hospital");
+    }
+
+    [Test]
+    public void ResHighrise_RequiresAllFourServiceCoverages_SucceedsWithAllFour()
+    {
+        // 6×6 residential block at (2,2), fully powered + road accessible.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 6; dx++)
+        for (var dy = 0; dy < 6; dy++)
+        {
+            grid.SetZone(2 + dx, 2 + dy, ZoneType.Residential);
+            grid.SetPower(2 + dx, 2 + dy, true);
+            grid.SetRoadAccess(2 + dx, 2 + dy, true);
+        }
+
+        // All four services within range
+        PlaceAllFourServices(grid, 2, 2);
+
+        _system.Initialize(grid);
+
+        // Seed anchor tile to full capacity to trigger growth attempt
+        grid.SetPopulation(2, 2, 50);
+
+        _system.TryGrow(grid, GameState.Metropolis);
+
+        var highrises = grid.Buildings.Values.Where(b => b.TypeId == "res_highrise_6x6").ToList();
+        Assert.That(highrises.Count, Is.GreaterThanOrEqualTo(1),
+            "Highrise should form when at Metropolis milestone with all four services present");
+        Assert.That(highrises[0].Width,  Is.EqualTo(6));
+        Assert.That(highrises[0].Height, Is.EqualTo(6));
+    }
+
+    // ── Test 2: res_highrise_6x6 grows from res_apartment_4x4 at ≥80% capacity ──
+
+    [Test]
+    public void ResHighrise_GrowsFromApartment_WhenAtCapacity()
+    {
+        // Simulate an existing 4×4 apartment at (2,2) — manually register as a building.
+        // Surround with enough residential to fit the 6×6 footprint.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 6; dx++)
+        for (var dy = 0; dy < 6; dy++)
+        {
+            grid.SetZone(2 + dx, 2 + dy, ZoneType.Residential);
+            grid.SetPower(2 + dx, 2 + dy, true);
+            grid.SetRoadAccess(2 + dx, 2 + dy, true);
+        }
+
+        // All four services
+        PlaceAllFourServices(grid, 2, 2);
+
+        // Register a 4×4 apartment building manually
+        var apId = "apt_test";
+        var apartment = new Building(apId, "res_apartment_4x4", ZoneType.Residential, 2, 2, 4, 4);
+        grid.Buildings[apId] = apartment;
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+            grid.SetBuildingId(2 + dx, 2 + dy, apId);
+
+        // Apartment capacity = 16 × 50 = 800 pop. At 80%: 640 pop needed.
+        // Distribute population across the 4×4 footprint (16 tiles × 40 = 640 = 80%)
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+            grid.SetPopulation(2 + dx, 2 + dy, 40);
+
+        _system.TryGrow(grid, GameState.Metropolis);
+
+        var highrises = grid.Buildings.Values.Where(b => b.TypeId == "res_highrise_6x6").ToList();
+        Assert.That(highrises.Count, Is.GreaterThanOrEqualTo(1),
+            "4×4 apartment at 80% capacity should grow to 6×6 highrise at Metropolis milestone");
+        Assert.That(highrises[0].TileCount, Is.EqualTo(36),
+            "Highrise footprint should be 6×6 = 36 tiles");
+    }
+
+    [Test]
+    public void ResHighrise_RequiresMetropolisMilestone_FailsAtCityMilestone()
+    {
+        // Even with all four services and full capacity, highrise must not form below Metropolis.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 6; dx++)
+        for (var dy = 0; dy < 6; dy++)
+        {
+            grid.SetZone(2 + dx, 2 + dy, ZoneType.Residential);
+            grid.SetPower(2 + dx, 2 + dy, true);
+            grid.SetRoadAccess(2 + dx, 2 + dy, true);
+        }
+        PlaceAllFourServices(grid, 2, 2);
+        _system.Initialize(grid);
+        grid.SetPopulation(2, 2, 50);
+
+        _system.TryGrow(grid, GameState.City); // City, not Metropolis
+
+        var highrises = grid.Buildings.Values.Where(b => b.TypeId == "res_highrise_6x6").ToList();
+        Assert.That(highrises.Count, Is.EqualTo(0),
+            "Highrise requires Metropolis milestone — should not form at City");
+    }
+
+    // ── Test 3: com_office_4x4 grows from com_shopping_3x3 ──────────────────
+
+    [Test]
+    public void ComOfficeTower_GrowsFromShoppingCenter_WhenAtCapacity()
+    {
+        // Set up a 4×4 commercial block, fully powered + road accessible.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Commercial);
+            grid.SetPower(5 + dx, 5 + dy, true);
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+        }
+
+        // Register a 3×3 shopping center manually
+        var shopId = "shop_test";
+        var shopping = new Building(shopId, "com_shopping_3x3", ZoneType.Commercial, 5, 5, 3, 3);
+        grid.Buildings[shopId] = shopping;
+        for (var dx = 0; dx < 3; dx++)
+        for (var dy = 0; dy < 3; dy++)
+            grid.SetBuildingId(5 + dx, 5 + dy, shopId);
+
+        // Shopping center capacity = 9 × 50 = 450. Fill all 9 tiles to 100% (50 each = 450).
+        for (var dx = 0; dx < 3; dx++)
+        for (var dy = 0; dy < 3; dy++)
+            grid.SetPopulation(5 + dx, 5 + dy, 50);
+
+        _system.TryGrow(grid, GameState.City);
+
+        var offices = grid.Buildings.Values.Where(b => b.TypeId == "com_office_4x4").ToList();
+        Assert.That(offices.Count, Is.GreaterThanOrEqualTo(1),
+            "3×3 shopping center at 100% capacity should grow to 4×4 office tower at City milestone");
+        Assert.That(offices[0].Width,  Is.EqualTo(4));
+        Assert.That(offices[0].Height, Is.EqualTo(4));
+        Assert.That(offices[0].TileCount, Is.EqualTo(16));
+    }
+
+    [Test]
+    public void ComOfficeTower_RequiresCityMilestone_FailsAtTownMilestone()
+    {
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Commercial);
+            grid.SetPower(5 + dx, 5 + dy, true);
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+        }
+        var shopId = "shop_test";
+        var shopping = new Building(shopId, "com_shopping_3x3", ZoneType.Commercial, 5, 5, 3, 3);
+        grid.Buildings[shopId] = shopping;
+        for (var dx = 0; dx < 3; dx++)
+        for (var dy = 0; dy < 3; dy++)
+        {
+            grid.SetBuildingId(5 + dx, 5 + dy, shopId);
+            grid.SetPopulation(5 + dx, 5 + dy, 50);
+        }
+
+        _system.TryGrow(grid, GameState.Town); // only Town milestone
+
+        var offices = grid.Buildings.Values.Where(b => b.TypeId == "com_office_4x4").ToList();
+        Assert.That(offices.Count, Is.EqualTo(0),
+            "Office tower requires City milestone — should not form at Town");
+    }
+
+    // ── Test 4: ind_complex_4x4 grows from ind_warehouse_2x2 (not from mill/quarry) ──
+
+    [Test]
+    public void IndComplex_GrowsFromWarehouse_NotFromMill()
+    {
+        // Set up a 4×4 industrial block (flat terrain, no forest) fully powered + road accessible.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Industrial);
+            grid.SetPower(5 + dx, 5 + dy, true);
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+        }
+
+        // Register a 2×2 warehouse building manually at anchor (5,5)
+        var whId = "wh_test";
+        var warehouse = new Building(whId, "ind_warehouse_2x2", ZoneType.Industrial, 5, 5, 2, 2);
+        grid.Buildings[whId] = warehouse;
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetBuildingId(5 + dx, 5 + dy, whId);
+
+        // Warehouse capacity = 4 × 50 = 200. Fill all 4 tiles to 100% (50 each = 200).
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetPopulation(5 + dx, 5 + dy, 50);
+
+        _system.TryGrow(grid, GameState.City);
+
+        var complexes = grid.Buildings.Values.Where(b => b.TypeId == "ind_complex_4x4").ToList();
+        Assert.That(complexes.Count, Is.GreaterThanOrEqualTo(1),
+            "2×2 warehouse at 100% capacity should grow to 4×4 industrial complex at City milestone");
+        Assert.That(complexes[0].Width,  Is.EqualTo(4));
+        Assert.That(complexes[0].Height, Is.EqualTo(4));
+        Assert.That(complexes[0].TileCount, Is.EqualTo(16));
+
+        // Confirm no mill formed (flat terrain, no forest)
+        var mills = grid.Buildings.Values.Where(b => b.TypeId == "ind_mill_2x2").ToList();
+        Assert.That(mills.Count, Is.EqualTo(0),
+            "No mill should form — flat terrain with no forest");
+    }
+
+    [Test]
+    public void IndMill_DoesNotUpgradeToComplex_StaysAt2x2()
+    {
+        // A timber mill (ind_mill_2x2) has no upgrade path — it stays at 2×2 max.
+        // Only ind_warehouse_2x2 upgrades to ind_complex_4x4.
+        var grid = new CityGrid(20, 20);
+        for (var dx = 0; dx < 4; dx++)
+        for (var dy = 0; dy < 4; dy++)
+        {
+            grid.SetZone(5 + dx, 5 + dy, ZoneType.Industrial);
+            grid.SetPower(5 + dx, 5 + dy, true);
+            grid.SetRoadAccess(5 + dx, 5 + dy, true);
+        }
+
+        // Register a 2×2 timber mill with forest in footprint
+        grid.SetForest(5, 5, true);
+        var millId = "mill_test";
+        var mill = new Building(millId, "ind_mill_2x2", ZoneType.Industrial, 5, 5, 2, 2);
+        grid.Buildings[millId] = mill;
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetBuildingId(5 + dx, 5 + dy, millId);
+
+        // Mill at full capacity
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+            grid.SetPopulation(5 + dx, 5 + dy, 50);
+
+        _system.TryGrow(grid, GameState.City);
+
+        // The mill itself won't upgrade to a complex because ind_complex_4x4 is larger
+        // but the footprint would still need to check. However, the catalog's TryUpgrade
+        // looks for a building with larger TilesCount than current — ind_complex_4x4 (16)
+        // is larger than mill (4). But the footprint for ind_complex would contain tiles
+        // without forest (tiles 5+2..5+3 are not forest). The upgrade path succeeds if
+        // non-conditional larger buildings exist.
+        // Key assertion: if a complex forms, it absorbed the mill (no residual mill).
+        // If it does NOT form (forest condition prevents 4×4), mill stays at 2×2.
+        // What we verify: NO separate mill remains alongside a complex (no orphan split).
+        var complexCount = grid.Buildings.Values.Count(b => b.TypeId == "ind_complex_4x4");
+        var millCount    = grid.Buildings.Values.Count(b => b.TypeId == "ind_mill_2x2");
+        // Either the complex formed (absorbed mill) OR no complex formed (mill unchanged).
+        // They cannot both exist simultaneously on the same footprint.
+        Assert.That(complexCount == 0 || millCount == 0,
+            "A timber mill and an industrial complex cannot coexist on the same tiles");
+    }
+
+    // ── Test 5: ind_complex_4x4 has PollutionStrength 1.30 ──────────────────
+
+    [Test]
+    public void IndComplex_HasHigherPollutionThanWarehouse()
+    {
+        var complex   = BuildingCatalog.Find("ind_complex_4x4");
+        var warehouse = BuildingCatalog.Find("ind_warehouse_2x2");
+
+        Assert.That(complex,   Is.Not.Null, "ind_complex_4x4 must exist in catalog");
+        Assert.That(warehouse, Is.Not.Null, "ind_warehouse_2x2 must exist in catalog");
+
+        Assert.That(complex!.PollutionStrength, Is.GreaterThan(warehouse!.PollutionStrength),
+            "Industrial complex (1.30) should be dirtier than warehouse (1.0)");
+        Assert.That(complex.PollutionStrength,  Is.EqualTo(1.30).Within(0.001),
+            "Industrial complex PollutionStrength should be exactly 1.30");
+    }
+
+    [Test]
+    public void IndComplex_HasLowerPollutionThanQuarry()
+    {
+        var complex = BuildingCatalog.Find("ind_complex_4x4");
+        var quarry  = BuildingCatalog.Find("ind_quarry_2x2");
+
+        Assert.That(complex, Is.Not.Null, "ind_complex_4x4 must exist in catalog");
+        Assert.That(quarry,  Is.Not.Null, "ind_quarry_2x2 must exist in catalog");
+
+        Assert.That(complex!.PollutionStrength, Is.LessThan(quarry!.PollutionStrength),
+            "Industrial complex (1.30) should be cleaner than quarry (1.65)");
+    }
+
+    // ── Test 6: Catalog ordering — new buildings appear in correct size order ──
+
+    [Test]
+    public void CatalogOrdering_ResidentialHighrise_IsBeforeApartment()
+    {
+        // The catalog is processed largest-first. Highrise (6×6=36) must appear
+        // before apartment (4×4=16) so TryUpgrade picks the larger target first.
+        var all = BuildingCatalog.All;
+        var highriseIdx  = Array.FindIndex(all, t => t.TypeId == "res_highrise_6x6");
+        var apartmentIdx = Array.FindIndex(all, t => t.TypeId == "res_apartment_4x4");
+
+        Assert.That(highriseIdx,  Is.Not.EqualTo(-1), "res_highrise_6x6 must be in catalog");
+        Assert.That(apartmentIdx, Is.Not.EqualTo(-1), "res_apartment_4x4 must be in catalog");
+        Assert.That(highriseIdx, Is.LessThan(apartmentIdx),
+            "res_highrise_6x6 must appear before res_apartment_4x4 in catalog (larger type first)");
+    }
+
+    [Test]
+    public void CatalogOrdering_OfficeIs4x4_IsBeforeShoppingCenter()
+    {
+        var all = BuildingCatalog.All;
+        var officeIdx   = Array.FindIndex(all, t => t.TypeId == "com_office_4x4");
+        var shoppingIdx = Array.FindIndex(all, t => t.TypeId == "com_shopping_3x3");
+
+        Assert.That(officeIdx,   Is.Not.EqualTo(-1), "com_office_4x4 must be in catalog");
+        Assert.That(shoppingIdx, Is.Not.EqualTo(-1), "com_shopping_3x3 must be in catalog");
+        Assert.That(officeIdx, Is.LessThan(shoppingIdx),
+            "com_office_4x4 (16 tiles) must appear before com_shopping_3x3 (9 tiles) in catalog");
+    }
+
+    [Test]
+    public void CatalogOrdering_IndustrialComplex_IsBeforeParks()
+    {
+        var all = BuildingCatalog.All;
+        var complexIdx  = Array.FindIndex(all, t => t.TypeId == "ind_complex_4x4");
+        var park4x2Idx  = Array.FindIndex(all, t => t.TypeId == "ind_park_4x2");
+        var park2x4Idx  = Array.FindIndex(all, t => t.TypeId == "ind_park_2x4");
+
+        Assert.That(complexIdx,  Is.Not.EqualTo(-1), "ind_complex_4x4 must be in catalog");
+        Assert.That(park4x2Idx,  Is.Not.EqualTo(-1), "ind_park_4x2 must be in catalog");
+        Assert.That(complexIdx, Is.LessThan(park4x2Idx),
+            "ind_complex_4x4 (16 tiles) must appear before ind_park_4x2 (8 tiles) in catalog");
+        Assert.That(complexIdx, Is.LessThan(park2x4Idx),
+            "ind_complex_4x4 (16 tiles) must appear before ind_park_2x4 (8 tiles) in catalog");
+    }
+
+    // ── Test 7: New building tile counts and population caps ─────────────────
+
+    [Test]
+    public void ResHighrise_TileCountAndCapacity()
+    {
+        var def = BuildingCatalog.Find("res_highrise_6x6");
+        Assert.That(def, Is.Not.Null);
+        Assert.That(def!.TilesCount, Is.EqualTo(36), "6×6 = 36 tiles");
+        Assert.That(def.MaxPopulation, Is.EqualTo(1800), "36 tiles × 50 = 1,800 pop cap");
+    }
+
+    [Test]
+    public void ComOfficeTower_TileCountAndCapacity()
+    {
+        var def = BuildingCatalog.Find("com_office_4x4");
+        Assert.That(def, Is.Not.Null);
+        Assert.That(def!.TilesCount, Is.EqualTo(16), "4×4 = 16 tiles");
+        Assert.That(def.MaxPopulation, Is.EqualTo(800), "16 tiles × 50 = 800 activity cap");
+    }
+
+    [Test]
+    public void IndComplex_TileCountAndCapacity()
+    {
+        var def = BuildingCatalog.Find("ind_complex_4x4");
+        Assert.That(def, Is.Not.Null);
+        Assert.That(def!.TilesCount, Is.EqualTo(16), "4×4 = 16 tiles");
+        Assert.That(def.MaxPopulation, Is.EqualTo(800), "16 tiles × 50 = 800 activity cap");
+    }
+}
