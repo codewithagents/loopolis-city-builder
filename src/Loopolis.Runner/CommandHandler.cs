@@ -423,6 +423,24 @@ static class CommandHandler
                     break;
                 }
 
+                case "select_metropolis_charter":
+                {
+                    // {"cmd":"select_metropolis_charter","value":"NexusCity"}
+                    var metropolisCharterName = root.TryGetProperty("value", out var mcProp)
+                        ? mcProp.GetString() ?? ""
+                        : "";
+                    if (Enum.TryParse<CharterType>(metropolisCharterName, true, out var metropolisCharterType))
+                    {
+                        engine.Charters.SelectMetropolisCharter(metropolisCharterType);
+                        Console.WriteLine($"[select_metropolis_charter] {metropolisCharterName} selected. MetropolisCharter={engine.Charters.MetropolisCharter}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[select_metropolis_charter] Unknown charter: {metropolisCharterName}");
+                    }
+                    break;
+                }
+
                 default:
                     Console.WriteLine($"[command] Unknown: {cmd}");
                     break;
