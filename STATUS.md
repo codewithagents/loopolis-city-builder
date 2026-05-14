@@ -62,10 +62,11 @@
 
 | BuildingCatalog terrain-conditional industrial | ✅ Done | 6 new (TerrainConditionalIndustrialTests) |
 | HighTierBuildings (res_highrise_6x6, com_office_4x4, ind_complex_4x4) | ✅ Done | 16 new (HighTierBuildingTests) |
+| PolicySystem (GreenCity/IndustrialHub/CommercialBoost/OpenCity) | ✅ Done | 29 new (PolicySystemTests) |
 | ScenarioEngine + ScenarioLibrary + ScenarioDefinition | ✅ Done | 14 new (ScenarioEngineTests) |
 | BuildingGrowthIntegration flaky fix | ✅ Done | FireStation added to test grid (prevents random fire demolition) |
 
-**Total: 550 tests · 0 failures · ~0.69s runtime**
+**Total: 579 tests · 0 failures · ~0.71s runtime**
 
 ---
 
@@ -230,4 +231,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | default | 5 new scenarios (coastal_town/polluted_legacy/forest_reserve/boom_town/founders_challenge) added to ScenarioLibrary (10 total). LeaderboardSystem: Save/Load per-scenario personal best — Gold>Silver>Bronze, same medal lower tick wins. SharedState gains WorkingAge+EmploymentWarning+PersonalBestMedal+PersonalBestTick. HudOverlay employment ratio line (green/orange/red). World.cs fires low-employment toast at <40%, resets at >55%. 6 new tests. | All green, Godot build clean |
 
-*Last updated: 2026-05-14 — high-tier buildings (res_highrise_6x6, com_office_4x4, ind_complex_4x4), 550 tests*
+| 2026-05-14 | powered_start | PolicySystem: all 4 policies wired into simulation. No active policies = zero regression. 500 ticks: pop=291, balance=$11,158 (+$15.14/tick), happiness=0.896. GreenCity/IndustrialHub/CommercialBoost/OpenCity modifiers confirmed via unit tests. set_policy command + ServerState policy fields ready for Godot IPC. Fixed pre-existing 0xDELTA1 hex literal and stale ScenarioLibrary count assertion. | — |
+
+*Last updated: 2026-05-14 — PolicySystem (4 policies), 579 tests*
