@@ -102,6 +102,15 @@ public partial class TilemapRenderer : Node2D
 						building.AnchorX * TileSize + TileSize * 0.75f,
 						building.AnchorY * TileSize + TileSize * 2f + 4f));
 					break;
+				case "ind_complex_4x4":
+					// Two chimneys at diagonally opposite corners: top-left unit and bottom-right unit
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + TileSize * 0.75f,
+						building.AnchorY * TileSize + 4f));
+					_chimneyPositions.Add(new Vector2(
+						building.AnchorX * TileSize + TileSize * 2.75f,
+						building.AnchorY * TileSize + TileSize * 2f + 4f));
+					break;
 			}
 		}
 	}
@@ -168,6 +177,10 @@ public partial class TilemapRenderer : Node2D
 	private static readonly Color ColorIndustrialMill   = new Color(0.35f, 0.55f, 0.20f);
 	// Quarry/Coal Mine (ind_quarry_2x2): cool stone grey — suggests rock/mine extraction
 	private static readonly Color ColorIndustrialQuarry = new Color(0.50f, 0.48f, 0.45f);
+	// High-tier building fill colors
+	private static readonly Color ColorHighrise      = new Color(0.62f, 0.68f, 0.78f);  // cool blue-grey
+	private static readonly Color ColorOffice        = new Color(0.45f, 0.58f, 0.80f);  // stronger blue
+	private static readonly Color ColorIndComplex    = new Color(0.50f, 0.48f, 0.44f);  // dark industrial
 	private static readonly Color ColorRoad         = new Color(0.5f,  0.5f,  0.5f);
 	private static readonly Color ColorAvenue       = new Color(0.62f, 0.62f, 0.62f);
 	private static readonly Color ColorPowerPlant   = new Color(0.9f,  0.3f,  0.1f);
@@ -1261,6 +1274,185 @@ public partial class TilemapRenderer : Node2D
 				R(58, 40, 4, 48, parkColor);
 				break;
 			}
+
+			case "res_highrise_6x6":
+			{
+				// 192×192px Residential High-Rise — glass skyscraper, crown jewel of residential.
+				var towerBody   = new Color(0.72f, 0.78f, 0.88f);         // light blue-grey glass
+				var towerDark   = new Color(0.60f, 0.66f, 0.76f);         // slightly darker wing mass
+				var windowColor = new Color(1.0f, 0.97f, 0.88f, 0.90f);  // warm lit windows
+				var roofColor   = new Color(0.38f, 0.40f, 0.44f);         // dark rooftop structure
+				var lobbyColor  = new Color(0.82f, 0.88f, 0.96f, 0.85f); // wide lobby glass
+				var frameColor  = new Color(0.50f, 0.55f, 0.65f, 0.70f); // subtle window frame
+
+				// Side wings slightly darker — suggest full building mass behind the tower
+				R(0,  30, 20, 152, towerDark);   // left wing
+				R(172, 30, 20, 152, towerDark);  // right wing
+
+				// Tower setback base (slightly wider at ground level, 3% each side)
+				// Upper tower body — inset 6px on each side, from y=10 upwards
+				R(6, 10, 180, 150, towerBody);
+				// Wider base (ground level setback): full footprint width, lower section
+				R(0, 140, 192, 42, towerBody);
+
+				// Ground floor lobby — wider windows suggesting arcade/atrium
+				R(8,  156, 36, 26, lobbyColor);
+				R(52, 156, 36, 26, lobbyColor);
+				R(96, 156, 36, 26, lobbyColor);
+				R(140, 156, 36, 26, lobbyColor);
+				// Lobby archway hint (thin frame lines across each lobby panel)
+				L(8f, 156f, 44f, 156f, frameColor, 1.5f);
+				L(52f, 156f, 88f, 156f, frameColor, 1.5f);
+				L(96f, 156f, 132f, 156f, frameColor, 1.5f);
+				L(140f, 156f, 176f, 156f, frameColor, 1.5f);
+
+				// Window grid: 6 columns × 8 rows across tower body (above lobby)
+				// Each window: 8×6px with 12px column pitch and 17px row pitch
+				for (var col = 0; col < 6; col++)
+				for (var row = 0; row < 8; row++)
+					R(14 + col * 27, 18 + row * 16, 14, 10, windowColor);
+
+				// Roof mechanical room — dark rect at top
+				R(60, 4, 72, 8, roofColor);
+				// Antenna: vertical line rising from roof centre
+				L(96f, 4f, 96f, 0f, roofColor, 2f);
+				// Rooftop parapet edges (thin lines)
+				R(6, 8, 180, 3, roofColor);
+				break;
+			}
+
+			case "com_office_4x4":
+			{
+				// 128×128px Office Tower — glass-and-steel, modern commercial.
+				var baseBody    = new Color(0.58f, 0.68f, 0.88f);         // steel blue base
+				var upperBody   = new Color(0.65f, 0.76f, 0.94f);         // lighter upper section
+				var glassWin    = new Color(0.78f, 0.88f, 0.96f);         // cool blue-white windows
+				var steelFrame  = new Color(0.32f, 0.35f, 0.38f);         // dark grey vertical frames
+				var plazaColor  = new Color(0.70f, 0.72f, 0.75f);         // entrance plaza light grey
+				var doorColor   = new Color(0.82f, 0.90f, 0.96f, 0.75f); // glass door
+				var roofColor   = new Color(0.30f, 0.32f, 0.36f);         // flat rooftop
+
+				// Base section (full width, lower 40%)
+				R(4, 76, 120, 48, baseBody);
+				// Upper section (slightly inset — taper effect)
+				R(10, 10, 108, 68, upperBody);
+
+				// Window grid: 4 rows × 6 columns of horizontal glass bands
+				// Upper section windows
+				for (var col = 0; col < 6; col++)
+				for (var row = 0; row < 3; row++)
+					R(12 + col * 17, 16 + row * 20, 12, 13, glassWin);
+				// Base section windows (2 rows × 6 columns, wider)
+				for (var col = 0; col < 6; col++)
+				for (var row = 0; row < 2; row++)
+					R(8 + col * 18, 82 + row * 20, 13, 12, glassWin);
+
+				// Vertical steel frame lines between window columns (upper section)
+				for (var col = 0; col <= 6; col++)
+					L(10f + col * 18f, 10f, 10f + col * 18f, 78f, steelFrame, 1f);
+
+				// Entrance plaza at ground level
+				R(4, 116, 120, 10, plazaColor);
+				// Two glass doorway openings in plaza
+				R(28, 112, 18, 14, doorColor);
+				R(82, 112, 18, 14, doorColor);
+
+				// Flat rooftop dark cap
+				R(10, 4, 108, 8, roofColor);
+				// Satellite dish: small filled circle on rooftop
+				C(100f, 8f, 4f, steelFrame);
+				break;
+			}
+
+			case "ind_complex_4x4":
+			{
+				// 128×128px Industrial Complex — 4 units in 2×2 grid, chimneys, loading bays, parking.
+				var wallColor   = new Color(0.50f, 0.48f, 0.44f);         // dark industrial base
+				var roofLight   = new Color(0.58f, 0.56f, 0.52f);         // slightly lighter roof
+				var roofDark    = new Color(0.44f, 0.42f, 0.38f);         // darker roof variant
+				var bayColor    = new Color(0.20f, 0.18f, 0.16f, 0.92f); // loading bay dark rect
+				var hatchColor  = new Color(0.62f, 0.60f, 0.56f, 0.55f); // corrugated roof lines
+				var glowColor   = new Color(1.0f, 0.65f, 0.15f, 0.80f);  // industrial glow strip
+				var pipeColor   = new Color(0.38f, 0.36f, 0.34f);         // inter-unit pipes
+				var chimneyCol  = new Color(0.30f, 0.28f, 0.26f);         // chimney shaft
+				var parkColor   = new Color(0.28f, 0.28f, 0.28f, 0.80f); // parking strip
+
+				// ── 4 units in 2×2 layout ──────────────────────────────────────
+				// Unit A — top-left (0,0) to (60,58) — tallest roof
+				R(4,  4,  56, 52, wallColor);
+				R(4,  4,  56,  8, roofLight);  // roof cap slightly lighter
+				for (var i = 0; i < 4; i++)
+					L(4f, 5f + i * 2f, 60f, 5f + i * 2f, hatchColor, 0.8f);  // corrugated lines
+				R(6,  36, 12, 18, bayColor);   // loading bay door
+				R(22, 36, 12, 18, bayColor);
+				R(6,  44, 12,  2, glowColor);  // glow strip above bay
+				R(22, 44, 12,  2, glowColor);
+				R(40, 16, 8,   6, new Color(0.72f, 0.80f, 0.88f, 0.80f)); // small window strip
+
+				// Unit B — top-right (68,0) to (124,56) — slightly shorter roof
+				R(68, 8,  56, 48, wallColor);
+				R(68, 8,  56,  7, roofDark);
+				for (var i = 0; i < 3; i++)
+					L(68f, 9f + i * 2.2f, 124f, 9f + i * 2.2f, hatchColor, 0.8f);
+				R(70, 36, 12, 18, bayColor);
+				R(86, 36, 12, 18, bayColor);
+				R(70, 44, 12,  2, glowColor);
+				R(86, 44, 12,  2, glowColor);
+				R(104, 18, 8,  6, new Color(0.72f, 0.80f, 0.88f, 0.80f));
+
+				// Unit C — bottom-left (0,68) to (60,124)
+				R(4,  68, 56, 52, wallColor);
+				R(4,  68, 56,  8, roofLight);
+				for (var i = 0; i < 4; i++)
+					L(4f, 69f + i * 2f, 60f, 69f + i * 2f, hatchColor, 0.8f);
+				R(6,  100, 12, 18, bayColor);
+				R(22, 100, 12, 18, bayColor);
+				R(6,  108, 12,  2, glowColor);
+				R(22, 108, 12,  2, glowColor);
+				R(40,  80, 8,   6, new Color(0.72f, 0.80f, 0.88f, 0.80f));
+
+				// Unit D — bottom-right (68,68) to (124,124)
+				R(68, 68, 56, 52, wallColor);
+				R(68, 68, 56,  7, roofDark);
+				for (var i = 0; i < 3; i++)
+					L(68f, 69f + i * 2.2f, 124f, 69f + i * 2.2f, hatchColor, 0.8f);
+				R(70, 100, 12, 18, bayColor);
+				R(86, 100, 12, 18, bayColor);
+				R(70, 108, 12,  2, glowColor);
+				R(86, 108, 12,  2, glowColor);
+				R(104,  80, 8,  6, new Color(0.72f, 0.80f, 0.88f, 0.80f));
+
+				// ── Connecting corridor / pipes between units ──────────────────
+				// Horizontal pipe between left and right units (upper pair)
+				L(60f, 28f, 68f, 28f, pipeColor, 4f);
+				L(60f, 36f, 68f, 36f, pipeColor, 2.5f);
+				// Vertical pipe between top and bottom units (left pair)
+				L(32f, 56f, 32f, 68f, pipeColor, 4f);
+				L(20f, 56f, 20f, 68f, pipeColor, 2.5f);
+				// Horizontal pipe lower pair
+				L(60f, 92f, 68f, 92f, pipeColor, 4f);
+				L(60f, 100f, 68f, 100f, pipeColor, 2.5f);
+				// Vertical pipe right pair
+				L(96f, 56f, 96f, 68f, pipeColor, 4f);
+				L(108f, 56f, 108f, 68f, pipeColor, 2.5f);
+
+				// ── Chimneys at diagonally opposite corners ────────────────────
+				// Top-left chimney (unit A, top-left area)
+				R(16,  0, 5, 6, chimneyCol);   // shaft
+				C(18.5f, 4f, 4f, chimneyCol);  // cap
+				// Bottom-right chimney (unit D, bottom-right area)
+				R(102, 116, 5, 6, chimneyCol);
+				C(104.5f, 120f, 4f, chimneyCol);
+
+				// ── Parking strip along bottom edge ────────────────────────────
+				R(4, 120, 120, 6, parkColor);
+				// 4 car dots in parking strip
+				C(18f, 123f, 3f, new Color(0.42f, 0.42f, 0.42f, 0.8f));
+				C(42f, 123f, 3f, new Color(0.42f, 0.42f, 0.42f, 0.8f));
+				C(66f, 123f, 3f, new Color(0.42f, 0.42f, 0.42f, 0.8f));
+				C(90f, 123f, 3f, new Color(0.42f, 0.42f, 0.42f, 0.8f));
+				break;
+			}
 		}
 	}
 
@@ -1329,21 +1521,23 @@ public partial class TilemapRenderer : Node2D
 						&& _grid.Buildings.TryGetValue(tile.BuildingId, out var _thisBldg)
 						&& _thisBldg.TypeId == "res_house_1x1";
 
-					// Resolve the building TypeId for industrial specialisation.
-					// mill and quarry get distinct palette entries; all other industrial uses the default.
-					string? _indTypeId = null;
-					if (tile.Zone == ZoneType.Industrial && tile.BuildingId != null
-						&& _grid.Buildings.TryGetValue(tile.BuildingId, out var _indBldg))
-						_indTypeId = _indBldg.TypeId;
+					// Resolve the building TypeId for zone-specific palette entries.
+					string? _bldgTypeId = null;
+					if (tile.BuildingId != null
+						&& _grid.Buildings.TryGetValue(tile.BuildingId, out var _bldgForColor))
+						_bldgTypeId = _bldgForColor.TypeId;
 
 					var baseColor = tile.Zone switch
 					{
-						ZoneType.Residential when isCottageUnpowered => ColorCottageUnpowered,
-						ZoneType.Residential => ColorResidential,
-						ZoneType.Commercial  => ColorCommercial,
-						ZoneType.Industrial  when _indTypeId == "ind_mill_2x2"   => ColorIndustrialMill,
-						ZoneType.Industrial  when _indTypeId == "ind_quarry_2x2" => ColorIndustrialQuarry,
-						_                    => ColorIndustrial,
+						ZoneType.Residential when isCottageUnpowered              => ColorCottageUnpowered,
+						ZoneType.Residential when _bldgTypeId == "res_highrise_6x6" => ColorHighrise,
+						ZoneType.Residential                                        => ColorResidential,
+						ZoneType.Commercial  when _bldgTypeId == "com_office_4x4"   => ColorOffice,
+						ZoneType.Commercial                                         => ColorCommercial,
+						ZoneType.Industrial  when _bldgTypeId == "ind_mill_2x2"     => ColorIndustrialMill,
+						ZoneType.Industrial  when _bldgTypeId == "ind_quarry_2x2"   => ColorIndustrialQuarry,
+						ZoneType.Industrial  when _bldgTypeId == "ind_complex_4x4"  => ColorIndComplex,
+						_                                                           => ColorIndustrial,
 					};
 					// Apply subtle height-based brightness modifier before fill lerp
 					var heightTinted = ApplyHeightTintToZoneColor(baseColor, GetHeight(tile.X, tile.Y));
@@ -1649,11 +1843,16 @@ public partial class TilemapRenderer : Node2D
 
 				var borderColor = building.Zone switch
 				{
+					// High-rise gets a brighter cyan-blue outline to stand out from apartment
+					ZoneType.Residential when building.TypeId == "res_highrise_6x6" => new Color(0.4f, 0.8f, 1.0f, 0.90f), // cyan-blue
 					ZoneType.Residential => new Color(0.0f, 1.0f, 0.3f, 0.85f),   // bright green
+					// Office tower gets a crisper steel-blue outline
+					ZoneType.Commercial  when building.TypeId == "com_office_4x4"  => new Color(0.6f, 0.8f, 1.0f, 0.90f), // steel blue
 					ZoneType.Commercial  => new Color(0.3f, 0.7f, 1.0f, 0.85f),   // bright blue
 					// Terrain-specific industrial outlines match the fill palette
-					ZoneType.Industrial when building.TypeId == "ind_mill_2x2"   => new Color(0.55f, 0.85f, 0.30f, 0.90f), // leafy green
-					ZoneType.Industrial when building.TypeId == "ind_quarry_2x2" => new Color(0.78f, 0.76f, 0.72f, 0.90f), // stone white
+					ZoneType.Industrial when building.TypeId == "ind_mill_2x2"     => new Color(0.55f, 0.85f, 0.30f, 0.90f), // leafy green
+					ZoneType.Industrial when building.TypeId == "ind_quarry_2x2"   => new Color(0.78f, 0.76f, 0.72f, 0.90f), // stone white
+					ZoneType.Industrial when building.TypeId == "ind_complex_4x4"  => new Color(0.80f, 0.76f, 0.68f, 0.90f), // warm grey
 					ZoneType.Industrial  => new Color(1.0f, 0.9f, 0.0f, 0.85f),   // bright yellow (default)
 					_                    => new Color(1.0f, 1.0f, 1.0f, 0.85f),
 				};
