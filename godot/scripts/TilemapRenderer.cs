@@ -1953,45 +1953,62 @@ public partial class TilemapRenderer : Node2D
 			QueueRedraw();
 		}
 
-		// ── Growth blocker icons for bare zone tiles ────────────────────────
-		// Shows a small corner icon explaining why a bare zoned tile has no building yet.
-		if (_grid != null)
+		// ── Growth blocker badges for bare zone tiles (visible at normal zoom) ─
+		// Small geometric corner badges on undeveloped zone tiles so players can
+		// tell at a glance why a zone isn't growing without having to hover.
+		// Badges are only drawn in OverlayMode.None, only on tiles without a building,
+		// and are suppressed when zoomed out below 0.5× (sub-pixel size, visual noise).
+		if (_grid != null && ActiveOverlay == OverlayMode.None)
 		{
-			foreach (var t in _grid.AllTiles())
+			// Check camera zoom — skip badges below 0.5× zoom
+			var camZoom = GetViewport().GetCamera2D()?.Zoom.X ?? 1f;
+			if (camZoom >= 0.5f)
 			{
-				if (t.Zone != ZoneType.Residential && t.Zone != ZoneType.Commercial && t.Zone != ZoneType.Industrial)
-					continue;
-				if (t.BuildingId != null) continue; // building exists — no blocker needed
-
-				float px = t.X * TileSize;
-				float py = t.Y * TileSize;
-
-				// Determine blocker and icon
-				string icon;
-				Color iconColor;
-				if (!t.HasRoadAccess)
+				foreach (var t in _grid.AllTiles())
 				{
-					icon = "⊘"; // ⊘ — no road
-					iconColor = new Color(1f, 0.55f, 0f, 0.90f); // amber
-				}
-				else if (!t.HasPower)
-				{
-					icon = "⚡"; // ⚡ — no power
-					iconColor = new Color(1f, 0.75f, 0.1f, 0.90f); // orange-yellow
-				}
-				else
-				{
-					icon = "▲"; // ▲ — eligible to grow
-					iconColor = new Color(0.3f, 1f, 0.3f, 0.70f); // green
-				}
+					if (t.Zone != ZoneType.Residential && t.Zone != ZoneType.Commercial && t.Zone != ZoneType.Industrial)
+						continue;
+					if (t.BuildingId != null) continue; // building exists — badge not needed
 
-				// Semi-transparent dark background square for readability
-				var bgRect = new Rect2(px + 1, py + 1, 10, 10);
-				DrawRect(bgRect, new Color(0f, 0f, 0f, 0.55f));
+					float px = t.X * TileSize;
+					float py = t.Y * TileSize;
 
-				// Draw the icon string
-				DrawString(ThemeDB.FallbackFont, new Vector2(px + 2, py + 10), icon,
-					HorizontalAlignment.Left, -1, 9, iconColor);
+					if (!t.HasRoadAccess)
+					{
+						// No road: small grey road-hint square at bottom-left corner
+						// 6×6 px dark rect with 1 px white border — subtle, not alarming
+						const float badgeSize = 6f;
+						const float margin = 2f;
+						var bx = px + margin;
+						var by = py + TileSize - margin - badgeSize;
+						DrawRect(new Rect2(bx, by, badgeSize, badgeSize),
+							new Color(0.18f, 0.18f, 0.18f, 0.75f));
+						// White 1 px border
+						DrawRect(new Rect2(bx,                        by,                        badgeSize, 1f),
+							new Color(1f, 1f, 1f, 0.55f));
+						DrawRect(new Rect2(bx,                        by + badgeSize - 1f,       badgeSize, 1f),
+							new Color(1f, 1f, 1f, 0.55f));
+						DrawRect(new Rect2(bx,                        by,                        1f, badgeSize),
+							new Color(1f, 1f, 1f, 0.55f));
+						DrawRect(new Rect2(bx + badgeSize - 1f,       by,                        1f, badgeSize),
+							new Color(1f, 1f, 1f, 0.55f));
+					}
+					else if (!t.HasPower)
+					{
+						// No power: tiny 3-segment zig-zag line at bottom-right corner
+						// Draws a small lightning-bolt silhouette in muted grey
+						const float margin = 2f;
+						var bx = px + TileSize - margin - 6f;
+						var by = py + TileSize - margin - 6f;
+						var zigColor = new Color(0.5f, 0.5f, 0.5f, 0.65f);
+						// Zig-zag: top-right → middle-left → middle-right → bottom-left
+						DrawLine(new Vector2(bx + 5f, by),       new Vector2(bx + 2f, by + 3f), zigColor, 1.2f);
+						DrawLine(new Vector2(bx + 2f, by + 3f),  new Vector2(bx + 4f, by + 3f), zigColor, 1.2f);
+						DrawLine(new Vector2(bx + 4f, by + 3f),  new Vector2(bx + 1f, by + 6f), zigColor, 1.2f);
+					}
+					// Tiles with both road and power (eligible to grow) get no badge —
+					// the absence of any badge signals readiness.
+				}
 			}
 		}
 

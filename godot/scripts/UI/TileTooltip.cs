@@ -97,6 +97,9 @@ public partial class TileTooltip : CanvasLayer
 
         var capacity = building.MaxPopulation;
 
+        // Growth diagnosis — highlight the single most important issue for this building's zone
+        AddDiagnosisLine(anchorTile);
+
         // Special tooltip for unpowered/powered cottage (res_house_1x1)
         if (building.TypeId == "res_house_1x1")
         {
@@ -177,8 +180,8 @@ public partial class TileTooltip : CanvasLayer
         {
             case ZoneType.Residential:
                 AddLine("Residential", 15, new Color(0.3f, 1f, 0.4f));
+                AddDiagnosisLine(tile);
                 AddPowerRoadLines(tile);
-                AddReadyLine(tile);
                 AddLine($"Pop: {tile.Population} / 50", 13, new Color(0.8f, 0.8f, 0.8f));
                 AddGrowthLines(tile);
                 AddBareTileChecklist(tile, state);
@@ -186,15 +189,15 @@ public partial class TileTooltip : CanvasLayer
 
             case ZoneType.Commercial:
                 AddLine("Commercial", 15, new Color(0.4f, 0.6f, 1f));
+                AddDiagnosisLine(tile);
                 AddPowerRoadLines(tile);
-                AddReadyLine(tile);
                 AddBareTileChecklist(tile, state);
                 break;
 
             case ZoneType.Industrial:
                 AddLine("Industrial", 15, new Color(1f, 0.9f, 0.2f));
+                AddDiagnosisLine(tile);
                 AddPowerRoadLines(tile);
-                AddReadyLine(tile);
                 AddBareTileChecklist(tile, state);
                 break;
 
@@ -634,6 +637,63 @@ public partial class TileTooltip : CanvasLayer
         AddLine($"Coverage: {covPct}% of residential", 13, new Color(0.75f, 0.75f, 0.9f));
     }
 
+    /// <summary>
+    /// Returns the single most important blocking reason for why a zone tile is not growing,
+    /// along with a background color appropriate to the severity.
+    /// Returns null when there is no clear blocking issue (tile is growing normally or has a building).
+    /// Priority order: no road → no power → building waiting → low happiness.
+    /// </summary>
+    private static (string Message, Color BgColor, Color TextColor)? DiagnoseGrowth(Tile tile)
+    {
+        if (tile.Zone != ZoneType.Residential &&
+            tile.Zone != ZoneType.Commercial  &&
+            tile.Zone != ZoneType.Industrial)
+            return null;
+
+        // Bare zone tiles — find the single blocking issue
+        if (tile.BuildingId == null)
+        {
+            if (!tile.HasRoadAccess)
+                return (
+                    "No road adjacent — buildings won't form here",
+                    new Color(0.55f, 0.28f, 0f, 0.45f),   // dark amber bg
+                    new Color(1f, 0.85f, 0.45f));           // bright amber text
+
+            if (!tile.HasPower)
+                return (
+                    "No power — connect a power plant",
+                    new Color(0.38f, 0.28f, 0f, 0.45f),   // dark yellow bg
+                    new Color(1f, 0.95f, 0.25f));           // yellow text
+
+            // Road + power present — tile is eligible, building will appear soon
+            return (
+                "Eligible — building will appear soon",
+                new Color(0f, 0.28f, 0.08f, 0.40f),       // dark green bg
+                new Color(0.35f, 1f, 0.45f));               // green text
+        }
+
+        // Building exists — look for growth-limiting conditions on residential tiles
+        if (tile.Zone == ZoneType.Residential && (float)tile.Happiness < 0.35f)
+            return (
+                "Low happiness — add services or reduce pollution",
+                new Color(0.50f, 0.10f, 0f, 0.45f),       // dark red-orange bg
+                new Color(1f, 0.55f, 0.30f));               // orange text
+
+        return null;
+    }
+
+    /// <summary>
+    /// Inserts the growth diagnosis highlighted line when there is a blocking issue.
+    /// Call this just after the zone title line so the diagnosis is immediately visible.
+    /// </summary>
+    private void AddDiagnosisLine(Tile tile)
+    {
+        var diagnosis = DiagnoseGrowth(tile);
+        if (diagnosis == null) return;
+        var (msg, bgColor, textColor) = diagnosis.Value;
+        AddHighlightedLine(msg, 12, textColor, bgColor);
+    }
+
     private void AddSeparator()
     {
         var sep = new HSeparator();
@@ -682,6 +742,36 @@ public partial class TileTooltip : CanvasLayer
         label.AddThemeFontSizeOverride("font_size", fontSize);
         label.AddThemeColorOverride("font_color", color);
         _vbox.AddChild(label);
+    }
+
+    /// <summary>
+    /// Adds a diagnosis line with a tinted background panel to draw attention to it.
+    /// Used to surface the single root-cause blocking a zone from growing.
+    /// <paramref name="bgColor"/> should be semi-transparent (e.g. amber 0.3 alpha for warnings).
+    /// </summary>
+    private void AddHighlightedLine(string text, int fontSize, Color textColor, Color bgColor)
+    {
+        var panel = new PanelContainer();
+        panel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        var style = new StyleBoxFlat();
+        style.BgColor              = bgColor;
+        style.ContentMarginLeft    = 4;
+        style.ContentMarginRight   = 4;
+        style.ContentMarginTop     = 2;
+        style.ContentMarginBottom  = 2;
+        style.CornerRadiusTopLeft     = 2;
+        style.CornerRadiusTopRight    = 2;
+        style.CornerRadiusBottomLeft  = 2;
+        style.CornerRadiusBottomRight = 2;
+        panel.AddThemeStyleboxOverride("panel", style);
+
+        var label = new Label();
+        label.Text = text;
+        label.AddThemeFontSizeOverride("font_size", fontSize);
+        label.AddThemeColorOverride("font_color", textColor);
+        label.MouseFilter = Control.MouseFilterEnum.Ignore;
+        panel.AddChild(label);
+        _vbox.AddChild(panel);
     }
 
     private static StyleBoxFlat MakePanelStyle()

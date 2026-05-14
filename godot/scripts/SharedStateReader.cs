@@ -556,5 +556,8 @@ public record SharedTile(
     int Height = 1,         // height level: ≤0 = water, 1 = lowland, 2 = midland, 3+ = highland/peak
     bool HasForest = false, // forest overlay (vegetation on top of elevation)
     bool IsBorderConnection = false, // border road tile — cannot be erased or overwritten
-    float LandValue = 0f    // 0.0-1.0 from LandValueSystem; 0 when not emitted by server
+    float LandValue = 0f,   // 0.0-1.0 from LandValueSystem; 0 when not emitted by server
+    // Growth-diagnosis fields (populated in RebuildGrid after tile list is processed)
+    bool IsRoadAdjacent = false,  // true when any orthogonal neighbour is Road or Avenue (for 1×1 building formation)
+    float HappinessValue = 0f     // per-tile happiness, copied from Happiness; explicit for growth diagnosis
 );
