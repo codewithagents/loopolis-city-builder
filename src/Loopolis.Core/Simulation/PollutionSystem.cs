@@ -24,7 +24,15 @@ public class PollutionSystem
     private const double IndustrialStrength       = 1.0;
     private const double CoalPlantStrength        = 0.4;
 
-    public void Propagate(CityGrid grid)
+    /// <summary>
+    /// Propagates pollution from industrial zones and CoalPlant tiles.
+    /// </summary>
+    /// <param name="grid">The city grid to read from and write pollution levels to.</param>
+    /// <param name="pollutionEmissionMultiplier">
+    /// Optional multiplier applied to every tile's emission strength.
+    /// Default 1.0 = no change. Pass PolicySystem.PollutionMultiplier (e.g. 0.65 for GreenCity).
+    /// </param>
+    public void Propagate(CityGrid grid, double pollutionEmissionMultiplier = 1.0)
     {
         grid.ClearPollution();
 
@@ -45,7 +53,7 @@ public class PollutionSystem
             else
                 continue;
 
-            EmitPollution(grid, tile.X, tile.Y, emissionStrength);
+            EmitPollution(grid, tile.X, tile.Y, emissionStrength * pollutionEmissionMultiplier);
         }
     }
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
+using Loopolis.Core.Policies;
 using Loopolis.Core.Simulation;
 
 namespace Loopolis.Core.Persistence;
@@ -37,6 +38,11 @@ public static class SaveSystem
             forestMap[x + y * grid.Width] = grid.HasForestAt(x, y);
         }
 
+        // Persist active policies as string names for forward-compat
+        var activePolicies = engine.PolicySystem.ActivePolicies.Count > 0
+            ? engine.PolicySystem.ActivePolicies.Select(p => p.ToString()).ToArray()
+            : null;
+
         return new SaveGame(
             Version:    CurrentVersion,
             Tick:       tick,
@@ -49,7 +55,8 @@ public static class SaveSystem
             HeightMap:  heightMap,
             ForestMap:  forestMap,
             GridWidth:  grid.Width,
-            GridHeight: grid.Height
+            GridHeight: grid.Height,
+            ActivePolicies: activePolicies
         );
     }
 
@@ -134,6 +141,25 @@ public static class SaveSystem
                 var building = new Building(b.Id, b.TypeId, zone, b.AnchorX, b.AnchorY, b.Width, b.Height);
                 grid.Buildings[b.Id] = building;
             }
+        }
+    }
+
+    /// <summary>
+    /// Restores active policies from the save game into the engine's PolicySystem.
+    /// Safe to call even when save.ActivePolicies is null (older saves) — deactivates all policies.
+    /// </summary>
+    public static void RestorePolicies(PolicySystem policySystem, SaveGame save)
+    {
+        // Deactivate all policies first (reset to clean state)
+        foreach (PolicyType p in Enum.GetValues<PolicyType>())
+            policySystem.DeactivatePolicy(p);
+
+        if (save.ActivePolicies == null) return;
+
+        foreach (var name in save.ActivePolicies)
+        {
+            if (Enum.TryParse<PolicyType>(name, out var policyType))
+                policySystem.ActivatePolicy(policyType);
         }
     }
 }

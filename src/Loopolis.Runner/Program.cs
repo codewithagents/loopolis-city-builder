@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
+using Loopolis.Core.Policies;
 using Loopolis.Core.Simulation;
 
 // Loopolis SimulationRunner — the agent feedback loop tool
@@ -705,6 +706,28 @@ static void ProcessCommand(
                 }
                 break;
 
+            case "set_policy":
+                // {"cmd":"set_policy","policy":"GreenCity","active":true}
+                if (root.TryGetProperty("policy", out var policyProp) &&
+                    root.TryGetProperty("active", out var activeProp))
+                {
+                    var policyName = policyProp.GetString() ?? "";
+                    var isActive   = activeProp.GetBoolean();
+                    if (Enum.TryParse<PolicyType>(policyName, out var policyType))
+                    {
+                        if (isActive)
+                            engine.PolicySystem.ActivatePolicy(policyType);
+                        else
+                            engine.PolicySystem.DeactivatePolicy(policyType);
+                        Console.WriteLine($"[set_policy] {policyName}={isActive}, total cost={engine.PolicySystem.GetCostPerTick()}/tick");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[set_policy] Unknown policy: {policyName}");
+                    }
+                }
+                break;
+
             case "query_overlay":
                 if (root.TryGetProperty("overlay", out var overlayProp))
                 {
@@ -1058,7 +1081,13 @@ static void WriteState(
         ScenarioComplete:          engine.ScenarioComplete,
         MedalEarned:               engine.MedalEarned,
         ScenarioFailed:            engine.ScenarioFailed,
-        ParkTiles:                 grid.TilesOfType(ZoneType.Park).Count()
+        ParkTiles:                 grid.TilesOfType(ZoneType.Park).Count(),
+        // Policy system state
+        PolicyGreenCity:           engine.PolicySystem.IsActive(PolicyType.GreenCity),
+        PolicyIndustrialHub:       engine.PolicySystem.IsActive(PolicyType.IndustrialHub),
+        PolicyCommercialBoost:     engine.PolicySystem.IsActive(PolicyType.CommercialBoost),
+        PolicyOpenCity:            engine.PolicySystem.IsActive(PolicyType.OpenCity),
+        PolicyTotalCostPerTick:    engine.PolicySystem.GetCostPerTick()
     );
 
     var options = new JsonSerializerOptions
@@ -1609,7 +1638,13 @@ record ServerState(
     bool ScenarioFailed = false,
     int ParkTiles = 0,                      // count of Park zone tiles
     string? PersonalBestMedal = null,       // personal best medal from leaderboard
-    int PersonalBestTick = 0);              // tick count of personal best run
+    int PersonalBestTick = 0,              // tick count of personal best run
+    // Policy system
+    bool PolicyGreenCity = false,
+    bool PolicyIndustrialHub = false,
+    bool PolicyCommercialBoost = false,
+    bool PolicyOpenCity = false,
+    int PolicyTotalCostPerTick = 0);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

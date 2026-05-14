@@ -37,14 +37,23 @@ public class EmploymentSystem
     /// Powered industrial: activity × 0.4 jobs (up to 20 per full tile).
     /// Unpowered industrial: 2 fixed jobs (placeholder — no production, no smoke).
     /// </summary>
-    public double Propagate(CityGrid grid, int totalPopulation)
+    /// <param name="grid">The city grid.</param>
+    /// <param name="totalPopulation">Current total population (for required-jobs calculation).</param>
+    /// <param name="jobsPerIndustrialTileBonus">
+    /// Flat bonus jobs added per powered road-accessible industrial tile.
+    /// Pass PolicySystem.JobsPerIndustrialTileBonus (default 0; +3 with IndustrialHub policy).
+    /// </param>
+    public double Propagate(CityGrid grid, int totalPopulation, int jobsPerIndustrialTileBonus = 0)
     {
         AvailableJobs = 0;
         foreach (var t in grid.TilesOfType(ZoneType.Industrial))
         {
             if (!t.HasRoadAccess) continue;
             if (t.HasPower)
+            {
                 AvailableJobs += (int)(t.Population * JobsPerActivityUnit);
+                AvailableJobs += jobsPerIndustrialTileBonus; // IndustrialHub policy bonus
+            }
             else
                 AvailableJobs += UnpoweredIndustrialJobs;
         }

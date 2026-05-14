@@ -41,5 +41,10 @@ public record SaveGame(
     /// </summary>
     [property: JsonPropertyName("forestMap")]   bool[]?         ForestMap = null,
     [property: JsonPropertyName("gridWidth")]   int             GridWidth = 32,
-    [property: JsonPropertyName("gridHeight")]  int             GridHeight = 32
+    [property: JsonPropertyName("gridHeight")]  int             GridHeight = 32,
+    /// <summary>
+    /// List of active policy type names (e.g. "GreenCity", "OpenCity").
+    /// Null in older saves — treated as no active policies.
+    /// </summary>
+    [property: JsonPropertyName("activePolicies")] string[]?   ActivePolicies = null
 );

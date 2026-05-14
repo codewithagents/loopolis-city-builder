@@ -147,7 +147,7 @@ public class HappinessSystem
 
     public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
         RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null,
-        int cityPopulation = 0, RoadGraph? roadGraph = null)
+        int cityPopulation = 0, RoadGraph? roadGraph = null, double policyHappinessBonus = 0.0)
     {
         grid.ClearHappiness();
 
@@ -265,6 +265,10 @@ public class HappinessSystem
             // Commute penalty: only applies to developed tiles (BuildingId != null) with industry on the map
             if (poweredIndustrialPositions != null && poweredIndustrialPositions.Count > 0 && tile.BuildingId != null)
                 happiness += ComputeCommutePenalty(tile, poweredIndustrialPositions, grid, roadGraph);
+
+            // Policy happiness bonus (e.g. GreenCity +0.10)
+            if (policyHappinessBonus != 0.0)
+                happiness += policyHappinessBonus;
 
             // Clamp
             happiness = Math.Clamp(happiness, 0.1, 1.0);

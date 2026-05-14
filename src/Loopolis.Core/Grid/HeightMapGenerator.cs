@@ -112,6 +112,182 @@ public static class HeightMapGenerator
     }
 
     /// <summary>
+    /// Generate a W×H height map using a named terrain seed.
+    /// Named seeds produce geographically distinct terrain shapes.
+    /// Returns int[W, H] with values in [0, 10].
+    /// </summary>
+    public static int[,] GenerateNamed(string terrainSeed, int width, int height)
+    {
+        return terrainSeed switch
+        {
+            "island_chain"  => GenerateIslandChain(width, height),
+            "narrow_valley" => GenerateNarrowValley(width, height),
+            "river_delta"   => GenerateRiverDelta(width, height),
+            _               => Generate(width, height, terrainSeed.GetHashCode())
+        };
+    }
+
+    /// <summary>
+    /// Island Chain: ~40% water coverage. Elevated island clusters surrounded by water,
+    /// connected by narrow land bridges. Uses fixed seed for determinism.
+    /// </summary>
+    public static int[,] GenerateIslandChain(int width, int height)
+    {
+        var rng    = new Random(0xC0FFEE); // fixed seed for determinism
+        var result = new int[width, height];
+
+        // Start with all water
+        for (var x = 0; x < width; x++)
+        for (var y = 0; y < height; y++)
+            result[x, y] = 0;
+
+        // Scatter 10 island seeds and grow each outward with decreasing probability
+        const int islandCount = 10;
+        for (var i = 0; i < islandCount; i++)
+        {
+            // Island seeds placed in a grid-like pattern with some jitter to avoid clustering
+            var cx = (int)(width  * (0.1 + 0.8 * ((i % 4) / 3.0))) + rng.Next(-4, 5);
+            var cy = (int)(height * (0.1 + 0.8 * ((i / 4) / 2.0))) + rng.Next(-4, 5);
+            cx = Math.Clamp(cx, 2, width  - 3);
+            cy = Math.Clamp(cy, 2, height - 3);
+
+            // Island size: radius 3–7 tiles
+            var radius = 3 + rng.Next(5);
+
+            // Place island using flood-fill with decreasing probability from center
+            for (var dy = -radius; dy <= radius; dy++)
+            for (var dx = -radius; dx <= radius; dx++)
+            {
+                var px = cx + dx;
+                var py = cy + dy;
+                if (px < 0 || px >= width || py < 0 || py >= height) continue;
+
+                var dist = Math.Sqrt(dx * dx + dy * dy);
+                if (dist > radius) continue;
+
+                // Probability decreases with distance from center
+                var prob = 1.0 - (dist / radius) * 0.7;
+                if (rng.NextDouble() < prob)
+                {
+                    // Center tiles are elevated, edges are flat
+                    result[px, py] = dist < radius * 0.4 ? 2 : 1;
+                }
+            }
+        }
+
+        // Add a few narrow land bridges connecting islands
+        // Simple horizontal and vertical bridges
+        for (var bridgeIdx = 0; bridgeIdx < 4; bridgeIdx++)
+        {
+            var bx1 = 5 + rng.Next(width  - 10);
+            var by1 = 5 + rng.Next(height - 10);
+            var bx2 = 5 + rng.Next(width  - 10);
+            var by2 = by1 + rng.Next(-3, 4); // mostly horizontal bridges
+
+            var minX = Math.Min(bx1, bx2);
+            var maxX = Math.Max(bx1, bx2);
+            for (var bx = minX; bx <= maxX; bx++)
+            {
+                // Bridge width: 1 tile wide
+                if (by1 >= 0 && by1 < height) result[bx, by1] = 1;
+                if (by2 >= 0 && by2 < height) result[bx, by2] = 1;
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Narrow Valley: 128×128 map with tall mountain walls on east and west edges.
+    /// Only the central corridor (roughly x=30–94 on a 128-wide map) is flat.
+    /// Uses fixed seed for determinism.
+    /// </summary>
+    public static int[,] GenerateNarrowValley(int width, int height)
+    {
+        var rng    = new Random(0xBADC0DE); // fixed seed for determinism
+        var result = new int[width, height];
+
+        // Determine valley corridor: center 50% of width, ±some jitter
+        var valleyLeft  = (int)(width * 0.23);  // ~30 for 128-wide
+        var valleyRight = (int)(width * 0.73);  // ~93 for 128-wide
+
+        for (var x = 0; x < width; x++)
+        for (var y = 0; y < height; y++)
+        {
+            if (x >= valleyLeft && x <= valleyRight)
+            {
+                // Valley floor — mostly flat (height 1) with some gentle variation
+                result[x, y] = rng.NextDouble() < 0.06 ? 2 : 1;
+            }
+            else
+            {
+                // Mountain wall — elevated (height 2+), steeper near edges
+                var distFromValley = x < valleyLeft
+                    ? valleyLeft  - x
+                    : x - valleyRight;
+
+                // Mountain height rises with distance from valley
+                if      (distFromValley <= 2)  result[x, y] = rng.NextDouble() < 0.5 ? 2 : 1;
+                else if (distFromValley <= 5)  result[x, y] = 2 + rng.Next(2);
+                else if (distFromValley <= 10) result[x, y] = 3 + rng.Next(3);
+                else                           result[x, y] = 5 + rng.Next(4);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// River Delta: 64×64 mostly flat map with 3 diagonal water channels (width 3 tiles)
+    /// running from top-left toward bottom-right direction.
+    /// Uses fixed seed for determinism.
+    /// </summary>
+    public static int[,] GenerateRiverDelta(int width, int height)
+    {
+        var rng    = new Random(0xDE1A01); // fixed seed for determinism
+        var result = new int[width, height];
+
+        // Start with flat land
+        for (var x = 0; x < width; x++)
+        for (var y = 0; y < height; y++)
+            result[x, y] = 1;
+
+        // Draw 3 diagonal water channels from different start points along the top/left edges.
+        // Channels run diagonally toward bottom-right (slope ~1).
+        // Channel offsets spread them evenly across the map.
+        var channelOffsets = new[] { width / 5, width / 2, width * 4 / 5 };
+
+        foreach (var offset in channelOffsets)
+        {
+            // Channel starts at top edge and runs diagonally SE
+            // Use Bresenham-style line from (offset, 0) toward (offset + height, height)
+            for (var step = 0; step < width + height; step++)
+            {
+                // Parametric: cx moves right at 0.5 rate as cy moves down
+                var cy = step * height / (width + height);
+                var cx = offset + step * width / (width + height);
+
+                // Draw channel with width of 3 tiles
+                for (var w = -1; w <= 1; w++)
+                {
+                    var px = cx + w;
+                    var py = cy;
+                    if (px >= 0 && px < width && py >= 0 && py < height)
+                        result[px, py] = 0; // water
+
+                    // Also widen slightly diagonally
+                    var px2 = cx;
+                    var py2 = cy + w;
+                    if (px2 >= 0 && px2 < width && py2 >= 0 && py2 < height)
+                        result[px2, py2] = 0; // water
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Generate a W×H forest map. Marks roughly 12% of non-water tiles as forest.
     /// Forest placement is seeded independently (forestSeed = seed + 1 by default).
     /// </summary>

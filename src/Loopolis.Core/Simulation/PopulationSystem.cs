@@ -41,7 +41,9 @@ public class PopulationSystem
     /// Total Population = sum of residential tile populations only.
     /// </summary>
     public void Tick(CityGrid grid, double employmentMultiplier = 1.0, RoadTrafficSystem? trafficSystem = null,
-        PowerCapacitySystem? powerCapacitySystem = null, RoadGraph? roadGraph = null)
+        PowerCapacitySystem? powerCapacitySystem = null, RoadGraph? roadGraph = null,
+        double industrialGrowthMultiplier = 1.0, double commercialGrowthMultiplier = 1.0,
+        double immigrationMultiplier = 1.0)
     {
         var totalPopulation = 0;
 
@@ -92,6 +94,7 @@ public class PopulationSystem
 
                 // Border migration multiplier: +20% growth for R-tiles within road-graph distance 12
                 // of any external anchor (border connection tile). Simulates migration pressure.
+                // immigrationMultiplier (from OpenCity policy) stacks on top of the base multiplier.
                 var borderMultiplier = 1.0;
                 if (anchorDistanceMaps != null && roadGraph != null)
                 {
@@ -103,7 +106,7 @@ public class PopulationSystem
                         {
                             if (distMap.TryGetValue(tileNode.Value, out var dist) && dist <= BorderMigrationMaxDistance)
                             {
-                                borderMultiplier = BorderMigrationMultiplier;
+                                borderMultiplier = BorderMigrationMultiplier * immigrationMultiplier;
                                 break;
                             }
                         }
@@ -152,9 +155,10 @@ public class PopulationSystem
                         adjacentResidential += n.Population;
 
                 // Grow faster when more residential nearby, capped at ActivityCapacity
+                // CommercialBoost policy multiplies the growth rate by 1.25
                 double commercialGrowthRate = CommercialBaseGrowthRate * (adjacentResidential / 100.0);
                 commercialGrowthRate = Math.Clamp(commercialGrowthRate, CommercialMinGrowthRate, CommercialMaxGrowthRate);
-                var rawGrowth = commercialGrowthRate * (ActivityCapacity - current);
+                var rawGrowth = commercialGrowthRate * (ActivityCapacity - current) * commercialGrowthMultiplier;
                 int newPop;
                 if (current < ActivityCapacity)
                 {
@@ -195,8 +199,8 @@ public class PopulationSystem
 
             if (tile.HasPower && canDevelop)
             {
-                // Fixed slow growth regardless of neighbours
-                var rawGrowth = IndustrialGrowthRate * (ActivityCapacity - current);
+                // Fixed slow growth regardless of neighbours; IndustrialHub policy boosts rate by 25%
+                var rawGrowth = IndustrialGrowthRate * (ActivityCapacity - current) * industrialGrowthMultiplier;
                 // Guarantee at least 1 unit of progress when there is room to grow
                 var growth = current < ActivityCapacity ? Math.Max(1, (int)rawGrowth) : 0;
                 var newPop = Math.Min(ActivityCapacity, current + growth);

@@ -1,6 +1,7 @@
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
+using Loopolis.Core.Policies;
 using Loopolis.Core.Scenarios;
 
 namespace Loopolis.Core.Simulation;
@@ -24,7 +25,8 @@ namespace Loopolis.Core.Simulation;
 ///  13. Budget.CollectTaxes            — income from current population (modified by land value for residential)
 ///  14. Budget.CollectCommercialIncome — commercial tile income
 ///  15. Budget.DeductMaintenance       — costs from current grid
-///  16. MilestoneSystem.Check          — check for milestone progression and bankruptcy
+///  16. PolicySystem.Tick              — deduct active policy costs from budget
+///  17. MilestoneSystem.Check          — check for milestone progression and bankruptcy
 ///
 /// This class has no Godot dependencies and is safe to use from tests, Runner, and Godot.
 /// </summary>
@@ -48,6 +50,7 @@ public class SimulationEngine
     public LandValueSystem LandValueSystem { get; } = new();
     public RoadGraph RoadGraph { get; } = new();
     public WorkerFlowSystem WorkerFlowSystem { get; } = new();
+    public PolicySystem PolicySystem { get; } = new();
     public int TickCount { get; private set; }
 
     // ── Scenario tracking ───────────────────────────────────────────────────
@@ -197,7 +200,7 @@ public class SimulationEngine
         RoadGraph.ResetEdgeTraffic();              // clear previous tick's worker-flow traffic
         LastWorkerFlow = WorkerFlowSystem.Route(Grid, RoadGraph);  // R→I routing, accumulates edge traffic
         RoadTrafficSystem.Propagate(Grid, RoadGraph);  // real traffic from edge data
-        PollutionSystem.Propagate(Grid);           // pollution before happiness
+        PollutionSystem.Propagate(Grid, PolicySystem.PollutionMultiplier);  // pollution before happiness (GreenCity reduces emission)
         DemandSystem.Propagate(Grid);      // demand before happiness
         var newEvent = EventSystem.Tick(Grid, Population.Population);
         if (newEvent != null) LatestEventBanner = newEvent.Name;
@@ -207,7 +210,7 @@ public class SimulationEngine
         {
             EraseTile(EventSystem.FireTileX, EventSystem.FireTileY);
         }
-        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute (road-graph distance)
+        HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph, PolicySystem.HappinessBonusFromPolicy);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus
         LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph);  // capacity-aware service coverage snapshot
         LandValueSystem.Propagate(Grid);   // land value after happiness is computed
 
@@ -242,12 +245,14 @@ public class SimulationEngine
             if (!buildingIdsBefore.Contains(kvp.Key))
                 LastNewBuildingTypeIds.Add(kvp.Value.TypeId);
         }
-        var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
-        Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph);
+        var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population, PolicySystem.JobsPerIndustrialTileBonus);
+        Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph,
+            PolicySystem.IndustrialGrowthMultiplier, PolicySystem.CommercialGrowthMultiplier, PolicySystem.ImmigrationMultiplier);
         Budget.SetPopulation(Population.Population);
-        Budget.CollectTaxes(Grid);  // land-value-weighted residential tax
+        Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
         Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
+        PolicySystem.Tick(Budget);  // deduct active policy costs after maintenance
         MilestoneSystem.Check(Population.Population, Budget.Balance, Budget.NetIncomePerTick, TickCount);
 
         // Scenario goal / medal check (only when a scenario is active and goal not yet reached)

@@ -223,9 +223,14 @@ public class BudgetSystem
     }
 
     /// <summary>Collect taxes using land-value-weighted residential income.</summary>
-    public void CollectTaxes(CityGrid grid)
+    /// <param name="grid">The city grid for land-value weighting.</param>
+    /// <param name="taxRateMultiplier">
+    /// Optional multiplier applied to the total tax income.
+    /// Default 1.0 = full income. Pass PolicySystem.TaxRateModifier (e.g. 0.88 for OpenCity).
+    /// </param>
+    public void CollectTaxes(CityGrid grid, double taxRateMultiplier = 1.0)
     {
-        var income = CalculateTaxIncome(grid);
+        var income = CalculateTaxIncome(grid) * taxRateMultiplier;
         LastTaxIncome = income;
         _taxIncomeEverCollected = true;
         Balance += income;
@@ -252,6 +257,13 @@ public class BudgetSystem
 
     public void DeductCost(double amount) =>
         Balance -= amount;
+
+    /// <summary>
+    /// Deducts active policy costs from balance each tick.
+    /// Called by PolicySystem.Tick() after maintenance is deducted.
+    /// </summary>
+    public void ApplyPolicyCost(int costPerTick) =>
+        Balance -= costPerTick;
 
     public bool IsInDeficit => Balance < 0;
 
