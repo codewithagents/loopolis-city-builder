@@ -19,7 +19,7 @@ godot/                    — Godot 4 project (presentation layer only).
 
 ## Development
 
-**Run tests (Core logic — 504 tests, Godot compile clean):**
+**Run tests (Core logic — 528 tests, Godot compile clean):**
 ```bash
 export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
 export PATH="$DOTNET_ROOT:$PATH"
@@ -77,15 +77,24 @@ Output is JSON — designed for agent analysis.
 25. ✅ Border Road — `IsBorderConnection` flag (unerasable). One Regional Highway enters from center-south edge. R-tiles within graph-distance 12 get 1.2× growth multiplier. `ExternalAnchor` in RoadGraph for future worker routing.
 26. ✅ Power-as-Density Unlock (P1) — `res_house_1x1` forms from road access only (no power). Unpowered cottage: capacity 25, 0.7× tax. Powered: capacity 50, full tax. All 2×2+ buildings require all footprint tiles powered. Unpowered industrial: 2 placeholder jobs, zero pollution.
 27. ✅ BuildingDegradationSystem — Multi-tile buildings that lose power or road access have 2% chance/tick to demolish back to bare zone. `LastDegradedBuildings` on engine. `BuildingCatalog.GetZoneForBuilding()` helper.
+28. ✅ **Terrain-Conditional Industry** — `ind_mill_2x2` (Timber Mill, forest tiles, 0.55× pollution) and `ind_quarry_2x2` (Quarry, elevated tiles, 1.65× pollution). BuildingGrowthSystem picks variant based on footprint terrain when growing from 1×1.
+29. ✅ **ScenarioSystem** — `ScenarioDefinition`, `ScenarioLibrary` (5 scenarios), `ScenarioEngine` (goal/medal checking). SimulationEngine tracks `ActiveScenario`, `ScenarioComplete`, `MedalEarned`, `ScenarioFailed`. Gold/Silver/Bronze thresholds per scenario.
+30. ✅ **Parks Zone** — `ZoneType.Park`: no buildings, +0.08 happiness per tile within Chebyshev-3 radius (capped +0.20), $3/tick maintenance. `ParkBonusRadius=3`. Commercial zone growth bug fixed (if→else if ordering).
 
-**504 tests · 0 failures**
+**528 tests · 0 failures**
 
-### Godot (presentation layer — restored after accidental truncation in 4138be5)
-- `World.cs` — 1323 lines: standalone game loop, tile painting, overlays, build-mode pause, error handling
-- `TilemapRenderer.cs` — 963 lines: height renderer, overlay passes, fire tile pulse, neglect warnings, coverage highlights
-- `HudOverlay.cs` — milestone progress bar with tier colors (🥉bronze/🥈silver/🥇gold/🏆teal), tier-specific banner text/size/duration
-- `GameOverPanel.cs` — win screen (Loopolis 100k), bankrupt, abandoned panels
-- `SharedStateReader.cs` — viewer mode: detects Bankrupt/Abandoned/Loopolis game states
+### Godot (presentation layer)
+- `World.cs` — standalone game loop, tile painting, overlays, build-mode pause, scenario wiring, minimap integration, city name
+- `TilemapRenderer.cs` — height renderer, overlay passes, fire tile pulse, neglect warnings, coverage highlights; Timber Mill (earthy green), Quarry (stone grey), Park (vibrant green)
+- `HudOverlay.cs` — detail stats panel, toggle with Stats button
+- `GameOverPanel.cs` — win/bankrupt/abandoned panels, city name aware
+- `SharedStateReader.cs` — viewer mode state, scenario fields, park tiles, last new buildings
+- `TopBar.cs` — balance, population+milestone bar, power, R/C/I/🌳 counts, happiness, tick; window title updates live
+- `Toolbar.cs` — right sidebar: Zones (R/C/I/Road/Ave/Park/Erase), Services, Utilities, Overlays tabs
+- `ToastSystem.cs` — bottom-center toast notifications (events, milestones, building births, alerts)
+- `Minimap.cs` — bottom-right 128×128px city overview, click-to-navigate, M key toggle, camera viewport rect
+- `ScenarioResultPanel.cs` — medal overlay on completion/failure, Play Again / Main Menu
+- `MainMenu.cs` — city name input, scenario picker (5 scenarios + sandbox), medal threshold display
 
 ## Building Catalog
 
@@ -103,7 +112,9 @@ Buildings grow organically from road edges. Interior tiles only develop if a bui
 | `com_strip_3x1` | C | 3×1 | Town | Road access |
 | `com_shopping_3x3` | C | 3×3 | City | Road access |
 | `ind_factory_1x1` | I | 1×1 | Always | Road adjacent |
-| `ind_warehouse_2x2` | I | 2×2 | Town | Road access |
+| `ind_mill_2x2` | I | 2×2 | Town | Forest tile in footprint (PollutionStrength 0.55×) |
+| `ind_quarry_2x2` | I | 2×2 | Town | Elevated tile (h≥2) in footprint (PollutionStrength 1.65×) |
+| `ind_warehouse_2x2` | I | 2×2 | Town | Road access (default flat) |
 | `ind_park_4x2` | I | 4×2 | City | Road access |
 | `ind_park_2x4` | I | 2×4 | City | Road access |
 
