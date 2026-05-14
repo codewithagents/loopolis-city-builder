@@ -47,6 +47,13 @@ public partial class SharedStateReader : Node
     public event Action<string, int, int>? BuildingBorn;
 
     /// <summary>
+    /// Fired once per tick with all new building typeIds created this tick (from state.LastNewBuildingTypeIds).
+    /// Used by World.cs to batch building-birth toasts.
+    /// Parameters: typeIds array, currentTick.
+    /// </summary>
+    public event Action<string[], int>? BuildingsBorn;
+
+    /// <summary>
     /// Fired when one or more buildings degrade (crumble) this tick.
     /// Parameters: typeId (e.g. "res_townhouse_2x2"), anchorX, anchorY.
     /// The position is the anchor of the first tile of the building that was removed,
@@ -152,6 +159,10 @@ public partial class SharedStateReader : Node
 
             DetectBuildingBirths(state);
             DetectBuildingDegradation(state);
+
+            // Fire batched building-birth toasts via LastNewBuildingTypeIds (engine-tracked, not scan-detected)
+            if (state.LastNewBuildingTypeIds != null && state.LastNewBuildingTypeIds.Length > 0)
+                BuildingsBorn?.Invoke(state.LastNewBuildingTypeIds, state.Tick);
             _renderer.RefreshWithHeight(grid, heightMap, forestMap);
             _renderer.SetBrownout(state.Power?.IsBrownout ?? false);
             _renderer.SetFireTile(state.EventTileX, state.EventTileY);
@@ -393,13 +404,25 @@ public record SharedState(
     string? PauseReason = null,
     PowerStateDto? Power = null,            // power supply/demand from PowerCapacitySystem
     WorkerFlowDto? WorkerFlow = null,       // commute routing stats (G4)
-    string[]? LastDegradedBuildings = null, // typeIds of buildings demolished by degradation this tick
+    string[]? LastDegradedBuildings = null,  // typeIds of buildings demolished by degradation this tick
+    string[]? LastNewBuildingTypeIds = null, // typeIds of buildings created by BuildingGrowthSystem this tick
     int EventTileX = -1,                    // X of tile currently on fire (-1 = none)
     int EventTileY = -1,                    // Y of tile currently on fire (-1 = none)
     bool HasPowerPlant = false,             // true when any CoalPlant/NuclearPlant/PowerPlant tile exists
     int ResZones = 0,                       // count of Residential zone tiles
     int ComZones = 0,                       // count of Commercial zone tiles
-    int IndZones = 0                        // count of Industrial zone tiles
+    int IndZones = 0,                       // count of Industrial zone tiles
+    // Scenario tracking fields (null/0 when in sandbox mode)
+    string? ActiveScenarioId = null,        // e.g. "fresh_start"
+    string? ActiveScenarioName = null,      // e.g. "Fresh Start"
+    int ScenarioTargetPopulation = 0,       // 0 when no scenario active
+    int ScenarioTickLimit = 0,              // 0 when no limit
+    int ScenarioBronzeTick = 0,
+    int ScenarioSilverTick = 0,
+    int ScenarioGoldTick = 0,
+    bool ScenarioComplete = false,
+    string? MedalEarned = null,             // "Gold", "Silver", "Bronze", or null
+    bool ScenarioFailed = false             // true when tick limit exceeded without goal
 )
 {
     /// <summary>

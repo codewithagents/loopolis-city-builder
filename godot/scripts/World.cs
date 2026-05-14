@@ -167,6 +167,7 @@ public partial class World : Node2D
 			_reader = new SharedStateReader();
 			_reader.BuildingBorn      += (typeId, ax, ay) => SpawnBuildingBirthLabel(typeId, ax, ay);
 			_reader.BuildingDegraded  += (typeId, ax, ay) => SpawnBuildingCrumbleLabel(typeId, ax, ay);
+			_reader.BuildingsBorn     += (typeIds, tick)  => FireBuildingBirthToasts(typeIds, tick);
 			_reader.FirstGridReady    += (w, h) => _camera.FitToMap(w, h);
 			AddChild(_reader);
 			_viewerMode = true;
@@ -312,11 +313,17 @@ public partial class World : Node2D
 			_standaloneTick++;
 
 			// Detect new buildings spawned this tick
+			var newBuildingTypeIdsThisTick = new System.Collections.Generic.List<string>();
 			foreach (var kvp in _grid.Buildings)
 			{
 				if (!priorBuildingIds.Contains(kvp.Key) && _standaloneKnownBuildingIds.Add(kvp.Key))
+				{
 					SpawnBuildingBirthLabel(kvp.Value.TypeId, kvp.Value.AnchorX, kvp.Value.AnchorY);
+					newBuildingTypeIdsThisTick.Add(kvp.Value.TypeId);
+				}
 			}
+			if (newBuildingTypeIdsThisTick.Count > 0)
+				FireBuildingBirthToasts(newBuildingTypeIdsThisTick, _standaloneTick);
 
 			// Detect buildings demolished by degradation this tick.
 			// Any building that existed before the tick but is now gone was degraded.
@@ -879,6 +886,10 @@ public partial class World : Node2D
 			// Optimistic ripple for road/power zones (before server confirms)
 			if (selectedZone is "Road" or "Avenue" or "PowerPlant" or "CoalPlant" or "NuclearPlant")
 				SpawnRipple(tileX, tileY, selectedZone);
+
+			// Road pulse: white-flash confirmation on newly placed road/avenue tiles
+			if (selectedZone is "Road" or "Avenue")
+				_renderer.PulseRoad(new Vector2I(tileX, tileY));
 		}
 		else
 		{
@@ -918,6 +929,10 @@ public partial class World : Node2D
 					// Ripple on road/power placement
 					if (selectedZone is "Road" or "Avenue" or "PowerPlant" or "CoalPlant" or "NuclearPlant")
 						SpawnRipple(tileX, tileY, selectedZone);
+
+					// Road pulse: white-flash confirmation on newly placed road/avenue tiles
+					if (selectedZone is "Road" or "Avenue")
+						_renderer.PulseRoad(new Vector2I(tileX, tileY));
 				}
 			}
 			_renderer.Refresh(_grid);
@@ -937,6 +952,80 @@ public partial class World : Node2D
 	}
 
 	// ── Visual effects ─────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Fires building-birth toast notifications for a batch of new building typeIds.
+	/// Deduplicates: 3+ of the same type → "3× Name built!" instead of 3 toasts.
+	/// Throttles: only shows res_house_1x1 toasts before tick 50; higher-tier always shown.
+	/// </summary>
+	private void FireBuildingBirthToasts(System.Collections.Generic.IEnumerable<string> typeIds, int currentTick)
+	{
+		// Count occurrences per typeId
+		var counts = new System.Collections.Generic.Dictionary<string, int>();
+		foreach (var id in typeIds)
+		{
+			if (!counts.ContainsKey(id)) counts[id] = 0;
+			counts[id]++;
+		}
+
+		foreach (var kvp in counts)
+		{
+			var typeId = kvp.Key;
+			var count  = kvp.Value;
+
+			// Throttle: don't show cottage toasts after tick 50
+			if (typeId == "res_house_1x1" && currentTick > 50) continue;
+
+			var friendlyName = GetFriendlyBuildingName(typeId);
+			var (emoji, color) = GetBuildingToastStyle(typeId);
+
+			string text;
+			if (count >= 3)
+				text = $"{emoji} {count}\xd7 {friendlyName} built!";
+			else if (count == 2)
+				text = $"{emoji} {friendlyName} (×2) built!";
+			else
+				text = $"{emoji} {friendlyName} built!";
+
+			_toastSystem.AddToast(text, color, 5f);
+		}
+	}
+
+	/// <summary>Returns (emoji, color) for a building toast based on zone and typeId.</summary>
+	private static (string emoji, Color color) GetBuildingToastStyle(string typeId)
+	{
+		if (typeId.StartsWith("res_"))
+			return ("🏘", new Color(1f, 0.75f, 0.35f));
+		if (typeId.StartsWith("com_"))
+			return ("🏪", new Color(0.4f, 0.8f, 1f));
+		// Industrial specialisations
+		if (typeId == "ind_mill_2x2")
+			return ("🪵", new Color(0.55f, 0.9f, 0.3f));
+		if (typeId == "ind_quarry_2x2")
+			return ("⛏", new Color(0.8f, 0.75f, 0.5f));
+		return ("🏭", new Color(0.9f, 0.85f, 0.3f));
+	}
+
+	/// <summary>Maps a building typeId to a friendly display name.</summary>
+	private static string GetFriendlyBuildingName(string typeId) => typeId switch
+	{
+		"res_house_1x1"      => "Cottage",
+		"res_townhouse_2x2"  => "Townhouse",
+		"res_villa_2x3"      => "Villa",
+		"res_villa_3x2"      => "Villa",
+		"res_apartment_4x4"  => "Apartment Block",
+		"com_shop_1x1"       => "Shop",
+		"com_strip_1x3"      => "Strip Mall",
+		"com_strip_3x1"      => "Strip Mall",
+		"com_shopping_3x3"   => "Shopping Center",
+		"ind_factory_1x1"    => "Factory",
+		"ind_warehouse_2x2"  => "Warehouse",
+		"ind_park_4x2"       => "Industrial Park",
+		"ind_park_2x4"       => "Industrial Park",
+		"ind_mill_2x2"       => "Timber Mill",
+		"ind_quarry_2x2"     => "Quarry",
+		_                    => typeId
+	};
 
 	/// <summary>
 	/// Spawns a RippleEffect centred on the tile at (tileX, tileY).

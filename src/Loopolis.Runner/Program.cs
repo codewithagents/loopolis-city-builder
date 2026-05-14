@@ -1043,7 +1043,19 @@ static void WriteState(
         WorkerFlow:                workerFlowState,
         EventTileX:                engine.EventSystem.FireTileX,
         EventTileY:                engine.EventSystem.FireTileY,
-        LastDegradedBuildings:     engine.LastDegradedBuildings?.ToArray()
+        LastDegradedBuildings:     engine.LastDegradedBuildings?.ToArray(),
+        LastNewBuildingTypeIds:    engine.LastNewBuildingTypeIds?.ToArray(),
+        // Scenario tracking
+        ActiveScenarioId:          engine.ActiveScenario?.Id,
+        ActiveScenarioName:        engine.ActiveScenario?.Name,
+        ScenarioTargetPopulation:  engine.ActiveScenario?.Goal.TargetPopulation ?? 0,
+        ScenarioTickLimit:         engine.ActiveScenario?.TickLimit ?? 0,
+        ScenarioBronzeTick:        engine.ActiveScenario?.Medals.Bronze ?? 0,
+        ScenarioSilverTick:        engine.ActiveScenario?.Medals.Silver ?? 0,
+        ScenarioGoldTick:          engine.ActiveScenario?.Medals.Gold   ?? 0,
+        ScenarioComplete:          engine.ScenarioComplete,
+        MedalEarned:               engine.MedalEarned,
+        ScenarioFailed:            engine.ScenarioFailed
     );
 
     var options = new JsonSerializerOptions
@@ -1577,7 +1589,19 @@ record ServerState(
     WorkerFlowState? WorkerFlow = null,
     int EventTileX = -1,   // X coord of tile currently on fire (-1 = none)
     int EventTileY = -1,   // Y coord of tile currently on fire (-1 = none)
-    string[]? LastDegradedBuildings = null); // typeIds demolished by BuildingDegradationSystem this tick
+    string[]? LastDegradedBuildings = null,  // typeIds demolished by BuildingDegradationSystem this tick
+    string[]? LastNewBuildingTypeIds = null, // typeIds created by BuildingGrowthSystem this tick
+    // Scenario tracking (null/0 when sandbox)
+    string? ActiveScenarioId = null,
+    string? ActiveScenarioName = null,
+    int ScenarioTargetPopulation = 0,
+    int ScenarioTickLimit = 0,
+    int ScenarioBronzeTick = 0,
+    int ScenarioSilverTick = 0,
+    int ScenarioGoldTick = 0,
+    bool ScenarioComplete = false,
+    string? MedalEarned = null,
+    bool ScenarioFailed = false);
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 

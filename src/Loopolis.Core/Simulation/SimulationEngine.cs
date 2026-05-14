@@ -1,6 +1,7 @@
 using Loopolis.Core.Buildings;
 using Loopolis.Core.Graph;
 using Loopolis.Core.Grid;
+using Loopolis.Core.Scenarios;
 
 namespace Loopolis.Core.Simulation;
 
@@ -49,11 +50,35 @@ public class SimulationEngine
     public WorkerFlowSystem WorkerFlowSystem { get; } = new();
     public int TickCount { get; private set; }
 
+    // ── Scenario tracking ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// The active scenario, if any. Set externally before the first tick.
+    /// When null, the engine runs as a sandbox (no goal or medal tracking).
+    /// </summary>
+    public ScenarioDefinition? ActiveScenario { get; set; }
+
+    /// <summary>True once the scenario goal population has been reached.</summary>
+    public bool ScenarioComplete { get; private set; }
+
+    /// <summary>"Gold", "Silver", "Bronze", or null (no medal / not yet complete).</summary>
+    public string? MedalEarned { get; private set; }
+
+    /// <summary>True when the tick limit has been exceeded without meeting the goal.</summary>
+    public bool ScenarioFailed { get; private set; }
+
     /// <summary>
     /// Building type IDs demolished during the last tick by BuildingDegradationSystem.
     /// Empty list if nothing degraded.
     /// </summary>
     public List<string> LastDegradedBuildings { get; private set; } = new();
+
+    /// <summary>
+    /// Building type IDs created during the last tick by BuildingGrowthSystem (Initialize + TryGrow).
+    /// Includes both newly initialised 1×1 bases and upgraded multi-tile buildings.
+    /// Empty list if nothing was created.
+    /// </summary>
+    public List<string> LastNewBuildingTypeIds { get; private set; } = new();
 
     /// <summary>Result of the most recent WorkerFlowSystem.Route call. Null before first tick.</summary>
     public WorkerFlowResult? LastWorkerFlow { get; private set; }
@@ -203,9 +228,20 @@ public class SimulationEngine
             MilestoneSystem.RecoverFromAbandonment();
         }
 
+        // Snapshot building IDs before growth so we can detect newly-created buildings this tick.
+        var buildingIdsBefore = new HashSet<string>(Grid.Buildings.Keys);
+
         BuildingGrowthSystem.Initialize(Grid);
         BuildingGrowthSystem.TryGrow(Grid, MilestoneSystem.CurrentState);
         LastDegradedBuildings = BuildingDegradationSystem.Propagate(Grid);
+
+        // Collect type IDs of buildings that appeared this tick (new 1×1 bases + upgrades).
+        LastNewBuildingTypeIds = new List<string>();
+        foreach (var kvp in Grid.Buildings)
+        {
+            if (!buildingIdsBefore.Contains(kvp.Key))
+                LastNewBuildingTypeIds.Add(kvp.Value.TypeId);
+        }
         var employmentMultiplier = EmploymentSystem.Propagate(Grid, Population.Population);
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph);
         Budget.SetPopulation(Population.Population);
@@ -213,6 +249,23 @@ public class SimulationEngine
         Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
         MilestoneSystem.Check(Population.Population, Budget.Balance, Budget.NetIncomePerTick, TickCount);
+
+        // Scenario goal / medal check (only when a scenario is active and goal not yet reached)
+        if (ActiveScenario != null && !ScenarioComplete)
+        {
+            var (complete, medal) = ScenarioEngine.CheckCompletion(
+                ActiveScenario, Population.Population, TickCount);
+            if (complete)
+            {
+                ScenarioComplete = true;
+                MedalEarned      = medal;
+            }
+            else if (ScenarioEngine.IsFailure(ActiveScenario, Population.Population, TickCount))
+            {
+                ScenarioFailed = true;
+            }
+        }
+
         TickCount++;
     }
 }

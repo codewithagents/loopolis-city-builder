@@ -97,6 +97,41 @@ public partial class TilemapRenderer : Node2D
 
 	private bool _isBrownout = false;
 
+	// Road pulse — flash newly-placed road/avenue tiles bright white for 0.4 s
+	private readonly Dictionary<Vector2I, float> _roadPulse = new();
+	private const float RoadPulseDuration = 0.4f;
+
+	/// <summary>
+	/// Starts a 0.4-second white-flash pulse on the road tile at <paramref name="tile"/>.
+	/// Call this immediately after a Road or Avenue tile is successfully placed.
+	/// </summary>
+	public void PulseRoad(Vector2I tile)
+	{
+		_roadPulse[tile] = RoadPulseDuration;
+		QueueRedraw();
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_roadPulse.Count == 0) return;
+
+		var dt = (float)delta;
+		// Collect keys in a snapshot array so we can safely modify the dictionary while iterating
+		var keys = new Vector2I[_roadPulse.Count];
+		_roadPulse.Keys.CopyTo(keys, 0);
+
+		foreach (var key in keys)
+		{
+			var remaining = _roadPulse[key] - dt;
+			if (remaining <= 0f)
+				_roadPulse.Remove(key);
+			else
+				_roadPulse[key] = remaining;
+		}
+
+		QueueRedraw(); // keep animating until all pulses expire
+	}
+
 	// Fire tile — on-fire overlay for FireBreak event
 	private static readonly Color FireOverlay = new Color(1f, 0.25f, 0f, 0.60f);   // vivid orange-red
 	private static readonly Color FireBorder  = new Color(1f, 0.70f, 0f, 0.95f);   // bright amber border
@@ -746,6 +781,15 @@ public partial class TilemapRenderer : Node2D
 
 					// Traffic load dots: show congestion level on road/avenue tiles
 					DrawTrafficDots(tile.TrafficLoad, px, py);
+
+					// Road pulse: white flash overlay that fades out over 0.4 s
+					var tilePos = new Vector2I(tile.X, tile.Y);
+					if (_roadPulse.TryGetValue(tilePos, out var pulseRemaining))
+					{
+						var pulseRatio = pulseRemaining / RoadPulseDuration;
+						var pulseColor = new Color(1f, 1f, 1f, pulseRatio * 0.5f);
+						DrawRect(new Rect2(px, py, TileSize, TileSize), pulseColor);
+					}
 
 					continue;
 				}
