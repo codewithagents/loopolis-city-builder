@@ -27,7 +27,7 @@ public class BudgetSystem
             { ZoneType.PoliceHQ,     15.0 },   // was 25.0
             { ZoneType.FireHQ,       15.0 },   // was 25.0
             { ZoneType.Hospital,     20.0 },   // was 35.0
-            { ZoneType.Park,          1.0 },   // decorative tile — modest maintenance
+            { ZoneType.Park,          3.0 },   // green space — costs more to maintain than basic infrastructure
         };
 
     /// <summary>

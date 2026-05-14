@@ -141,8 +141,9 @@ public class HappinessSystem
         };
     }
 
-    private const int ParkBonusRadius = 2;       // Chebyshev distance
-    private const double ParkHappinessBonus = 0.10;
+    private const int ParkBonusRadius = 3;            // Chebyshev distance
+    private const double ParkHappinessBonusPerTile = 0.08; // per park tile within radius
+    private const double ParkHappinessBonusCap = 0.20;     // maximum total park contribution
 
     public void Propagate(CityGrid grid, double taxModifier = 0.0, double eventPenalty = 0.0,
         RoadTrafficSystem? trafficSystem = null, PowerCapacitySystem? powerCapacitySystem = null,
@@ -247,14 +248,14 @@ public class HappinessSystem
             if (brownoutPenalty != 0.0 && tile.HasPower)
                 happiness += brownoutPenalty;
 
-            // Park bonus: +0.10 if any park tile is within Chebyshev distance 2 (does not stack)
+            // Park bonus: +0.08 per park tile within Chebyshev distance 3, capped at +0.20 total
             if (parkTiles.Count > 0)
             {
-                var hasParkNearby = parkTiles.Any(p =>
+                var nearbyParks = parkTiles.Count(p =>
                     Math.Abs(p.X - tile.X) <= ParkBonusRadius &&
                     Math.Abs(p.Y - tile.Y) <= ParkBonusRadius);
-                if (hasParkNearby)
-                    happiness += ParkHappinessBonus;
+                if (nearbyParks > 0)
+                    happiness += Math.Min(nearbyParks * ParkHappinessBonusPerTile, ParkHappinessBonusCap);
             }
 
             // Traffic congestion penalty: −0.10 if adjacent to an overloaded road/avenue

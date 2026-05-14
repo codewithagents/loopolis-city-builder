@@ -56,6 +56,10 @@ public class BuildingGrowthIntegrationTests
         grid.SetZone(3, 7, ZoneType.Residential);
         grid.SetZone(4, 7, ZoneType.Residential);
 
+        // FireStation prevents fire damage (no fire station → fires demolish tiles, making test flaky).
+        // Place adjacent to the road spine so it's road-accessible.
+        grid.SetZone(5, 8, ZoneType.FireStation);
+
         var engine = MakeEngine(grid);
 
         // Run 200 ticks — road-adjacent tiles (3,7) and (4,7) at row 7 get buildings

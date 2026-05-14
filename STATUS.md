@@ -57,12 +57,14 @@
 | P1 Power-as-Density Unlock | ✅ Done | 14 new (BuildingGrowthSystemTests + UnpoweredSystemsTests) |
 | BuildingDegradationSystem | ✅ Done | 9 new (BuildingDegradationTests) |
 | Tick-108 crash fixes | ✅ Done | 12 new (CityGridTests + BuildingGrowthSystemTests + SimulationEngineTests) |
-| Park zone (ZoneType.Park) | ✅ Done | 11 new (ParkSystemTests) |
+| Park zone (ZoneType.Park) | ✅ Done | 13 new (ParkSystemTests — upgraded spec) |
 | IsActiveBrownout (brownout Tier-1 fix) | ✅ Done | 4 new (PowerCapacitySystemTests) |
 
 | BuildingCatalog terrain-conditional industrial | ✅ Done | 6 new (TerrainConditionalIndustrialTests) |
+| ScenarioEngine + ScenarioLibrary + ScenarioDefinition | ✅ Done | 14 new (ScenarioEngineTests) |
+| BuildingGrowthIntegration flaky fix | ✅ Done | FireStation added to test grid (prevents random fire demolition) |
 
-**Total: 512 tests · 0 failures · ~0.70s runtime**
+**Total: 528 tests · 0 failures · ~0.67s runtime**
 
 ---
 
@@ -222,4 +224,7 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | mixed | Terrain-conditional industrial: existing flat scenarios fully unaffected (warehouses still form). New ind_mill_2x2 / ind_quarry_2x2 verified in unit tests. PollutionStrength per-building type confirmed: mill source tile 0.55, quarry 1.65, warehouse 1.0. No per-scenario observable change because all named scenarios use SetFlatTerrain(). New types only activate when players place industrial on forest/elevated terrain in live play. 512 tests green. | — |
 
-*Last updated: 2026-05-14 — terrain-conditional industrial buildings (Timber Mill, Quarry), PollutionStrength per building type, 512 tests*
+| 2026-05-14 | default | Seeded scenarios: 5 scenarios implemented (fresh_start/river_valley/hill_town/city_challenge/metro_run). ScenarioEngine.CheckCompletion confirmed stateless — medal logic works correctly per unit tests. SimulationEngine.ActiveScenario is null by default (sandbox). SharedState scenario fields all serialize to camelCase via Runner. Godot layer reads via PropertyNameCaseInsensitive. Engine scenario tracking not exercised by CLI test scenarios (need ActiveScenario set externally). | No fixes needed — clean integration |
+| 2026-05-14 | city_path | Park zone upgraded: Chebyshev-3 radius, +0.08/tile additive, capped +0.20, $3/tick maintenance. city_path happiness=0.906 (up from 0.863 pre-park). One park at (11,13) contributes +0.08 to all R-tiles within Chebyshev-3. BudgetSystem Park maintenance updated to $3. SharedState ParkTiles field added. BuildingGrowthIntegration flaky test fixed (fire station prevents random demolition). 528 tests green. | Fixed flaky test, upgraded park design |
+
+*Last updated: 2026-05-14 — Seeded Scenarios system, ScenarioEngine, ScenarioLibrary, 526 tests*

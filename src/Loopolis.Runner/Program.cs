@@ -1055,7 +1055,8 @@ static void WriteState(
         ScenarioGoldTick:          engine.ActiveScenario?.Medals.Gold   ?? 0,
         ScenarioComplete:          engine.ScenarioComplete,
         MedalEarned:               engine.MedalEarned,
-        ScenarioFailed:            engine.ScenarioFailed
+        ScenarioFailed:            engine.ScenarioFailed,
+        ParkTiles:                 grid.TilesOfType(ZoneType.Park).Count()
     );
 
     var options = new JsonSerializerOptions
@@ -1311,7 +1312,7 @@ static (CityGrid grid, SimulationEngine engine) SetupScenario(string scenario, i
             // Graph distance to east residential (17,14) ≈ 5. Both well within School radius 10.0.
             grid.SetZone(13, 16, ZoneType.School);
 
-            // Park near residential center — gives +0.10 happiness to Chebyshev-2 neighbours
+            // Park near residential center — gives +0.08/tile happiness to Chebyshev-3 neighbours (cap +0.20)
             grid.SetZone(11, 13, ZoneType.Park);
             break;
 
@@ -1601,7 +1602,8 @@ record ServerState(
     int ScenarioGoldTick = 0,
     bool ScenarioComplete = false,
     string? MedalEarned = null,
-    bool ScenarioFailed = false);
+    bool ScenarioFailed = false,
+    int ParkTiles = 0);                     // count of Park zone tiles
 
 // ── ASCII Renderer ────────────────────────────────────────────────────────────
 
