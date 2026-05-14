@@ -182,7 +182,9 @@ public partial class World : Node2D
 		_eventLog      = GetNode<EventLog>("EventLog");
 
 		// Instantiate TopBar and ToastSystem
+		// Name must be set explicitly so SharedStateReader can find it via "/root/World/TopBar"
 		_topBar = new TopBar();
+		_topBar.Name = "TopBar";
 		AddChild(_topBar);
 
 		_toastSystem = new ToastSystem();
@@ -202,7 +204,9 @@ public partial class World : Node2D
 		AddChild(_tutorialPanel);
 
 		// Scenario result panel (shown on complete/failed)
+		// Named explicitly so SharedStateReader can find it via "/root/World/ScenarioResultPanel"
 		_scenarioResultPanel = new ScenarioResultPanel();
+		_scenarioResultPanel.Name = "ScenarioResultPanel";
 		_scenarioResultPanel.PlayAgainRequested += (scenarioId) =>
 		{
 			PendingScenarioId = scenarioId;
@@ -498,7 +502,7 @@ public partial class World : Node2D
 			if (viewerStateCopy != null)
 			{
 				if (!string.IsNullOrEmpty(viewerStateCopy.PendingEventType) &&
-				    _lastShownEventType != viewerStateCopy.PendingEventType)
+					_lastShownEventType != viewerStateCopy.PendingEventType)
 				{
 					_lastShownEventType = viewerStateCopy.PendingEventType;
 					var canAfford = viewerStateCopy.Balance >= viewerStateCopy.PendingEventCost;
@@ -1197,11 +1201,11 @@ public partial class World : Node2D
 			PolicyTotalCostPerTick:    _engine.PolicySystem.GetCostPerTick(),
 			TownCharterPending:        _engine.Charters.TownCharterPending,
 			ActiveCharter:             _engine.Charters.ActiveCharter == Loopolis.Core.Charters.CharterType.None
-			                               ? null
-			                               : _engine.Charters.ActiveCharter.ToString(),
+										   ? null
+										   : _engine.Charters.ActiveCharter.ToString(),
 			ActiveCharterDescription:  _engine.Charters.ActiveCharter == Loopolis.Core.Charters.CharterType.None
-			                               ? null
-			                               : Loopolis.Core.Charters.CharterLibrary.Find(_engine.Charters.ActiveCharter)?.Effect
+										   ? null
+										   : Loopolis.Core.Charters.CharterLibrary.Find(_engine.Charters.ActiveCharter)?.Effect
 		);
 		_lastState = state;
 		_hud.UpdateStats(state);
