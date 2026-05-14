@@ -48,13 +48,13 @@ public partial class Toolbar : CanvasLayer
     private static readonly (string Label, string Zone, Color Color, string Tooltip, int MilestoneMin, int Tab)[] ZoneButtons =
     {
         // Tab 0 — Zones
-        ("Res",     "Residential", new Color(0.2f,  0.7f,  0.2f),  "Residential — Place: $50 · Maint: $0.50/tick",          0, 0),
-        ("Com",     "Commercial",  new Color(0.2f,  0.4f,  0.9f),  "Commercial — Place: $100 · Maint: $0.50/tick",          0, 0),
-        ("Ind",     "Industrial",  new Color(0.9f,  0.8f,  0.1f),  "Industrial — Place: $75 · Maint: $0.25/tick",           0, 0),
-        ("Road",    "Road",        new Color(0.5f,  0.5f,  0.5f),  "Road — Place: $25 · Maint: $1.00/tick",                 0, 0),
-        ("Avenue",  "Avenue",      new Color(0.62f, 0.62f, 0.62f), "Avenue — Place: $60 · Maint: $2.00/tick\nHigher capacity road — Requires Town (500 pop)", 500, 0),
-        ("Park",    "Park",        new Color(0.30f, 0.72f, 0.25f), "Place parks to boost nearby residential happiness (+0.08 per tile, max +0.20)", 0, 0),
-        ("Erase",   "Erase",       new Color(0.6f,  0.15f, 0.15f), "Erase — no cost",                                       0, 0),
+        ("🏠 Residential (R)", "Residential", new Color(0.2f,  0.7f,  0.2f),  "Residential — Place: $50 · Maint: $0.50/tick",          0, 0),
+        ("🏪 Commercial (C)",  "Commercial",  new Color(0.2f,  0.4f,  0.9f),  "Commercial — Place: $100 · Maint: $0.50/tick",          0, 0),
+        ("🏭 Industrial (I)",  "Industrial",  new Color(0.9f,  0.8f,  0.1f),  "Industrial — Place: $75 · Maint: $0.25/tick",           0, 0),
+        ("🛣 Road (W)",        "Road",        new Color(0.5f,  0.5f,  0.5f),  "Road — Place: $25 · Maint: $1.00/tick",                 0, 0),
+        ("⬛ Avenue (A)",      "Avenue",      new Color(0.62f, 0.62f, 0.62f), "Avenue — Place: $60 · Maint: $2.00/tick\nHigher capacity road — Requires Town (500 pop)", 500, 0),
+        ("🌳 Park (P)",        "Park",        new Color(0.30f, 0.72f, 0.25f), "Place parks to boost nearby residential happiness (+0.08 per tile, max +0.20)", 0, 0),
+        ("✂ Erase (E)",       "Erase",       new Color(0.6f,  0.15f, 0.15f), "Erase — no cost",                                       0, 0),
 
         // Tab 1 — Services
         ("Fire St", "FireStation",   new Color(1.0f,  0.4f,  0.1f),  "Fire Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles",                  0,    1),
@@ -78,8 +78,8 @@ public partial class Toolbar : CanvasLayer
         ("High", "high",   new Color(0.85f, 0.3f, 0.2f)),
     };
 
-    private static readonly string[] TabLabels = { "Zn", "Sv", "Ut", "Ov" };
-    private static readonly string[] TabTooltips = { "Zones", "Services", "Utilities", "Overlays" };
+    private static readonly string[] TabLabels   = { "🏘 Zones [Z]", "🚒 Services [S]", "⚡ Utilities [U]", "🗺 Overlays [X]" };
+    private static readonly string[] TabTooltips = { "Zones — press Z",    "Services — press S",    "Utilities — press U",    "Overlays — press X" };
 
     // ── _Ready ─────────────────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ public partial class Toolbar : CanvasLayer
         // ── 4 tab buttons in 2×2 grid ────────────────────────────────────────
 
         var tabGrid = new GridContainer();
-        tabGrid.Columns = 4;
+        tabGrid.Columns = 2;
         tabGrid.AddThemeConstantOverride("h_separation", 2);
         tabGrid.AddThemeConstantOverride("v_separation", 2);
         outerVBox.AddChild(tabGrid);
@@ -131,8 +131,9 @@ public partial class Toolbar : CanvasLayer
             tabBtn.FocusMode = Control.FocusModeEnum.None;
             tabBtn.Text = TabLabels[i];
             tabBtn.TooltipText = TabTooltips[i];
-            tabBtn.CustomMinimumSize = new Vector2(34, 28);
-            tabBtn.AddThemeFontSizeOverride("font_size", 11);
+            tabBtn.CustomMinimumSize = new Vector2(74, 30);
+            tabBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+            tabBtn.AddThemeFontSizeOverride("font_size", 13);
             tabBtn.Pressed += () => SwitchTab(capturedTab);
             tabGrid.AddChild(tabBtn);
             _tabHeaders[i] = tabBtn;
@@ -143,7 +144,9 @@ public partial class Toolbar : CanvasLayer
         for (var t = 0; t < 4; t++)
         {
             var grid = new GridContainer();
-            grid.Columns = 2;
+            // Zones tab (0) uses 1 column — labels are long ("🏠 Residential (R)")
+            // Services, Utilities, Overlays tabs use 2 columns — labels are shorter
+            grid.Columns = (t == 0) ? 1 : 2;
             grid.AddThemeConstantOverride("h_separation", 3);
             grid.AddThemeConstantOverride("v_separation", 3);
             grid.Visible = (t == _activeTab);
@@ -254,7 +257,7 @@ public partial class Toolbar : CanvasLayer
         statsBtn.Pressed += () => EmitSignal(SignalName.StatsToggled);
         outerVBox.AddChild(statsBtn);
 
-        var policiesBtn = MakeActionButton("📋 Policies");
+        var policiesBtn = MakeActionButton("📋 Policies (O)");
         policiesBtn.TooltipText = "City Policies — press O to open";
         policiesBtn.Pressed += () => World.TogglePolicies();
         outerVBox.AddChild(policiesBtn);
@@ -313,6 +316,18 @@ public partial class Toolbar : CanvasLayer
 
     /// <summary>Switch to a specific tab index (0=Zones, 1=Services, 2=Utilities, 3=Overlays).</summary>
     public void SwitchToTab(int tabIndex) => SwitchTab(tabIndex);
+
+    /// <summary>Switch to the Zones tab (keyboard shortcut: Z).</summary>
+    public void ShowZonesTab()     => SwitchTab(0);
+
+    /// <summary>Switch to the Services tab (keyboard shortcut: S).</summary>
+    public void ShowServicesTab()  => SwitchTab(1);
+
+    /// <summary>Switch to the Utilities tab (keyboard shortcut: U).</summary>
+    public void ShowUtilitiesTab() => SwitchTab(2);
+
+    /// <summary>Switch to the Overlays tab (keyboard shortcut: X).</summary>
+    public void ShowOverlaysTab()  => SwitchTab(3);
 
     /// <summary>Switch to the tab that contains the given zone.</summary>
     public void SwitchToTabForZone(string zone)
@@ -565,6 +580,7 @@ public partial class Toolbar : CanvasLayer
         btn.Text = label;
         btn.TooltipText = tooltip;
         btn.CustomMinimumSize = new Vector2(70, 36);
+        btn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         btn.AddThemeFontSizeOverride("font_size", 12);
 
         var baseStyle = new StyleBoxFlat();

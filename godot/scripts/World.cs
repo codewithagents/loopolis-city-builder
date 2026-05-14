@@ -773,14 +773,15 @@ public partial class World : Node2D
 				if (speedChanged) return;
 			}
 
-			// Tab switches: Z = Zones, S = Services, U = Utilities
+			// Tab switches: Z = Zones, S = Services, U = Utilities, X = Overlays
 			// (New sidebar: 0=Zones, 1=Services, 2=Utilities, 3=Overlays)
 			// Guard against Ctrl combinations (Ctrl+S = Save)
 			if (!key.CtrlPressed)
 			{
-				if (key.Keycode == Key.Z) { _toolbar.SwitchToTab(0); return; }
-				if (key.Keycode == Key.S) { _toolbar.SwitchToTab(1); return; }
-				if (key.Keycode == Key.U) { _toolbar.SwitchToTab(2); return; }
+				if (key.Keycode == Key.Z) { _toolbar.ShowZonesTab();     return; }
+				if (key.Keycode == Key.S) { _toolbar.ShowServicesTab();  return; }
+				if (key.Keycode == Key.U) { _toolbar.ShowUtilitiesTab(); return; }
+				if (key.Keycode == Key.X) { _toolbar.ShowOverlaysTab();  return; }
 			}
 
 			var zone = key.Keycode switch
@@ -1812,8 +1813,8 @@ public partial class World : Node2D
 	{
 		"",  // index 0 unused
 		"Step 1: Place a Road\nClick 'Road' in the toolbar and build north of the highway stub.",
-		"Step 2: Zone Residential\nClick 'Res' and place 2+ zones next to your road.",
-		"Step 3: Add Power\nOpen the 'Ut' tab, then place a Coal Plant away from homes.",
+		"Step 2: Zone Residential\nClick '🏠 Residential' and place 2+ zones next to your road.",
+		"Step 3: Add Power\nOpen the Utilities tab (press U), then place a Coal Plant away from homes.",
 		"Step 4: Connect Power Lines\nUse 'Pwr Line' to link the plant to your zones.",
 		"Step 5: Watch it grow!\nPress Space or click Resume — wait for your first cottage!"
 	};

@@ -15,7 +15,7 @@ public partial class ShortcutsPanel : CanvasLayer
 
     // Panel dimensions
     private const float CardW = 480f;
-    private const float CardH = 460f;
+    private const float CardH = 560f;
 
     public new bool IsVisible => _visible;
 
@@ -86,6 +86,13 @@ public partial class ShortcutsPanel : CanvasLayer
         leftCol.AddThemeConstantOverride("separation", 4);
         columns.AddChild(leftCol);
 
+        AddSection(leftCol, "Toolbar Tabs");
+        AddRow(leftCol, "Z",       "Zones tab");
+        AddRow(leftCol, "S",       "Services tab");
+        AddRow(leftCol, "U",       "Utilities tab");
+        AddRow(leftCol, "X",       "Overlays tab");
+
+        leftCol.AddChild(MakeSpacer(8));
         AddSection(leftCol, "Zones & Tools");
         AddRow(leftCol, "R",       "Residential zone");
         AddRow(leftCol, "C",       "Commercial zone");
@@ -93,7 +100,6 @@ public partial class ShortcutsPanel : CanvasLayer
         AddRow(leftCol, "P",       "Park zone");
         AddRow(leftCol, "W",       "Road");
         AddRow(leftCol, "A",       "Avenue");
-        AddRow(leftCol, "S",       "Services panel");
         AddRow(leftCol, "E",       "Erase mode");
         AddRow(leftCol, "Esc",     "Deselect / cancel");
 
@@ -110,6 +116,7 @@ public partial class ShortcutsPanel : CanvasLayer
         columns.AddChild(rightCol);
 
         AddSection(rightCol, "Overlays & UI");
+        AddRow(rightCol, "X",      "Open Overlays tab");
         AddRow(rightCol, "F1",     "Happiness overlay");
         AddRow(rightCol, "F2",     "Traffic overlay");
         AddRow(rightCol, "F3",     "Coverage overlay");
@@ -117,6 +124,7 @@ public partial class ShortcutsPanel : CanvasLayer
         AddRow(rightCol, "F5",     "Pollution overlay");
         AddRow(rightCol, "H",      "Toggle HUD stats");
         AddRow(rightCol, "M",      "Toggle minimap");
+        AddRow(rightCol, "O",      "City Policies");
         AddRow(rightCol, "?",      "This help panel");
 
         rightCol.AddChild(MakeSpacer(8));
