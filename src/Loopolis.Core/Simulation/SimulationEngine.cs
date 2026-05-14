@@ -325,7 +325,7 @@ public class SimulationEngine
         Population.Tick(Grid, employmentMultiplier, RoadTrafficSystem, PowerCapacitySystem, RoadGraph,
             industrialGrowthMult, commercialGrowthMult, PolicySystem.ResidentialCapacityBonus + Charters.EffectiveResidentialCapacityBonus);
         Budget.SetPopulation(Population.Population);
-        Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier + Charters.EffectiveTaxRateModifier);  // land-value-weighted residential tax (OpenCity reduces by 12%)
+        Budget.CollectTaxes(Grid, PolicySystem.TaxRateModifier + Charters.EffectiveTaxRateModifier);  // land-value-weighted tax; InnovationHub +8%, NexusCity +8% (additive)
         Budget.CollectCommercialIncome(Grid);
         Budget.DeductMaintenance(Grid);
         PolicySystem.Tick(Budget);  // deduct active policy costs after maintenance

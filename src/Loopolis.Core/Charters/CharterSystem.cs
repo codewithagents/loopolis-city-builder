@@ -160,9 +160,11 @@ public class CharterSystem
     public double EffectiveTaxRateModifier =>
         CityTaxRateModifier + MetropolisTaxRateModifier;
 
-    /// Pollution multiplier — City × Metropolis (multiplicative; default 1.0 × 1.0 = 1.0)
+    /// Pollution multiplier — City × Metropolis (multiplicative; default 1.0 × 1.0 = 1.0).
+    /// Floored at 0.10 so heavy industry always carries some happiness cost even with
+    /// GreenCanopy (×0.5) + GreenUtopia (×0.25) fully stacked (would be ×0.125 uncapped).
     public float EffectivePollutionMultiplier =>
-        CityPollutionMultiplier * MetropolisPollutionMultiplier;
+        Math.Max(0.10f, CityPollutionMultiplier * MetropolisPollutionMultiplier);
 
     /// Service coverage radius bonus — Town + Metropolis (additive)
     public float EffectiveServiceCoverageRadiusBonus =>
