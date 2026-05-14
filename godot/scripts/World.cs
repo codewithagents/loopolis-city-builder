@@ -24,6 +24,12 @@ public partial class World : Node2D
 	/// Defaults to "My City" if the player leaves the name field empty.
 	/// </summary>
 	public static string CityName { get; set; } = "My City";
+
+	/// <summary>
+	/// True when the Upgrade tool is active (G key or Toolbar button).
+	/// Read by TilemapRenderer to draw gold highlights on upgradeable buildings.
+	/// </summary>
+	public static bool UpgradeToolActive { get; private set; } = false;
 	private CityGrid _grid = null!;
 	private SimulationEngine _engine = null!;
 	private double _tickTimer = 0;
@@ -61,6 +67,9 @@ public partial class World : Node2D
 
 	// Last known SharedState (for passing city-wide stats to tooltip)
 	private SharedState? _lastState;
+
+	// Upgrade tool: track last result seen from server (viewer mode) to avoid re-showing
+	private string? _lastViewerUpgradeResult;
 
 	// Building birth tracking for standalone mode
 	private readonly System.Collections.Generic.HashSet<string> _standaloneKnownBuildingIds = new();
@@ -113,6 +122,30 @@ public partial class World : Node2D
 
 	// Static instance reference — needed for Toolbar to call TogglePolicies() without a direct reference
 	private static World? _instance;
+
+	/// <summary>
+	/// Toggles the Upgrade tool on/off.
+	/// When activating: selects the Upgrade zone in the toolbar (triggers build-mode pause).
+	/// When deactivating: deselects all (triggers resume).
+	/// </summary>
+	private void ToggleUpgradeTool()
+	{
+		if (UpgradeToolActive)
+		{
+			// Deactivate: deselect the upgrade tool
+			UpgradeToolActive = false;
+			_toolbar.DeselectAll();
+			_renderer.QueueRedraw();
+		}
+		else
+		{
+			// Activate upgrade tool — deselect any existing zone first
+			_toolbar.ShowZonesTab();
+			_toolbar.SelectZone("Upgrade");
+			UpgradeToolActive = true;
+			_renderer.QueueRedraw();
+		}
+	}
 
 	/// <summary>Toggles the policy panel open/closed. Called by Toolbar's Policies button.</summary>
 	public static void TogglePolicies()
@@ -425,6 +458,9 @@ public partial class World : Node2D
 			if (_policyPanel.IsVisible)
 				_policyPanel.Update(false, null, _reader?.LastState, _reader?.SessionId);
 
+			// Poll for upgrade results from server
+			PollViewerUpgradeResult();
+
 			return;
 		}
 
@@ -719,6 +755,14 @@ public partial class World : Node2D
 		{
 			if (mb.ButtonIndex == MouseButton.Left)
 			{
+				// Upgrade tool: single-click only — no rectangle painting
+				if (UpgradeToolActive)
+				{
+					if (mb.Pressed)
+						HandlePlaceTile(GetTileUnderMouse());
+					return;
+				}
+
 				if (mb.Pressed)
 				{
 					// Start rectangle selection
@@ -844,6 +888,14 @@ public partial class World : Node2D
 				return;
 			}
 
+			// G — toggle Upgrade tool
+			if (key.Keycode == Key.G && !key.CtrlPressed)
+			{
+				ToggleUpgradeTool();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			// H — toggle HUD detail stats panel
 			if (key.Keycode == Key.H)
 			{
@@ -851,7 +903,7 @@ public partial class World : Node2D
 				return;
 			}
 
-			// Escape: close policy panel, then shortcuts panel, then cancel tool
+			// Escape: close policy panel, then shortcuts panel, then upgrade tool, then cancel tool
 			if (key.Keycode == Key.Escape)
 			{
 				if (_policyPanel.IsVisible)
@@ -864,6 +916,16 @@ public partial class World : Node2D
 				if (_shortcutsPanel.IsVisible)
 				{
 					_shortcutsPanel.Hide();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
+				// Exit upgrade tool before other tool deselection
+				if (UpgradeToolActive)
+				{
+					UpgradeToolActive = false;
+					_toolbar.DeselectAll();
+					_renderer.QueueRedraw();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -921,6 +983,19 @@ public partial class World : Node2D
 
 	private void OnZoneSelected(string zoneName)
 	{
+		// If the upgrade tool was active and another tool/zone was selected, deactivate it
+		if (UpgradeToolActive && zoneName != "Upgrade")
+		{
+			UpgradeToolActive = false;
+			_renderer.QueueRedraw();
+		}
+		// If the upgrade tool button was selected
+		if (zoneName == "Upgrade" && !UpgradeToolActive)
+		{
+			UpgradeToolActive = true;
+			_renderer.QueueRedraw();
+		}
+
 		_hud.SetSelectedZone(zoneName);
 
 		// Build-mode auto-pause: selecting any tool pauses the sim; deselecting resumes it.
@@ -1112,6 +1187,13 @@ public partial class World : Node2D
 		var tileX = tilePos.X;
 		var tileY = tilePos.Y;
 
+		// Upgrade tool takes priority over normal zone placement
+		if (UpgradeToolActive)
+		{
+			HandleUpgradeTile(tileX, tileY);
+			return;
+		}
+
 		var selectedZone = _toolbar.SelectedZone;
 
 		// Border connection guard: never allow painting or erasing a border connection tile.
@@ -1220,6 +1302,113 @@ public partial class World : Node2D
 			if (_tutorialActive) CheckTutorialProgress();
 		}
 	}
+
+	/// <summary>
+	/// Attempts a manual upgrade on the tile at (tileX, tileY).
+	/// In standalone mode: calls ManualUpgradeSystem directly (stubbed until Core adds it).
+	/// In viewer mode: writes a manual_upgrade command to the server.
+	/// </summary>
+	private void HandleUpgradeTile(int tileX, int tileY)
+	{
+		if (_viewerMode)
+		{
+			// Viewer mode: send upgrade command to server
+			var sessionId = _reader?.SessionId;
+			if (sessionId == null) return;
+			var cmd = $"{{\"cmd\":\"manual_upgrade\",\"x\":{tileX},\"y\":{tileY},\"sessionId\":\"{sessionId}\"}}";
+			WriteCommand(cmd);
+		}
+		else
+		{
+			// Standalone mode
+			if (_grid == null || _engine == null) return;
+			if (tileX < 0 || tileX >= _grid.Width || tileY < 0 || tileY >= _grid.Height) return;
+
+#if MANUAL_UPGRADE_AVAILABLE
+			// TODO: uncomment when ManualUpgradeSystem is available in Core
+			var result = _engine.ManualUpgrade(tileX, tileY);
+			if (result.Success)
+			{
+				_renderer.Refresh(_grid);
+				_toastSystem.ShowToast($"Upgraded to {GetFriendlyBuildingName(result.NewBuildingTypeId!)} (-${result.Cost:N0})");
+			}
+			else
+			{
+				_toastSystem.ShowToast($"Can't upgrade: {result.Reason}", ToastType.Warning);
+			}
+#else
+			// Stub: check if the tile has an upgradeable building and show a preview toast
+			var tile = _grid.GetTile(tileX, tileY);
+			if (tile.BuildingId != null && _grid.Buildings.TryGetValue(tile.BuildingId, out var building))
+			{
+				var upgradeInfo = GetUpgradeInfoForType(building.TypeId);
+				if (upgradeInfo.HasValue)
+					_toastSystem.AddToast($"[Upgrade] {GetFriendlyBuildingName(building.TypeId)} → {upgradeInfo.Value.TargetName} (${upgradeInfo.Value.Cost:N0})", new Color(1f, 0.85f, 0.2f), 4f);
+				else
+					_toastSystem.AddToast($"Can't upgrade: no higher tier available", new Color(0.8f, 0.5f, 0.2f), 3f);
+			}
+			else
+			{
+				_toastSystem.AddToast("No upgradeable building here", new Color(0.6f, 0.6f, 0.6f), 2f);
+			}
+#endif
+		}
+	}
+
+	/// <summary>
+	/// Polls the viewer state for upgrade results and shows toasts when a new result arrives.
+	/// Called from _Process in viewer mode.
+	/// </summary>
+	private void PollViewerUpgradeResult()
+	{
+		var state = _reader?.LastState;
+		if (state?.LastUpgradeResult == null) return;
+
+		var result = state.LastUpgradeResult;
+		if (result == _lastViewerUpgradeResult) return;
+		_lastViewerUpgradeResult = result;
+
+		if (result.StartsWith("ok:"))
+		{
+			// Format: "ok:building_type_id:-cost"
+			var parts = result.Split(':');
+			if (parts.Length >= 3)
+			{
+				var typeId = parts[1];
+				if (int.TryParse(parts[2], out var cost))
+				{
+					var name = GetFriendlyBuildingName(typeId);
+					_toastSystem.AddToast($"Upgraded to {name} (-${System.Math.Abs(cost):N0})", new Color(1f, 0.85f, 0.2f), 5f);
+				}
+			}
+		}
+		else if (result.StartsWith("err:"))
+		{
+			var reason = result.Length > 4 ? result[4..] : "Unknown error";
+			_toastSystem.AddToast($"Can't upgrade: {reason}", new Color(0.8f, 0.5f, 0.2f), 4f);
+		}
+	}
+
+	/// <summary>
+	/// Returns (cost, targetName) for a given building typeId if it can be manually upgraded,
+	/// or null if the type is at max tier.
+	/// Costs match the ManualUpgradeSystem on the Core side.
+	/// </summary>
+	private static (int Cost, string TargetName)? GetUpgradeInfoForType(string typeId) => typeId switch
+	{
+		"res_house_1x1"      => (600,   "Townhouse"),
+		"res_townhouse_2x2"  => (2000,  "Apartment Block"),
+		"res_apartment_4x4"  => (8000,  "Highrise"),
+		"com_shop_1x1"       => (800,   "Strip Mall"),
+		"com_strip_1x3"      => (2500,  "Shopping Centre"),
+		"com_strip_3x1"      => (2500,  "Shopping Centre"),
+		"com_shopping_3x3"   => (6000,  "Office Tower"),
+		"ind_factory_1x1"    => (1000,  "Warehouse"),
+		"ind_warehouse_2x2"  => (3000,  "Industrial Park"),
+		"ind_mill_2x2"       => (2500,  "Industrial Park"),
+		"ind_quarry_2x2"     => (2500,  "Industrial Park"),
+		_                    => null,
+	};
 
 	private void Log(string text) => _eventLog.AddEntry(text);
 

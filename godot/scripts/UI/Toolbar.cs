@@ -55,6 +55,7 @@ public partial class Toolbar : CanvasLayer
         ("⬛ Avenue (A)",      "Avenue",      new Color(0.62f, 0.62f, 0.62f), "Avenue — Place: $60 · Maint: $2.00/tick\nHigher capacity road — Requires Town (500 pop)", 500, 0),
         ("🌳 Park (P)",        "Park",        new Color(0.30f, 0.72f, 0.25f), "Place parks to boost nearby residential happiness (+0.08 per tile, max +0.20)", 0, 0),
         ("✂ Erase (E)",       "Erase",       new Color(0.6f,  0.15f, 0.15f), "Erase — no cost",                                       0, 0),
+        ("💰 Upgrade (G)",    "Upgrade",     new Color(0.20f, 0.16f, 0.05f), "Upgrade Tool — click a building to force a tier-up\nSpends money to skip organic growth", 0, 0),
 
         // Tab 1 — Services
         ("Fire St", "FireStation",   new Color(1.0f,  0.4f,  0.1f),  "Fire Station — Place: $300 · Maint: $3.00/tick\nCoverage radius: 4 tiles",                  0,    1),
@@ -166,6 +167,22 @@ public partial class Toolbar : CanvasLayer
             };
             _tabContainers[tab].AddChild(btn);
             _buttons[zone] = btn;
+        }
+
+        // Override Upgrade button with gold border style (distinct from zone buttons)
+        if (_buttons.TryGetValue("Upgrade", out var upgradeBtn))
+        {
+            var goldStyle = new StyleBoxFlat();
+            goldStyle.BgColor     = new Color(0.20f, 0.16f, 0.05f);
+            goldStyle.BorderColor = new Color(0.8f,  0.65f, 0.15f);
+            goldStyle.BorderWidthBottom = goldStyle.BorderWidthTop = goldStyle.BorderWidthLeft = goldStyle.BorderWidthRight = 2;
+            goldStyle.CornerRadiusTopLeft = goldStyle.CornerRadiusTopRight = goldStyle.CornerRadiusBottomLeft = goldStyle.CornerRadiusBottomRight = 3;
+            goldStyle.ContentMarginLeft = goldStyle.ContentMarginRight = 4;
+            goldStyle.ContentMarginTop  = goldStyle.ContentMarginBottom = 4;
+            upgradeBtn.AddThemeStyleboxOverride("normal",  goldStyle);
+            upgradeBtn.AddThemeStyleboxOverride("hover",   MakeHoverStyle(goldStyle));
+            upgradeBtn.AddThemeStyleboxOverride("pressed", goldStyle);
+            upgradeBtn.AddThemeStyleboxOverride("focus",   goldStyle);
         }
 
         // Populate overlays tab (tab 3)
@@ -692,6 +709,19 @@ public partial class Toolbar : CanvasLayer
 
     private StyleBoxFlat GetBaseStyle(string zone)
     {
+        // Upgrade tool uses a special gold style
+        if (zone == "Upgrade")
+        {
+            var goldStyle = new StyleBoxFlat();
+            goldStyle.BgColor     = new Color(0.20f, 0.16f, 0.05f);
+            goldStyle.BorderColor = new Color(0.8f,  0.65f, 0.15f);
+            goldStyle.BorderWidthBottom = goldStyle.BorderWidthTop = goldStyle.BorderWidthLeft = goldStyle.BorderWidthRight = 2;
+            goldStyle.CornerRadiusTopLeft = goldStyle.CornerRadiusTopRight = goldStyle.CornerRadiusBottomLeft = goldStyle.CornerRadiusBottomRight = 3;
+            goldStyle.ContentMarginLeft = goldStyle.ContentMarginRight = 4;
+            goldStyle.ContentMarginTop  = goldStyle.ContentMarginBottom = 4;
+            return goldStyle;
+        }
+
         foreach (var (label, z, color, _, _, _tab) in ZoneButtons)
         {
             if (z == zone)

@@ -101,6 +101,7 @@ public partial class ShortcutsPanel : CanvasLayer
         AddRow(leftCol, "W",       "Road");
         AddRow(leftCol, "A",       "Avenue");
         AddRow(leftCol, "E",       "Erase mode");
+        AddRow(leftCol, "G",       "Upgrade tool");
         AddRow(leftCol, "Esc",     "Deselect / cancel");
 
         leftCol.AddChild(MakeSpacer(8));

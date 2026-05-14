@@ -311,6 +311,29 @@ public partial class TilemapRenderer : Node2D
 	private int _fireTileX = -1;
 	private int _fireTileY = -1;
 
+	// Upgrade tool highlight — gold border on buildings that can be upgraded
+	private static readonly Color UpgradeBorderColor = new Color(0.85f, 0.70f, 0.15f, 0.90f);  // gold
+	private static readonly Color UpgradeTintColor   = new Color(0.85f, 0.70f, 0.15f, 0.12f);  // subtle gold tint
+
+	/// <summary>
+	/// Building TypeIds that have a next upgrade tier available (for gold highlight in upgrade tool mode).
+	/// Maintained in sync with World.GetUpgradeInfoForType and ManualUpgradeSystem in Core.
+	/// </summary>
+	private static readonly System.Collections.Generic.HashSet<string> UpgradeableTypes = new()
+	{
+		"res_house_1x1",
+		"res_townhouse_2x2",
+		"res_apartment_4x4",
+		"com_shop_1x1",
+		"com_strip_1x3",
+		"com_strip_3x1",
+		"com_shopping_3x3",
+		"ind_factory_1x1",
+		"ind_warehouse_2x2",
+		"ind_mill_2x2",
+		"ind_quarry_2x2",
+	};
+
 	/// <summary>
 	/// Sets the tile currently on fire (shown with vivid orange-red overlay).
 	/// Pass (-1, -1) to clear the fire tile.
@@ -2045,6 +2068,34 @@ public partial class TilemapRenderer : Node2D
 				DrawString(ThemeDB.FallbackFont, labelPos, $"{w}\xd7{h}", HorizontalAlignment.Left, -1, 11,
 					new Color(1f, 1f, 1f, 0.9f));
 			}
+		}
+
+		// ── Upgrade tool highlight ───────────────────────────────────────────
+		// Gold border + subtle tint on buildings that can be upgraded (only when upgrade tool is active).
+		if (World.UpgradeToolActive && _grid != null && ActiveOverlay == OverlayMode.None)
+		{
+			foreach (var building in _grid.Buildings.Values)
+			{
+				if (!UpgradeableTypes.Contains(building.TypeId)) continue;
+
+				float bx = building.AnchorX * TileSize;
+				float by = building.AnchorY * TileSize;
+				float bw = building.Width  * TileSize;
+				float bh = building.Height * TileSize;
+
+				// Subtle gold tint over the footprint
+				DrawRect(new Rect2(bx, by, bw, bh), UpgradeTintColor);
+
+				// Gold border around the footprint
+				const int upgradeBorderW = 2;
+				DrawRect(new Rect2(bx,                      by,                      bw, upgradeBorderW), UpgradeBorderColor); // top
+				DrawRect(new Rect2(bx,                      by + bh - upgradeBorderW, bw, upgradeBorderW), UpgradeBorderColor); // bottom
+				DrawRect(new Rect2(bx,                      by,                      upgradeBorderW, bh), UpgradeBorderColor); // left
+				DrawRect(new Rect2(bx + bw - upgradeBorderW, by,                      upgradeBorderW, bh), UpgradeBorderColor); // right
+			}
+
+			// Queue another redraw so the tool remains live (no continuous animation needed, but
+			// if World state changes we want the overlay to update)
 		}
 
 		// ── Fire tile overlay ────────────────────────────────────────────────

@@ -477,7 +477,10 @@ public record SharedState(
     bool PolicyIndustrialHub = false,
     bool PolicyCommercialBoost = false,
     bool PolicyOpenCity = false,
-    int PolicyTotalCostPerTick = 0
+    int PolicyTotalCostPerTick = 0,
+    // Manual upgrade result from ManualUpgradeSystem (set by Runner after processing upgrade command)
+    // Format: "ok:building_type_id:-cost" on success, "err:reason" on failure, null when no result pending
+    string? LastUpgradeResult = null
 )
 {
     /// <summary>

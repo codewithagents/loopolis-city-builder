@@ -151,6 +151,16 @@ public partial class TileTooltip : CanvasLayer
             AddGrowthChecklist(building.TypeId, totalPop, capacity, anchorTile, state);
         }
 
+        // ── Upgrade tool hint ────────────────────────────────────────────────
+        // When the upgrade tool (G) is active and the building can be upgraded, show cost + target.
+        if (World.UpgradeToolActive && UpgradeInfo.TryGetValue(building.TypeId, out var upgradeEntry))
+        {
+            AddSeparator();
+            var goldColor = new Color(1f, 0.85f, 0.2f);
+            AddLine($"💰 Upgrade for ${upgradeEntry.Cost:N0}", 13, goldColor);
+            AddLine($"→ {upgradeEntry.TargetName}", 12, new Color(0.95f, 0.8f, 0.45f));
+        }
+
         PositionAndShow(screenPos);
     }
 
@@ -412,6 +422,28 @@ public partial class TileTooltip : CanvasLayer
     {
         _panel.Visible = false;
     }
+
+    // ── Upgrade tool cost table ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Manual upgrade costs and target tier names for each building typeId.
+    /// Mirrors ManualUpgradeSystem.GetUpgradeCost() in the Core (kept in sync).
+    /// </summary>
+    private static readonly System.Collections.Generic.Dictionary<string, (int Cost, string TargetName)> UpgradeInfo
+        = new()
+    {
+        { "res_house_1x1",     (600,   "Townhouse")        },
+        { "res_townhouse_2x2", (2000,  "Apartment Block")  },
+        { "res_apartment_4x4", (8000,  "Highrise")         },
+        { "com_shop_1x1",      (800,   "Strip Mall")       },
+        { "com_strip_1x3",     (2500,  "Shopping Centre")  },
+        { "com_strip_3x1",     (2500,  "Shopping Centre")  },
+        { "com_shopping_3x3",  (6000,  "Office Tower")     },
+        { "ind_factory_1x1",   (1000,  "Warehouse")        },
+        { "ind_warehouse_2x2", (3000,  "Industrial Park")  },
+        { "ind_mill_2x2",      (2500,  "Industrial Park")  },
+        { "ind_quarry_2x2",    (2500,  "Industrial Park")  },
+    };
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
