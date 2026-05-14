@@ -160,6 +160,14 @@ record PetitionState(
     [property: JsonPropertyName("deadlineTick")] int    DeadlineTick,
     [property: JsonPropertyName("urgencyTicks")] int    UrgencyTicks);   // DeadlineTick - current tick
 
+/// <summary>A single service tile with its current fatigue capacity.</summary>
+record ServiceFatigueEntry(
+    [property: JsonPropertyName("x")]               int    X,
+    [property: JsonPropertyName("y")]               int    Y,
+    [property: JsonPropertyName("zone")]            string Zone,
+    [property: JsonPropertyName("capacity")]        double Capacity,
+    [property: JsonPropertyName("needsRenovation")] bool   NeedsRenovation);
+
 record ServerState(
     int Tick,
     bool Paused,
@@ -250,4 +258,7 @@ record ServerState(
     // Charter system (Town era)
     bool TownCharterPending = false,            // true → Godot should show the charter choice UI
     string? ActiveCharter = null,              // "Merchant", "Industrial", "Civic", or null
-    string? ActiveCharterDescription = null); // effect string for HUD
+    string? ActiveCharterDescription = null,  // effect string for HUD
+    // Service fatigue (M11-P3, rule 1)
+    bool ServiceFatigueActive = false,                        // true when GameState >= City
+    ServiceFatigueEntry[]? DegradedServices = null);          // tiles currently below 60% capacity

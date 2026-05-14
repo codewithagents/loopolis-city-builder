@@ -56,6 +56,7 @@ public class SimulationEngine
     public CharterSystem Charters { get; } = new();
     public CityStatisticsSystem Statistics { get; } = new();
     public PetitionSystem PetitionSystem { get; } = new();
+    public ServiceFatigueSystem ServiceFatigue { get; } = new();
     public int TickCount { get; private set; }
 
     // ── Scenario tracking ───────────────────────────────────────────────────
@@ -251,7 +252,7 @@ public class SimulationEngine
         }
         HappinessSystem.Propagate(Grid, Budget.TaxModifier, EventSystem.HappinessPenalty, RoadTrafficSystem, PowerCapacitySystem, Population.Population, RoadGraph, PolicySystem.HappinessBonusFromPolicy,
             Charters.ServiceCoverageRadiusBonus, Charters.ParkHappinessMultiplier);  // happiness uses pollution + demand + tax modifier + event penalty + traffic + brownout + commute + policy bonus + charter bonuses
-        LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph);  // capacity-aware service coverage snapshot
+        LastServiceCoverage = HappinessSystem.ComputeServiceCoverage(Grid, RoadGraph, ServiceFatigue);  // capacity-aware service coverage snapshot (fatigue-adjusted)
         LandValueSystem.Propagate(Grid, Charters.LandValueBonus);   // land value after happiness is computed
 
         // Track low-happiness ticks for abandonment loss condition
@@ -310,6 +311,9 @@ public class SimulationEngine
             Charters.NotifyTownMilestone();
         }
         _previousMilestoneState = MilestoneSystem.CurrentState;
+
+        // Service fatigue: decay service building capacity post-City milestone
+        ServiceFatigue.Propagate(Grid, MilestoneSystem.CurrentState);
 
         // Scenario goal / medal check (only when a scenario is active and goal not yet reached)
         if (ActiveScenario != null && !ScenarioComplete)
@@ -408,6 +412,15 @@ public class SimulationEngine
             NextMilestoneName:     name
         );
     }
+
+    // ── Service renovation ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Renovate a service tile at (x, y): resets its fatigue to 100% and deducts $500 from budget.
+    /// Returns true on success, false if tile is not a tracked service tile or funds are insufficient.
+    /// </summary>
+    public bool RenovateService(int x, int y) =>
+        ServiceFatigue.Renovate(x, y, Budget);
 
     // ── Manual upgrade ──────────────────────────────────────────────────────
 

@@ -418,7 +418,22 @@ static class StateWriter
                                            : null,
             ActiveCharterDescription:  engine.Charters.ActiveCharter != CharterType.None
                                            ? CharterLibrary.Find(engine.Charters.ActiveCharter)?.Effect
-                                           : null
+                                           : null,
+            // Service fatigue (M11-P3, rule 1): all service tiles with current fatigue capacity
+            ServiceFatigueActive:      engine.ServiceFatigue.IsActive,
+            DegradedServices:          engine.ServiceFatigue.DeprecatedTiles.Any()
+                ? engine.ServiceFatigue.DeprecatedTiles
+                    .Select(pos =>
+                    {
+                        var t = grid.GetTile(pos.x, pos.y);
+                        return new ServiceFatigueEntry(
+                            pos.x, pos.y,
+                            t?.Zone.ToString() ?? "Unknown",
+                            Math.Round(engine.ServiceFatigue.GetCapacity(pos.x, pos.y), 3),
+                            engine.ServiceFatigue.NeedsRenovation(pos.x, pos.y));
+                    })
+                    .ToArray()
+                : null
         );
 
         var options = new JsonSerializerOptions

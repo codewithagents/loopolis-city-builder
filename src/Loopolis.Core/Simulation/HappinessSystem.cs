@@ -321,7 +321,8 @@ public class HappinessSystem
     /// Multiple buildings of the same type stack: a tile covered by ANY building of that type is covered.
     /// Results are aggregated into a <see cref="ServiceCoverageResult"/> snapshot.
     /// </summary>
-    public ServiceCoverageResult ComputeServiceCoverage(CityGrid grid, RoadGraph? roadGraph = null)
+    public ServiceCoverageResult ComputeServiceCoverage(CityGrid grid, RoadGraph? roadGraph = null,
+        ServiceFatigueSystem? fatigue = null)
     {
         // Service types that use capacity model (base types only — HQ variants use same logic)
         var serviceGroups = new[]
@@ -394,7 +395,8 @@ public class HappinessSystem
                         ? r : 0;
                     var mRadiusManhattan = ServiceRadiusManhattan.TryGetValue(building.Zone, out var mr)
                         ? mr : 0;
-                    var capacity   = ServiceCapacityModel.Capacity[building.Zone];
+                    var fatigueMultiplier = fatigue?.GetCapacity(building.X, building.Y) ?? 1.0;
+                    var capacity   = (int)Math.Round(ServiceCapacityModel.Capacity[building.Zone] * fatigueMultiplier);
                     var remaining  = capacity;
 
                     var sorted = candidates
@@ -430,7 +432,8 @@ public class HappinessSystem
                 {
                     // Road-graph distance coverage with capacity
                     var radius   = ServiceRadius.TryGetValue(building.Zone, out var r) ? r : 0f;
-                    var capacity = ServiceCapacityModel.Capacity[building.Zone];
+                    var fatigueMultiplier = fatigue?.GetCapacity(building.X, building.Y) ?? 1.0;
+                    var capacity = (int)Math.Round(ServiceCapacityModel.Capacity[building.Zone] * fatigueMultiplier);
                     var remaining = capacity;
 
                     // Find the building's road neighbour

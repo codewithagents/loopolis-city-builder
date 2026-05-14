@@ -372,6 +372,22 @@ static class CommandHandler
                     break;
                 }
 
+                case "renovate_service":
+                {
+                    if (root.TryGetProperty("x", out var rsXProp) &&
+                        root.TryGetProperty("y", out var rsYProp))
+                    {
+                        var rx = rsXProp.GetInt32();
+                        var ry = rsYProp.GetInt32();
+                        var success = engine.RenovateService(rx, ry);
+                        if (success)
+                            Console.WriteLine($"[renovate_service] ({rx},{ry}) renovated. Balance: ${engine.Budget.Balance:N0}");
+                        else
+                            Console.WriteLine($"[renovate_service] ({rx},{ry}) failed — not a tracked service tile or insufficient funds (need ${ServiceFatigueSystem.RenovationCost:N0})");
+                    }
+                    break;
+                }
+
                 case "select_charter":
                     // {"cmd":"select_charter","charter":"Merchant"}
                     if (root.TryGetProperty("charter", out var charterProp))
