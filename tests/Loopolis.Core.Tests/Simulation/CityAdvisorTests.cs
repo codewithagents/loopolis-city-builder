@@ -340,7 +340,84 @@ public class CityAdvisorTests
         Assert.That(advice.Priority, Is.EqualTo(AdvisoryPriority.Critical));
     }
 
-    // ── Edge cases ────────────────────────────────────────────────────────────
+    // ── Edge cases and boundary conditions ────────────────────────────────────
+
+    [Test]
+    public void ZeroCostPerTick_DoesNotTriggerBudgetCritical()
+    {
+        // When costPerTick = 0, the budget critical rule must not fire (avoids 0×20=0 false alarm).
+        var state = new SimulationState(
+            Population:             100,
+            Tick:                   50,
+            Balance:                0,  // zero balance but also zero costs — city is dormant
+            IncomePerTick:          0,
+            CostPerTick:            0,  // no costs at all — rule should not fire
+            AverageHappiness:       1.0f,
+            DistressedTileCount:    0,
+            EmploymentRatio:        1.0f,
+            PowerSupply:            0,
+            PowerDemand:            0,
+            PoweredTiles:           0,
+            TotalActiveTiles:       0,
+            ServiceCoverageRatio:   0f,
+            PopulationGrowthRate:   0f,
+            NextMilestoneThreshold: 500,
+            NextMilestoneName:      "Town");
+
+        var advice = CityAdvisor.Advise(state);
+        Assert.That(
+            advice.Category == "Budget" && advice.Priority == AdvisoryPriority.Critical,
+            Is.False,
+            "Budget critical should not fire when costPerTick is 0");
+    }
+
+    [Test]
+    public void ZeroIncomePerTick_DoesNotTriggerIdleTip()
+    {
+        // When incomePerTick = 0, the idle city tip (balance > incomePerTick × 50) must not fire.
+        // incomePerTick = 0 means the condition would be balance > 0, which is nearly always true —
+        // guard is: incomePerTick > 0
+        var state = HealthyState(
+            population: 200,
+            balance: 10_000,
+            incomePerTick: 0,         // no income
+            growthRate: 0.005f);       // stalled growth
+
+        var advice = CityAdvisor.Advise(state);
+        Assert.That(
+            advice.Category == "Budget" && advice.Priority == AdvisoryPriority.Tip,
+            Is.False,
+            "Idle city tip should not fire when incomePerTick is 0");
+    }
+
+    [Test]
+    public void ZeroTotalActiveTiles_DoesNotCrashUnpoweredRule()
+    {
+        // totalActiveTiles = 0 could cause division by zero in unpowered-ratio check.
+        var state = HealthyState(
+            population: 100,
+            growthRate: 0.0f,         // triggers Rule 6
+            poweredTiles: 0,
+            totalActiveTiles: 0);     // zero tiles — guard must protect against division
+
+        Assert.DoesNotThrow(() => CityAdvisor.Advise(state),
+            "Advise should not throw when totalActiveTiles = 0");
+    }
+
+    [Test]
+    public void RuleOrdering_DistressOverHighUnemployment()
+    {
+        // Distress (Rule 3) should fire before high unemployment (Rule 4)
+        var state = HealthyState(
+            distressedTiles: 5,       // Rule 3: distress decay active
+            population: 200,
+            employmentRatio: 0.30f);  // Rule 4: high unemployment — should be suppressed
+
+        var advice = CityAdvisor.Advise(state);
+        Assert.That(advice.Category, Is.EqualTo("Happiness"),
+            "Distress (Rule 3) should take priority over High Unemployment (Rule 4)");
+        Assert.That(advice.Priority, Is.EqualTo(AdvisoryPriority.Critical));
+    }
 
     [Test]
     public void ZeroPopulation_ReturnsGoodOrTip_WithoutCrash()

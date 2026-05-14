@@ -300,7 +300,39 @@ public class ServiceFatigueSystemTests
         Assert.That(_system.GetCapacity(5, 5), Is.EqualTo(1.0 - 0.002).Within(1e-9));
     }
 
-    // ── 16. Save / restore snapshot round-trip ───────────────────────────────
+    // ── 16. Empty grid at City milestone does not crash ──────────────────────
+
+    [Test]
+    public void Propagate_EmptyGrid_AtCityMilestone_DoesNotCrash()
+    {
+        // An empty grid with no service tiles should not throw at City milestone.
+        // After propagating on an empty grid, _fatigueEverActive becomes true (system ran),
+        // but _capacities remains empty (no tiles tracked).
+        var emptyGrid = new CityGrid(10, 10);
+        emptyGrid.SetFlatTerrain();
+
+        Assert.DoesNotThrow(() => _system.Propagate(emptyGrid, GameState.City),
+            "Propagate with no service tiles should not throw");
+
+        // No tiles are tracked — GetCapacity for any arbitrary tile returns default 1.0
+        Assert.That(_system.GetCapacity(5, 5), Is.EqualTo(1.0),
+            "No service tiles should be tracked on an empty grid");
+    }
+
+    [Test]
+    public void Propagate_EmptyGrid_DeprecatedTiles_IsEmpty()
+    {
+        var emptyGrid = new CityGrid(10, 10);
+        emptyGrid.SetFlatTerrain();
+
+        for (var i = 0; i < 300; i++)
+            _system.Propagate(emptyGrid, GameState.City);
+
+        Assert.That(_system.DeprecatedTiles, Is.Empty,
+            "No deprecated tiles when grid has no service buildings");
+    }
+
+    // ── 17. Save / restore snapshot round-trip ───────────────────────────────
 
     [Test]
     public void SaveRestore_SnapshotRoundTrip()

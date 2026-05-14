@@ -289,7 +289,7 @@ public class HeightMapGeneratorTests
 
         var engine = new SimulationEngine(g,
             new BudgetSystem(), new PopulationSystem(),
-            new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+            new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
         engine.SeedRoadGraphFromGrid();
 
         Assert.That(engine.RoadGraph.NodeCount, Is.GreaterThan(0),

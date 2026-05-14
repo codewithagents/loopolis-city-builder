@@ -17,7 +17,8 @@ public class CharterSystem
     /// Called by the player (via IPC command) to select a charter.
     public void SelectCharter(CharterType type)
     {
-        if (ActiveCharter != CharterType.None) return; // already chosen
+        if (type == CharterType.None) return;          // cannot select None — it's the absence of a charter
+        if (ActiveCharter != CharterType.None) return; // already chosen — charter is permanent
         ActiveCharter = type;
         TownCharterPending = false;
     }

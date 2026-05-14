@@ -212,7 +212,8 @@ public class EventResponseTests
             new PowerNetwork(),
             new RoadNetwork(),
             new DemandSystem(),
-            eventSystem: eventSystem);
+            eventSystem: eventSystem,
+            seed: 42);
 
         // Tick until an event fires (population seeded to 500 via setup override is not possible
         // here, so we tick until the event system's cooldown expires and RNG forces a fire)
@@ -253,7 +254,8 @@ public class EventResponseTests
             new PowerNetwork(),
             new RoadNetwork(),
             new DemandSystem(),
-            eventSystem: eventSystem);
+            eventSystem: eventSystem,
+            seed: 42);
 
         // Tick until pending event appears
         for (var i = 0; i < 500 && !engine.HasPendingEvent; i++)

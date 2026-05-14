@@ -48,7 +48,7 @@ public class SimulationEngine
     public EventSystem EventSystem { get; }
     public EmploymentSystem EmploymentSystem { get; }
     public BuildingGrowthSystem BuildingGrowthSystem { get; } = new();
-    public BuildingDegradationSystem BuildingDegradationSystem { get; } = new();
+    public BuildingDegradationSystem BuildingDegradationSystem { get; }  // seeded in constructor
     public LandValueSystem LandValueSystem { get; } = new();
     public RoadGraph RoadGraph { get; } = new();
     public WorkerFlowSystem WorkerFlowSystem { get; } = new();
@@ -126,13 +126,27 @@ public class SimulationEngine
     // Tracks the previous milestone state for charter notification detection
     private GameState _previousMilestoneState = GameState.Active;
 
+    /// <summary>
+    /// The seed used to initialise all random subsystems (EventSystem, BuildingDegradationSystem).
+    /// Stored so callers can save and restore it for deterministic replay.
+    /// </summary>
+    public int Seed { get; }
+
+    /// <param name="seed">
+    /// Optional RNG seed. When null, a seed is derived from <see cref="Environment.TickCount"/>
+    /// so different game instances vary while tests that pass an explicit seed are fully deterministic.
+    /// </param>
     public SimulationEngine(CityGrid grid, BudgetSystem budget, PopulationSystem population,
         PowerNetwork powerNetwork, RoadNetwork roadNetwork, DemandSystem demandSystem,
         PollutionSystem? pollutionSystem = null, HappinessSystem? happinessSystem = null,
         MilestoneSystem? milestoneSystem = null, EventSystem? eventSystem = null,
         EmploymentSystem? employmentSystem = null, RoadTrafficSystem? roadTrafficSystem = null,
-        PowerCapacitySystem? powerCapacitySystem = null)
+        PowerCapacitySystem? powerCapacitySystem = null,
+        int? seed = null)
     {
+        // Resolve seed: explicit value or a new one from the system clock (varies per game instance).
+        Seed = seed ?? Environment.TickCount;
+
         Grid = grid;
         Budget = budget;
         Population = population;
@@ -144,7 +158,10 @@ public class SimulationEngine
         PollutionSystem = pollutionSystem ?? new PollutionSystem();
         HappinessSystem = happinessSystem ?? new HappinessSystem();
         MilestoneSystem = milestoneSystem ?? new MilestoneSystem();
-        EventSystem = eventSystem ?? new EventSystem();
+        // Distribute seeds to subsystems that use randomness.
+        // Each subsystem gets a unique offset so they are independent.
+        EventSystem = eventSystem ?? new EventSystem(new Random(Seed));
+        BuildingDegradationSystem = new BuildingDegradationSystem(Seed + 1);
         EmploymentSystem = employmentSystem ?? new EmploymentSystem();
     }
 

@@ -57,7 +57,8 @@ public class BorderConnectionTests
             new PopulationSystem(),
             new PowerNetwork(),
             new RoadNetwork(),
-            new DemandSystem());
+            new DemandSystem(),
+            seed: 42);
 
         // EraseTile must be a no-op for border connection tiles
         engine.EraseTile(5, 9);
@@ -134,7 +135,8 @@ public class BorderConnectionTests
             new PopulationSystem(),
             new PowerNetwork(),
             new RoadNetwork(),
-            new DemandSystem());
+            new DemandSystem(),
+            seed: 42);
         engine.SeedRoadGraphFromGrid();
 
         Assert.That(engine.RoadGraph.IsRoadNode(5, 9), Is.True,

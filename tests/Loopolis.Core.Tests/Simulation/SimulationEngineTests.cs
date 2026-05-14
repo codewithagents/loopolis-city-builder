@@ -15,7 +15,8 @@ public class SimulationEngineTests
             new PopulationSystem(),
             new PowerNetwork(),
             new RoadNetwork(),
-            new DemandSystem()
+            new DemandSystem(),
+            seed: 42
         );
     }
 
@@ -128,7 +129,8 @@ public class SimulationEngineTests
             new PopulationSystem(),
             new PowerNetwork(),
             new RoadNetwork(),
-            new DemandSystem()
+            new DemandSystem(),
+            seed: 42
         );
 
         // Scenario B: only residential, no commercial nearby (identical layout minus commercial)
@@ -144,7 +146,8 @@ public class SimulationEngineTests
             new PopulationSystem(),
             new PowerNetwork(),
             new RoadNetwork(),
-            new DemandSystem()
+            new DemandSystem(),
+            seed: 42
         );
 
         const int ticks = 10;
@@ -288,7 +291,8 @@ public class SimulationEngineTests
             new PopulationSystem(),
             new PowerNetwork(),
             new RoadNetwork(),
-            new DemandSystem()
+            new DemandSystem(),
+            seed: 42
         );
         // NOTE: intentionally NOT calling engine.SeedRoadGraphFromGrid()
 

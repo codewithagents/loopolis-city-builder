@@ -44,7 +44,7 @@ public class ScenarioConstraintsTests
         var power  = new PowerNetwork();
         var roads  = new RoadNetwork();
         var demand = new DemandSystem();
-        var engine = new SimulationEngine(grid, budget, pop, power, roads, demand);
+        var engine = new SimulationEngine(grid, budget, pop, power, roads, demand, seed: 42);
         engine.ActiveScenario = scenario;
         return engine;
     }

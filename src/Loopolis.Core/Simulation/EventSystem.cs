@@ -65,7 +65,10 @@ public class EventSystem
 
     public EventSystem(Random? rng = null)
     {
-        _rng = rng ?? Random.Shared;
+        // Do not fall back to Random.Shared — each SimulationEngine passes a seeded Random.
+        // If called without an argument (e.g. from tests that pre-date seeding), generate a
+        // new unseeded Random so the call site at least doesn't share state with other game instances.
+        _rng = rng ?? new Random();
         _cooldownTicks = 60; // give player time to set up before first event
     }
 

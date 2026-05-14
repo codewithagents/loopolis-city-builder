@@ -321,7 +321,7 @@ public class PolicySystemTests
         var power  = new PowerNetwork();
         var roads  = new RoadNetwork();
         var demand = new DemandSystem();
-        var engine = new SimulationEngine(grid, budget, pop, power, roads, demand);
+        var engine = new SimulationEngine(grid, budget, pop, power, roads, demand, seed: 42);
 
         Assert.That(engine.PolicySystem, Is.Not.Null);
     }
@@ -336,7 +336,7 @@ public class PolicySystemTests
         var power  = new PowerNetwork();
         var roads  = new RoadNetwork();
         var demand = new DemandSystem();
-        var engine = new SimulationEngine(grid, budget, pop, power, roads, demand);
+        var engine = new SimulationEngine(grid, budget, pop, power, roads, demand, seed: 42);
 
         engine.PolicySystem.ActivatePolicy(PolicyType.OpenCity);  // $15/tick
         var balanceBefore = budget.Balance;

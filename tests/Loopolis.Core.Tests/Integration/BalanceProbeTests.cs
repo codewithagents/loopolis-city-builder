@@ -11,7 +11,7 @@ public class BalanceProbeTests
     {
         var grid = new CityGrid(32, 32);
         var budget = new BudgetSystem(4_000);
-        var engine = new SimulationEngine(grid, budget, new PopulationSystem(), new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+        var engine = new SimulationEngine(grid, budget, new PopulationSystem(), new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
         grid.SetFlatTerrain();
         grid.SetZone(5, 12, ZoneType.CoalPlant);
         for (var x = 6; x <= 16; x++) grid.SetZone(x, 12, ZoneType.Road);
@@ -76,7 +76,7 @@ public class BalanceProbeTests
         grid4.SetZone(6, 5, ZoneType.Residential);
         grid4.SetZone(7, 5, ZoneType.Residential);
         grid4.SetZone(8, 5, ZoneType.Residential);
-        var e4 = new SimulationEngine(grid4, new BudgetSystem(4_000), new PopulationSystem(), new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+        var e4 = new SimulationEngine(grid4, new BudgetSystem(4_000), new PopulationSystem(), new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
         e4.SeedRoadGraphFromGrid();
         int pets4 = 0;
         for (var tick = 0; tick < 400; tick++) { e4.Tick(); pets4 += e4.PetitionSystem.NewThisTick.Count; }

@@ -76,7 +76,7 @@
 | M11-P2 CharterSystem (Town era: Merchant/Industrial/Civic) | ✅ Done | 33 new (CharterSystemTests) |
 | M11-P3 ServiceFatigueSystem (service fatigue rule 1) | ✅ Done | 24 new (ServiceFatigueSystemTests) |
 
-**Total: 806 tests · 0 failures · ~6s runtime**
+**Total: 819 tests · 0 failures · ~9s runtime**
 
 ---
 
@@ -253,4 +253,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 
 | 2026-05-14 | city_path + powered_start | ServiceFatigueSystem: city_path (Active, pop=357) and powered_start (Town, pop=2400) both ran 500 ticks with zero regression — fatigue dormant as designed below City milestone. Decay confirmed at 0.002/tick in unit tests. 300-tick integration test: capacity reaches 0.40 (clamped minimum), NeedsRenovation=true. | Working correctly |
 
-*Last updated: 2026-05-14 — M11-P3 ServiceFatigueSystem implemented, 806 tests*
+| 2026-05-14 | powered_start | Seeded deterministic RNG: EventSystem now takes a seeded Random (default new Random()). SimulationEngine constructor accepts optional seed (null → Environment.TickCount). Seed is distributed: EventSystem uses Random(seed), BuildingDegradationSystem uses Random(seed+1). All 14 test files updated to pass seed:42 → every SimulationEngine call in tests is deterministic. CharterSystem SelectCharter(None) bug fixed: no-op guard added. 12 new tests (CityAdvisor, ServiceFatigue, Petitions, CharterSystem edge cases). TutorialScenario passes with peak population tracking. 819 tests green. | Working correctly |
+
+*Last updated: 2026-05-14 — seeded deterministic RNG, quality pass, 819 tests*

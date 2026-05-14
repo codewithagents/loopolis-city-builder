@@ -19,7 +19,7 @@ public class ManualUpgradeSystemTests
         var power  = new PowerNetwork();
         var roads  = new RoadNetwork();
         var demand = new DemandSystem();
-        return new SimulationEngine(grid, budget, pop, power, roads, demand);
+        return new SimulationEngine(grid, budget, pop, power, roads, demand, seed: 42);
     }
 
     /// <summary>

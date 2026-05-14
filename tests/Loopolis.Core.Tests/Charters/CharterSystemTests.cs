@@ -246,7 +246,7 @@ public class CharterSystemTests
     {
         var grid   = new CityGrid(10, 10);
         var engine = new SimulationEngine(grid, new BudgetSystem(), new PopulationSystem(),
-            new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+            new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
 
         Assert.That(engine.Charters, Is.Not.Null);
         Assert.That(engine.Charters.ActiveCharter, Is.EqualTo(CharterType.None));
@@ -268,7 +268,7 @@ public class CharterSystemTests
             grid.SetZone(x, y, ZoneType.Residential);
 
         var engine = new SimulationEngine(grid, new BudgetSystem(), new PopulationSystem(),
-            new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+            new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
         engine.SeedRoadGraphFromGrid();
 
         // Run until Town milestone or bail out at 2000 ticks
@@ -303,7 +303,7 @@ public class CharterSystemTests
             grid.SetZone(x, y, ZoneType.Residential);
 
         var engine = new SimulationEngine(grid, new BudgetSystem(), new PopulationSystem(),
-            new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+            new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
         engine.SeedRoadGraphFromGrid();
 
         for (var t = 0; t < 2000; t++)
@@ -356,7 +356,7 @@ public class CharterSystemTests
             grid.SetBuildingId(5, 6, "test-com");
 
             var engine = new SimulationEngine(grid, new BudgetSystem(), new PopulationSystem(),
-                new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+                new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
             engine.SeedRoadGraphFromGrid();
 
             if (useMerchant)
@@ -383,6 +383,36 @@ public class CharterSystemTests
 
     // ── Integration: Industrial charter boosts employment ────────────────────
 
+    // ── SelectCharter(None) guard ────────────────────────────────────────────
+
+    [Test]
+    public void SelectCharter_WithNone_DoesNotClearPending()
+    {
+        // Bug guard: calling SelectCharter(None) should be a no-op.
+        // Previously it would clear TownCharterPending without setting an actual charter.
+        _system.NotifyTownMilestone();
+        Assert.That(_system.TownCharterPending, Is.True, "Precondition: pending should be true");
+
+        _system.SelectCharter(CharterType.None); // should be a no-op
+
+        Assert.That(_system.TownCharterPending, Is.True,
+            "TownCharterPending must remain true after SelectCharter(None)");
+        Assert.That(_system.ActiveCharter, Is.EqualTo(CharterType.None),
+            "ActiveCharter must remain None — SelectCharter(None) is a no-op");
+    }
+
+    [Test]
+    public void SelectCharter_WithNone_CanStillSelectValidCharterAfterward()
+    {
+        // After a no-op SelectCharter(None), player should still be able to pick a real charter.
+        _system.NotifyTownMilestone();
+        _system.SelectCharter(CharterType.None); // no-op
+        _system.SelectCharter(CharterType.Civic); // should succeed
+
+        Assert.That(_system.ActiveCharter, Is.EqualTo(CharterType.Civic));
+        Assert.That(_system.TownCharterPending, Is.False);
+    }
+
     [Test]
     public void Integration_IndustrialCharter_IncreasesEmployment_OverControl()
     {
@@ -398,7 +428,7 @@ public class CharterSystemTests
             for (var x = 2; x <= 9; x++) grid.SetZone(x, 6, ZoneType.Industrial);
 
             var engine = new SimulationEngine(grid, new BudgetSystem(), new PopulationSystem(),
-                new PowerNetwork(), new RoadNetwork(), new DemandSystem());
+                new PowerNetwork(), new RoadNetwork(), new DemandSystem(), seed: 42);
             engine.SeedRoadGraphFromGrid();
 
             if (useIndustrial)

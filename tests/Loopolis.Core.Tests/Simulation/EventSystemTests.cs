@@ -310,7 +310,8 @@ public class EventSystemTests
             new PowerNetwork(),
             new RoadNetwork(),
             new DemandSystem(),
-            eventSystem: eventSystem);
+            eventSystem: eventSystem,
+            seed: 42);
 
         // Run enough ticks for population to grow above 100 and cooldown to expire
         int eventsFired = 0;
