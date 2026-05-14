@@ -100,6 +100,9 @@ public partial class World : Node2D
 	// Event response panel
 	private EventResponsePanel _eventResponsePanel = null!;
 
+	// Building info panel — click any building to inspect it
+	private BuildingInfoPanel _buildingInfoPanel = null!;
+
 	// Tutorial hint progression (passive hints — separate from the guided tutorial)
 	private int _tutorialHintIndex = 0;
 	private static readonly string[] TutorialHints =
@@ -222,6 +225,10 @@ public partial class World : Node2D
 		_eventResponsePanel = new EventResponsePanel();
 		_eventResponsePanel.InterveneRequested += OnEventInterveneRequested;
 		AddChild(_eventResponsePanel);
+
+		// Building info panel (layer 12 — floats near the clicked building)
+		_buildingInfoPanel = new BuildingInfoPanel();
+		AddChild(_buildingInfoPanel);
 
 		// Wire toolbar signals
 		_toolbar.ZoneSelected   += OnZoneSelected;

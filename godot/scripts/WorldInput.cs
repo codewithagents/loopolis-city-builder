@@ -134,6 +134,17 @@ public partial class World : Node2D
 					return;
 				}
 
+				// Building info panel: when no zone tool is active, left-click inspects buildings.
+				// A click on a tile with a building shows/toggles the info panel.
+				// A click on an empty tile or non-building zone dismisses it.
+				var noToolActive = string.IsNullOrEmpty(_toolbar.SelectedZone) || _toolbar.SelectedZone == "Empty";
+				if (noToolActive && mb.Pressed)
+				{
+					var clickedTile = GetTileUnderMouse();
+					if (HandleBuildingInfoClick(clickedTile))
+						return; // consumed by building-info logic — don't start rect painting
+				}
+
 				if (mb.Pressed)
 				{
 					// Start rectangle selection
@@ -295,7 +306,7 @@ public partial class World : Node2D
 				return;
 			}
 
-			// Escape: close stats panel, policy panel, shortcuts panel, upgrade tool, cancel tool
+			// Escape: close stats panel, policy panel, shortcuts panel, building info panel, upgrade tool, cancel tool
 			if (key.Keycode == Key.Escape)
 			{
 				if (_statsPanel.IsVisible)
@@ -315,6 +326,14 @@ public partial class World : Node2D
 				if (_shortcutsPanel.IsVisible)
 				{
 					_shortcutsPanel.Hide();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
+				// Close building info panel if open
+				if (_buildingInfoPanel.IsVisible)
+				{
+					_buildingInfoPanel.ClosePanel();
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -647,6 +666,60 @@ public partial class World : Node2D
 		"ind_quarry_2x2"     => (2500,  "Industrial Park"),
 		_                    => null,
 	};
+
+	/// <summary>
+	/// Handles a left-click in view mode (no zone tool active).
+	/// If the clicked tile has a building, shows or toggles the BuildingInfoPanel.
+	/// Returns true when the click was consumed by building-info logic (don't start rect paint).
+	/// Returns false when no building was found (caller should close any open panel).
+	/// </summary>
+	private bool HandleBuildingInfoClick(Vector2I tilePos)
+	{
+		var tileX = tilePos.X;
+		var tileY = tilePos.Y;
+
+		var grid = _viewerMode ? _reader?.LastGrid : _grid;
+		if (grid == null) return false;
+		if (tileX < 0 || tileX >= grid.Width || tileY < 0 || tileY >= grid.Height) return false;
+
+		var tile = grid.GetTile(tileX, tileY);
+		if (tile.BuildingId == null || !grid.Buildings.TryGetValue(tile.BuildingId, out var building))
+		{
+			// Click on a non-building tile — close any open panel
+			if (_buildingInfoPanel.IsVisible)
+				_buildingInfoPanel.ClosePanel();
+			return false;
+		}
+
+		// Use the screen-space mouse position as the anchor for panel placement.
+		// This is the same approach used by TileTooltip, which follows the cursor.
+		var mouseScreenPos = GetViewport().GetMousePosition();
+		var viewportSize   = GetViewport().GetVisibleRect().Size;
+
+		if (_viewerMode)
+		{
+			var state = _reader?.LastState;
+			if (state == null) return false;
+			// Find matching BuildingInfo record in state
+			BuildingInfo? buildingInfo = null;
+			if (state.Buildings != null)
+			{
+				foreach (var b in state.Buildings)
+				{
+					if (b.Id == building.Id) { buildingInfo = b; break; }
+				}
+			}
+			if (buildingInfo == null) return false;
+			_buildingInfoPanel.ShowForBuildingViewer(buildingInfo, state, mouseScreenPos, viewportSize);
+		}
+		else
+		{
+			if (_engine == null) return false;
+			_buildingInfoPanel.ShowForBuilding(building, grid, _engine, mouseScreenPos, viewportSize);
+		}
+
+		return true;
+	}
 
 	/// <summary>
 	/// For Road and Avenue zones, constrains a drag rectangle to a 1-tile-wide line
