@@ -54,6 +54,10 @@ public partial class CharterChoicePanel : CanvasLayer
     private const float CardH       = 220f;
     private const float CardSpacing = 20f;
 
+    // ── State ─────────────────────────────────────────────────────────────────
+    /// <summary>Set to true after the first card click so repeated events are dropped.</summary>
+    private bool _charterChosen = false;
+
     // ── Godot lifecycle ────────────────────────────────────────────────────────
 
     public override void _Ready()
@@ -220,6 +224,11 @@ public partial class CharterChoicePanel : CanvasLayer
 
     private void OnCardClicked(string charterKey, string charterTitle)
     {
+        // Guard against a double-click in the same frame firing CharterSelected twice
+        // (the panel hides on first click but QueueFree hasn't run yet, so buttons are still active).
+        if (_charterChosen) return;
+        _charterChosen = true;
+
         CharterSelected?.Invoke(charterKey);
         // Panel hides itself — World.cs will also free it when ActiveCharter populates
         Hide();

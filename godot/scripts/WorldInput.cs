@@ -282,7 +282,9 @@ public partial class World : Node2D
 				else
 				{
 					_policyPanel.Show();
-					_policyPanel.Update(!_viewerMode, _engine, _reader?.LastState, _reader?.SessionId);
+					// In viewer mode _engine is null; pass explicitly so the compiler and callee
+					// both understand the intent (PolicyPanel.Update accepts SimulationEngine?).
+					_policyPanel.Update(!_viewerMode, _viewerMode ? null : _engine, _reader?.LastState, _reader?.SessionId);
 				}
 				GetViewport().SetInputAsHandled();
 				return;
@@ -403,6 +405,12 @@ public partial class World : Node2D
 			// F9 dumps a debug summary to the Godot console + log file (standalone mode only)
 			if (key.Keycode == Key.F9 && !_viewerMode)
 			{
+				// Guard: _engine/_grid may be null if a previous load/new-game failed mid-way.
+				if (_engine == null || _grid == null)
+				{
+					GodotLog.Warn("[F9 dump] engine/grid not initialised — skipping");
+					return;
+				}
 				var lastDegraded = _engine.LastDegradedBuildings.Count > 0
 					? string.Join(", ", _engine.LastDegradedBuildings)
 					: "none";

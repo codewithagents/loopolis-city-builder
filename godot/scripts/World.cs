@@ -136,9 +136,11 @@ public partial class World : Node2D
 		else
 		{
 			_instance._policyPanel.Show();
+			// In viewer mode _engine is null!; pass explicitly as null so PolicyPanel.Update
+			// (which accepts SimulationEngine?) receives the correct value.
 			_instance._policyPanel.Update(
 				!_instance._viewerMode,
-				_instance._engine,
+				_instance._viewerMode ? null : _instance._engine,
 				_instance._reader?.LastState,
 				_instance._reader?.SessionId);
 		}

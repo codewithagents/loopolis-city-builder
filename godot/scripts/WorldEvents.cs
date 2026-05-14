@@ -151,6 +151,8 @@ public partial class World : Node2D
 		}
 		else
 		{
+			// Guard: _engine is null! in viewer mode (should never reach here, but be safe)
+			if (_engine == null) return;
 			var cost = _engine.PendingEventCost;
 			var eventType = _engine.PendingEventType;
 			var success = _engine.RespondToCurrentEvent();

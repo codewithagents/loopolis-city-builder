@@ -349,6 +349,9 @@ public partial class SharedStateReader : Node
         // use the GridWidth/GridHeight fields when present).
         int inferredW = state.GridWidth  > 0 ? state.GridWidth  : 32;
         int inferredH = state.GridHeight > 0 ? state.GridHeight : 32;
+        // Guard: state.Tiles can be null when the server writes a state.json that omits the
+        // field (e.g. first write on session start or mid-write truncation).
+        if (state.Tiles == null) return (new CityGrid(inferredW, inferredH), new int[inferredW, inferredH], new bool[inferredW, inferredH]);
         foreach (var t in state.Tiles)
         {
             if (t.X + 1 > inferredW) inferredW = t.X + 1;
@@ -524,10 +527,11 @@ public record SharedState(
 {
     /// <summary>
     /// Looks up the SharedTile at (x, y) from the Tiles array.
-    /// Returns null if no tile exists at those coordinates.
+    /// Returns null if no tile exists at those coordinates, or if Tiles is null.
     /// </summary>
     public SharedTile? GetTile(int x, int y)
     {
+        if (Tiles == null) return null;
         foreach (var t in Tiles)
             if (t.X == x && t.Y == y) return t;
         return null;
