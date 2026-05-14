@@ -64,7 +64,7 @@
 | ScenarioEngine + ScenarioLibrary + ScenarioDefinition | ✅ Done | 14 new (ScenarioEngineTests) |
 | BuildingGrowthIntegration flaky fix | ✅ Done | FireStation added to test grid (prevents random fire demolition) |
 
-**Total: 528 tests · 0 failures · ~0.67s runtime**
+**Total: 534 tests · 0 failures · ~0.69s runtime**
 
 ---
 
@@ -227,4 +227,6 @@ See `GAME_DESIGN.md` → Open Design Questions section.
 | 2026-05-14 | default | Seeded scenarios: 5 scenarios implemented (fresh_start/river_valley/hill_town/city_challenge/metro_run). ScenarioEngine.CheckCompletion confirmed stateless — medal logic works correctly per unit tests. SimulationEngine.ActiveScenario is null by default (sandbox). SharedState scenario fields all serialize to camelCase via Runner. Godot layer reads via PropertyNameCaseInsensitive. Engine scenario tracking not exercised by CLI test scenarios (need ActiveScenario set externally). | No fixes needed — clean integration |
 | 2026-05-14 | city_path | Park zone upgraded: Chebyshev-3 radius, +0.08/tile additive, capped +0.20, $3/tick maintenance. city_path happiness=0.906 (up from 0.863 pre-park). One park at (11,13) contributes +0.08 to all R-tiles within Chebyshev-3. BudgetSystem Park maintenance updated to $3. SharedState ParkTiles field added. BuildingGrowthIntegration flaky test fixed (fire station prevents random demolition). 528 tests green. | Fixed flaky test, upgraded park design |
 
-*Last updated: 2026-05-14 — Seeded Scenarios system, ScenarioEngine, ScenarioLibrary, 526 tests*
+| 2026-05-14 | default | 5 new scenarios (coastal_town/polluted_legacy/forest_reserve/boom_town/founders_challenge) added to ScenarioLibrary (10 total). LeaderboardSystem: Save/Load per-scenario personal best — Gold>Silver>Bronze, same medal lower tick wins. SharedState gains WorkingAge+EmploymentWarning+PersonalBestMedal+PersonalBestTick. HudOverlay employment ratio line (green/orange/red). World.cs fires low-employment toast at <40%, resets at >55%. 6 new tests. | All green, Godot build clean |
+
+*Last updated: 2026-05-14 — 5 new scenarios, LeaderboardSystem, employment visibility, 534 tests*
