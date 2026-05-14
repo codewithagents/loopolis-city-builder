@@ -115,6 +115,23 @@ public partial class TilemapRenderer : Node2D
 		}
 	}
 
+	// ── Camera zoom tracking ────────────────────────────────────────────────
+	private float _currentZoom = 1.0f;
+
+	/// <summary>
+	/// Called by World.cs whenever the camera zoom changes.
+	/// When zoom drops to ≤0.5×, _Draw() switches to simplified icon mode.
+	/// </summary>
+	public void SetCameraZoom(float zoom)
+	{
+		var wasIconMode = _currentZoom <= 0.5f;
+		_currentZoom = zoom;
+		var isIconMode = _currentZoom <= 0.5f;
+		// Only force a redraw when the mode boundary is crossed
+		if (wasIconMode != isIconMode)
+			QueueRedraw();
+	}
+
 	// ── Overlay system ──────────────────────────────────────────────────────
 	public OverlayMode ActiveOverlay = OverlayMode.None;
 
@@ -1519,9 +1536,204 @@ public partial class TilemapRenderer : Node2D
 		}
 	}
 
+	// ── Icon mode helpers ────────────────────────────────────────────────────
+
+	/// <summary>
+	/// Returns a short ASCII label for a zone type, used in icon mode (zoom ≤ 0.5×).
+	/// Returns empty string for zones that don't need a label (road, power line, empty).
+	/// </summary>
+	private static string GetZoneLabel(ZoneType zone) => zone switch
+	{
+		ZoneType.Residential  => "R",
+		ZoneType.Commercial   => "C",
+		ZoneType.Industrial   => "I",
+		ZoneType.Park         => "P",
+		ZoneType.FireStation  => "F",
+		ZoneType.FireHQ       => "F",
+		ZoneType.PoliceStation=> "P",
+		ZoneType.PoliceHQ     => "P",
+		ZoneType.School       => "S",
+		ZoneType.Hospital     => "H",
+		ZoneType.CoalPlant    => "E",
+		ZoneType.PowerPlant   => "E",
+		ZoneType.NuclearPlant => "E",
+		_                     => "",
+	};
+
+	/// <summary>
+	/// Returns the flat background color for a zone type, used in icon mode (zoom ≤ 0.5×).
+	/// Matches the primary zone palette so the map is still readable at a glance.
+	/// </summary>
+	private static Color GetZoneIconColor(ZoneType zone) => zone switch
+	{
+		ZoneType.Residential   => new Color(0.30f, 0.65f, 0.30f),
+		ZoneType.Commercial    => new Color(0.30f, 0.45f, 0.75f),
+		ZoneType.Industrial    => new Color(0.70f, 0.52f, 0.25f),
+		ZoneType.Park          => new Color(0.30f, 0.72f, 0.25f),
+		ZoneType.Road          => new Color(0.45f, 0.45f, 0.45f),
+		ZoneType.Avenue        => new Color(0.52f, 0.52f, 0.62f),
+		ZoneType.PowerLine     => new Color(0.10f, 0.80f, 0.80f),
+		ZoneType.PowerPlant    => new Color(0.26f, 0.26f, 0.26f),
+		ZoneType.CoalPlant     => new Color(0.26f, 0.26f, 0.26f),
+		ZoneType.NuclearPlant  => new Color(0.97f, 0.66f, 0.14f),
+		ZoneType.FireStation   => new Color(1.0f, 0.40f, 0.10f),
+		ZoneType.FireHQ        => new Color(0.72f, 0.11f, 0.11f),
+		ZoneType.PoliceStation => new Color(0.20f, 0.40f, 1.0f),
+		ZoneType.PoliceHQ      => new Color(0.10f, 0.14f, 0.49f),
+		ZoneType.School        => new Color(0.70f, 0.30f, 0.90f),
+		ZoneType.Hospital      => new Color(0.65f, 0.84f, 0.65f),
+		_                      => new Color(0.15f, 0.15f, 0.15f),
+	};
+
+	/// <summary>
+	/// Draws the simplified icon-mode view of the entire grid.
+	/// Called by _Draw() when _currentZoom ≤ 0.5f.
+	/// Each tile gets a flat zone-color fill; non-empty zones get a 1-letter ASCII label.
+	/// Roads are drawn as solid grey rects (no detail). Overlays still apply on top.
+	/// </summary>
+	private void DrawIconMode()
+	{
+		if (_grid == null) return;
+
+		var font     = ThemeDB.FallbackFont;
+		const int fontSize = 8;
+		const float halfTile = TileSize * 0.5f;
+
+		foreach (var tile in _grid.AllTiles())
+		{
+			float px = tile.X * TileSize;
+			float py = tile.Y * TileSize;
+			var tileRect = new Rect2(px, py, TileSize, TileSize);
+
+			if (tile.Zone == ZoneType.Empty)
+			{
+				// Empty terrain: use height-based color (same as detailed mode)
+				var height = GetHeight(tile.X, tile.Y);
+				var baseColor = height switch
+				{
+					<= 0 => ColorDeepWater,
+					1    => ColorLowland,
+					2    => ColorMidland,
+					3    => ColorHighland,
+					4    => ColorUpland,
+					_    => ColorPeak,
+				};
+				DrawRect(tileRect, baseColor);
+				continue;
+			}
+
+			// Flat zone fill
+			var zoneColor = GetZoneIconColor(tile.Zone);
+			DrawRect(tileRect, zoneColor);
+
+			// Unpowered overlay (skip for roads/power lines/parks)
+			if (!tile.HasPower
+				&& tile.Zone is not ZoneType.Road
+				&& tile.Zone is not ZoneType.Avenue
+				&& tile.Zone is not ZoneType.PowerLine
+				&& tile.Zone is not ZoneType.Park)
+			{
+				DrawRect(tileRect, UnpoweredTint);
+			}
+
+			// Single-letter label centered on tile (skip road/avenue/power line — no label needed)
+			var label = GetZoneLabel(tile.Zone);
+			if (label.Length > 0)
+			{
+				// Center a small 8px label on the tile
+				var labelPos = new Vector2(px + halfTile - 3f, py + halfTile + 3f);
+				DrawString(font, labelPos, label, HorizontalAlignment.Left, -1, fontSize,
+					new Color(1f, 1f, 1f, 0.85f));
+			}
+		}
+
+		// Overlay pass (same logic as detailed mode — still useful when zoomed out)
+		if (ActiveOverlay != OverlayMode.None)
+		{
+			foreach (var t in _grid.AllTiles())
+			{
+				if (t.Zone == ZoneType.Empty) continue;
+				if (ActiveOverlay == OverlayMode.Traffic &&
+					t.Zone != ZoneType.Road && t.Zone != ZoneType.Avenue) continue;
+				if (ActiveOverlay == OverlayMode.Coverage &&
+					t.Zone != ZoneType.Residential && t.Zone != ZoneType.Commercial && t.Zone != ZoneType.Industrial)
+					continue;
+				if (ActiveOverlay == OverlayMode.Happiness && t.Zone == ZoneType.Park) continue;
+				if (ActiveOverlay == OverlayMode.Pollution  && t.Zone == ZoneType.Park) continue;
+				if (ActiveOverlay == OverlayMode.LandValue &&
+					(t.Zone == ZoneType.Road || t.Zone == ZoneType.Avenue ||
+					 t.Zone == ZoneType.PowerLine || t.Zone == ZoneType.PowerPlant ||
+					 t.Zone == ZoneType.CoalPlant || t.Zone == ZoneType.NuclearPlant))
+					continue;
+
+				var overlayColor = GetOverlayColor(t);
+				if (overlayColor.A > 0.01f)
+					DrawRect(new Rect2(t.X * TileSize, t.Y * TileSize, TileSize, TileSize), overlayColor);
+			}
+		}
+
+		// Brownout overlay (same as detailed mode)
+		if (_isBrownout)
+		{
+			foreach (var tile in _grid.AllTiles())
+			{
+				if (!tile.HasPower) continue;
+				if (tile.Zone is ZoneType.Empty or ZoneType.Road or ZoneType.PowerLine
+					or ZoneType.PowerPlant or ZoneType.CoalPlant or ZoneType.NuclearPlant
+					or ZoneType.Park)
+					continue;
+				DrawRect(new Rect2(tile.X * TileSize, tile.Y * TileSize, TileSize, TileSize), BrownoutTint);
+			}
+		}
+
+		// Coverage highlight (same as detailed mode)
+		if (_coverageHighlight.Count > 0)
+		{
+			var overlayColor = new Color(_coverageColor.R, _coverageColor.G, _coverageColor.B, 0.3f);
+			foreach (var (cx, cy) in _coverageHighlight)
+				DrawRect(new Rect2(cx * TileSize, cy * TileSize, TileSize, TileSize), overlayColor);
+		}
+
+		// Fire tile (same as detailed mode — still important to see at any zoom)
+		if (_fireTileX >= 0 && _fireTileY >= 0)
+		{
+			var pulse = (float)(0.60 + 0.25 * Math.Sin(Time.GetTicksMsec() / 250.0));
+			var fireColor = new Color(FireOverlay.R, FireOverlay.G, FireOverlay.B, pulse);
+			DrawRect(new Rect2(_fireTileX * TileSize, _fireTileY * TileSize, TileSize, TileSize), fireColor);
+			QueueRedraw();
+		}
+
+		// Rectangle paint preview (same as detailed mode)
+		if (_hasRectPreview)
+		{
+			var minX = Mathf.Min(_rectPreviewStart.X, _rectPreviewEnd.X);
+			var maxX = Mathf.Max(_rectPreviewStart.X, _rectPreviewEnd.X);
+			var minY = Mathf.Min(_rectPreviewStart.Y, _rectPreviewEnd.Y);
+			var maxY = Mathf.Max(_rectPreviewStart.Y, _rectPreviewEnd.Y);
+			var rx = minX * TileSize;
+			var ry = minY * TileSize;
+			var rw = (maxX - minX + 1) * TileSize;
+			var rh = (maxY - minY + 1) * TileSize;
+			DrawRect(new Rect2(rx, ry, rw, rh), _rectPreviewColor);
+			var borderC = new Color(_rectPreviewColor.R, _rectPreviewColor.G, _rectPreviewColor.B, 0.9f);
+			const int previewBorderW = 2;
+			DrawRect(new Rect2(rx,            ry,                        rw, previewBorderW), borderC);
+			DrawRect(new Rect2(rx,            ry + rh - previewBorderW,  rw, previewBorderW), borderC);
+			DrawRect(new Rect2(rx,            ry,                        previewBorderW, rh), borderC);
+			DrawRect(new Rect2(rx + rw - previewBorderW, ry,             previewBorderW, rh), borderC);
+		}
+	}
+
 	public override void _Draw()
 	{
 		if (_grid == null) return;
+
+		// ── Icon mode: simplified rendering at low zoom ──────────────────────
+		if (_currentZoom <= 0.5f)
+		{
+			DrawIconMode();
+			return;
+		}
 
 		foreach (var tile in _grid.AllTiles())
 		{

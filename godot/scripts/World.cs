@@ -389,6 +389,9 @@ public partial class World : Node2D
 		_renderer.Refresh(_grid);
 		_minimap.UpdateFromGrid(_grid);
 		_camera.FitToMap(mapSize, mapHeight);
+		// Sync initial zoom so icon mode threshold is correct from the first frame
+		_renderer.SetCameraZoom(_camera.Zoom.X);
+		_lastCameraZoom = _camera.Zoom.X;
 		PushStandaloneHudUpdate();
 
 		// Activate guided tutorial when the tutorial scenario is selected
@@ -455,6 +458,9 @@ public partial class World : Node2D
 		}
 	}
 
+	// Last camera zoom value tracked for icon-mode switching
+	private float _lastCameraZoom = 1.0f;
+
 	public override void _Process(double delta)
 	{
 		// Tooltip always updates (both modes)
@@ -462,6 +468,14 @@ public partial class World : Node2D
 
 		// Coverage radius overlay: update whenever mouse moves to a new tile
 		UpdateCoverageHighlight();
+
+		// Sync camera zoom to renderer so icon mode can activate at ≤0.5×
+		var cameraZoom = _camera.Zoom.X;
+		if (!Mathf.IsEqualApprox(cameraZoom, _lastCameraZoom))
+		{
+			_lastCameraZoom = cameraZoom;
+			_renderer.SetCameraZoom(cameraZoom);
+		}
 
 		if (_viewerMode)
 		{
