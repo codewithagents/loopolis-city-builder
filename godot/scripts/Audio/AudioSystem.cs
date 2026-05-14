@@ -183,6 +183,164 @@ public partial class AudioSystem : Node
         _targetAmbientLevel = Math.Clamp(populationRatio, 0f, 1f);
     }
 
+    /// <summary>
+    /// Queue a soft UI click sound for toolbar buttons and zone selection.
+    /// Duration: 50 ms. Short 800 Hz sine burst with fast attack and decay.
+    /// Amplitude: 0.3 (quiet — UI sounds shouldn't dominate).
+    /// </summary>
+    public void PlayClick()
+    {
+        var totalSamples = MsToSamples(50);
+
+        Enqueue(totalSamples, i =>
+        {
+            var t = i / (float)SampleRate;
+            // Fast attack (2 ms), then exponential decay
+            var envelope = MathF.Exp(-t * 60f);
+            if (t < 0.002f)
+                envelope *= t / 0.002f;
+            return MathF.Sin(t * Tau * 800f) * envelope * 0.3f;
+        });
+    }
+
+    /// <summary>
+    /// Queue a brief "scrape" erase sound: low thud mixed with a short noise burst.
+    /// Duration: 60 ms. Mix of 120 Hz sine and descending noise.
+    /// Amplitude: 0.25.
+    /// </summary>
+    public void PlayErase()
+    {
+        var totalSamples = MsToSamples(60);
+        var noise = new float[totalSamples];
+        for (var i = 0; i < totalSamples; i++)
+            noise[i] = (float)(_rng.NextDouble() - 0.5);
+
+        Enqueue(totalSamples, i =>
+        {
+            var t = i / (float)SampleRate;
+            // Low thud — descending frequency via fast decay
+            var thud = MathF.Sin(t * Tau * 120f) * MathF.Exp(-t * 45f) * 0.6f;
+            // Noise burst — short, aggressive decay
+            var noiseSample = noise[i] * MathF.Exp(-t * 80f) * 0.4f;
+            return (thud + noiseSample) * 0.25f;
+        });
+    }
+
+    /// <summary>
+    /// Queue a soft "plop" for Residential / Commercial / Industrial / Park zone placement.
+    /// Distinct from the road thud — a gentle two-note chord.
+    /// Duration: 80 ms. 220 Hz + 330 Hz with gentle attack.
+    /// Amplitude: 0.25.
+    /// </summary>
+    public void PlayZonePlaced()
+    {
+        var totalSamples = MsToSamples(80);
+
+        Enqueue(totalSamples, i =>
+        {
+            var t = i / (float)SampleRate;
+            var decay = MathF.Exp(-t * 25f);
+            var chord = MathF.Sin(t * Tau * 220f) * 0.55f
+                      + MathF.Sin(t * Tau * 330f) * 0.45f;
+            var sample = chord * decay * 0.25f;
+            // Gentle attack (first 8 ms)
+            if (t < 0.008f)
+                sample *= t / 0.008f;
+            return sample;
+        });
+    }
+
+    /// <summary>
+    /// Queue a shimmery rising tone for when the Upgrade tool is toggled on.
+    /// Duration: 150 ms. Sine sweep from 400 Hz to 800 Hz with a harmonic.
+    /// Amplitude: 0.3.
+    /// </summary>
+    public void PlayUpgradeActivated()
+    {
+        var totalSamples = MsToSamples(150);
+        var duration     = totalSamples / (float)SampleRate;
+
+        Enqueue(totalSamples, i =>
+        {
+            var t = i / (float)SampleRate;
+            var progress = t / duration; // 0 → 1
+
+            // Frequency sweeps from 400 Hz to 800 Hz
+            var freq  = 400f + progress * 400f;
+            var phase = t * Tau * freq;
+
+            // Add a harmonic at 2× for shimmer
+            var sweep = MathF.Sin(phase) * 0.65f
+                      + MathF.Sin(phase * 2f) * 0.35f;
+
+            // Envelope: fade in over first 20 ms, fade out over last 40 ms
+            var env = 1f;
+            if (t < 0.02f)  env = t / 0.02f;
+            if (t > 0.11f)  env = (duration - t) / 0.04f;
+            env = Math.Clamp(env, 0f, 1f);
+
+            return sweep * env * 0.3f;
+        });
+    }
+
+    /// <summary>
+    /// Queue a pulsed danger alert: three 100 Hz pulses (30 ms each, 20 ms gap).
+    /// Total duration: ~160 ms.
+    /// Called when the EventResponsePanel appears.
+    /// </summary>
+    public void PlayEventAlert()
+    {
+        // 3 pulses × 30 ms + 2 gaps × 20 ms = 130 ms, rounded up
+        var totalSamples = MsToSamples(160);
+
+        Enqueue(totalSamples, i =>
+        {
+            var t  = i / (float)SampleRate;
+            var ms = t * 1000f;
+
+            // Pulse 1: 0–30 ms, Pulse 2: 50–80 ms, Pulse 3: 100–130 ms
+            var inPulse = (ms >= 0f   && ms < 30f)
+                       || (ms >= 50f  && ms < 80f)
+                       || (ms >= 100f && ms < 130f);
+
+            if (!inPulse) return 0f;
+
+            // Local time within each 50 ms slot
+            var slotMs  = ms % 50f;
+            var localT  = slotMs / 1000f;
+            var pulseEnv = MathF.Exp(-localT * 60f);
+
+            return MathF.Sin(localT * Tau * 100f) * pulseEnv * 0.35f;
+        });
+    }
+
+    /// <summary>
+    /// Queue a short resolution chord when the player pays to intervene in an event.
+    /// Duration: 200 ms. 523 Hz (C5) + 659 Hz (E5) major third.
+    /// Amplitude: 0.3.
+    /// </summary>
+    public void PlayIntervene()
+    {
+        var totalSamples = MsToSamples(200);
+
+        Enqueue(totalSamples, i =>
+        {
+            var t     = i / (float)SampleRate;
+            var decay = MathF.Exp(-t * 7f);
+
+            var chord = MathF.Sin(t * Tau * 523f) * 0.55f
+                      + MathF.Sin(t * Tau * 659f) * 0.45f;
+
+            var sample = chord * decay * 0.3f;
+
+            // 10 ms attack ramp
+            if (t < 0.01f)
+                sample *= t / 0.01f;
+
+            return sample;
+        });
+    }
+
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     /// <summary>Converts milliseconds to sample count.</summary>

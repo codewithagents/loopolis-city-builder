@@ -1,3 +1,5 @@
+using Loopolis.Core.Grid;
+
 namespace Loopolis.Core.Scenarios;
 
 /// <summary>
@@ -177,6 +179,32 @@ public static class ScenarioLibrary
             Goal:            new ScenarioGoal(TargetPopulation: 3_000),
             Medals:          new ScenarioMedals(Bronze: 800, Silver: 640, Gold: 480),
             TerrainSeed:     "river_delta"
+        ),
+
+        new ScenarioDefinition(
+            Id:              "green_city",
+            Name:            "Green City",
+            Description:     "No industry allowed. Build a clean, thriving city from commercial and residential zones only.",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 6_000,
+            TickLimit:       800,
+            Goal:            new ScenarioGoal(TargetPopulation: 2_000),
+            Medals:          new ScenarioMedals(Bronze: 800, Silver: 620, Gold: 440),
+            DisabledZones:   new[] { ZoneType.Industrial }
+        ),
+
+        new ScenarioDefinition(
+            Id:              "service_first",
+            Name:            "Service First",
+            Description:     "No commercial zones. Prove you can grow a city on pure residential and industrial tax.",
+            MapWidth:        64,
+            MapHeight:       64,
+            StartingBalance: 5_000,
+            TickLimit:       700,
+            Goal:            new ScenarioGoal(TargetPopulation: 1_500),
+            Medals:          new ScenarioMedals(Bronze: 700, Silver: 540, Gold: 360),
+            DisabledZones:   new[] { ZoneType.Commercial }
         ),
     };
 

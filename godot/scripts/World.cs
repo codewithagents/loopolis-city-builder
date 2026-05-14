@@ -148,6 +148,7 @@ public partial class World : Node2D
 			_toolbar.SelectZone("Upgrade");
 			UpgradeToolActive = true;
 			_renderer.QueueRedraw();
+			_audio?.PlayUpgradeActivated();
 		}
 	}
 
@@ -480,6 +481,7 @@ public partial class World : Node2D
 					_lastShownEventType = viewerStateCopy.PendingEventType;
 					var canAfford = viewerStateCopy.Balance >= viewerStateCopy.PendingEventCost;
 					_eventResponsePanel.ShowEvent(viewerStateCopy.PendingEventType, viewerStateCopy.PendingEventCost, canAfford);
+					_audio?.PlayEventAlert();
 				}
 				else if (string.IsNullOrEmpty(viewerStateCopy.PendingEventType))
 				{
@@ -511,6 +513,7 @@ public partial class World : Node2D
 				_lastShownEventType = _engine.PendingEventType;
 				var canAfford = _engine.Budget.Balance >= _engine.PendingEventCost;
 				_eventResponsePanel.ShowEvent(_engine.PendingEventType!, _engine.PendingEventCost, canAfford);
+				_audio?.PlayEventAlert();
 			}
 			else if (!_engine.HasPendingEvent)
 			{
@@ -1026,6 +1029,9 @@ public partial class World : Node2D
 
 	private void OnZoneSelected(string zoneName)
 	{
+		// Play a soft click for every toolbar zone/tool selection
+		_audio?.PlayClick();
+
 		// If the upgrade tool was active and another tool/zone was selected, deactivate it
 		if (UpgradeToolActive && zoneName != "Upgrade")
 		{
@@ -1191,6 +1197,7 @@ public partial class World : Node2D
 			var sid = _reader?.SessionId;
 			if (sid != null)
 				WriteCommand($"{{\"cmd\":\"event_respond\",\"sessionId\":\"{sid}\"}}");
+			_audio?.PlayIntervene();
 			// Show a generic toast — we don't know the cost in viewer mode until next state tick
 			_toastSystem.AddToast("Crisis intervention requested!", new Color(1f, 0.72f, 0.18f), 5f);
 		}
@@ -1201,6 +1208,7 @@ public partial class World : Node2D
 			var success = _engine.RespondToCurrentEvent();
 			if (success)
 			{
+				_audio?.PlayIntervene();
 				var label = eventType switch
 				{
 					"FireBreak"   => "Fire contained",
@@ -1332,6 +1340,17 @@ public partial class World : Node2D
 				_renderer.PulseRoad(new Vector2I(tileX, tileY));
 				_audio.PlayRoadPlaced();
 			}
+			else if (selectedZone == "Erase")
+			{
+				_audio.PlayErase();
+			}
+			else if (selectedZone is "Residential" or "Commercial" or "Industrial" or "Park"
+			      or "PowerPlant" or "CoalPlant" or "NuclearPlant"
+			      or "FireStation" or "PoliceStation" or "School" or "Hospital"
+			      or "FireHQ" or "PoliceHQ")
+			{
+				_audio.PlayZonePlaced();
+			}
 		}
 		else
 		{
@@ -1348,6 +1367,7 @@ public partial class World : Node2D
 			if (selectedZone == "Erase")
 			{
 				_grid.SetZone(tileX, tileY, ZoneType.Empty);
+				_audio.PlayErase();
 			}
 			else
 			{
@@ -1377,6 +1397,13 @@ public partial class World : Node2D
 					{
 						_renderer.PulseRoad(new Vector2I(tileX, tileY));
 						_audio.PlayRoadPlaced();
+					}
+					else if (selectedZone is "Residential" or "Commercial" or "Industrial" or "Park"
+					      or "PowerPlant" or "CoalPlant" or "NuclearPlant"
+					      or "FireStation" or "PoliceStation" or "School" or "Hospital"
+					      or "FireHQ" or "PoliceHQ")
+					{
+						_audio.PlayZonePlaced();
 					}
 				}
 			}
