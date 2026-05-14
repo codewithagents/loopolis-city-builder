@@ -17,7 +17,7 @@ public static class ScenarioLibrary
             StartingBalance: 5_000,
             TickLimit:       400,
             Goal:            new ScenarioGoal(TargetPopulation: 500),
-            Medals:          new ScenarioMedals(Bronze: 400, Silver: 280, Gold: 180)
+            Medals:          new ScenarioMedals(Bronze: 400, Silver: 300, Gold: 220)
         ),
 
         new ScenarioDefinition(

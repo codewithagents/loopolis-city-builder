@@ -7,8 +7,9 @@ namespace LoopolisGodot;
 public partial class MainMenu : Control
 {
     // Tracks whether we're showing the scenario picker (or the main menu)
-    private Control _mainPanel     = null!;
-    private Control _scenarioPanel = null!;
+    private Control  _mainPanel     = null!;
+    private Control  _scenarioPanel = null!;
+    private LineEdit _cityNameEdit  = null!;
 
     public override void _Ready()
     {
@@ -17,6 +18,9 @@ public partial class MainMenu : Control
 
         // Also kill if we navigated back from World scene
         World.KillServerIfRunning();
+
+        // Build the shared city-name LineEdit once (reused across panels)
+        _cityNameEdit = BuildCityNameEdit();
 
         // Full-screen dark background
         var bg = new ColorRect();
@@ -77,10 +81,14 @@ public partial class MainMenu : Control
         spacer.CustomMinimumSize = new Vector2(0, 20);
         vbox.AddChild(spacer);
 
+        // City name input row
+        vbox.AddChild(BuildCityNameRow(_cityNameEdit));
+
         // "New Game" now opens the scenario picker
         var newGameBtn = MakeMenuButton("New Game");
         newGameBtn.Pressed += () =>
         {
+            ApplyCityName();
             _mainPanel.Visible    = false;
             _scenarioPanel.Visible = true;
         };
@@ -89,7 +97,7 @@ public partial class MainMenu : Control
         // New Game (Server Mode) button — sandbox only for now
         var serverBtn = MakeMenuButton("New Game (Server)");
         serverBtn.TooltipText = "Runs a separate simulation process — more accurate physics, supports skip-ahead";
-        serverBtn.Pressed += OnServerGamePressed;
+        serverBtn.Pressed += () => { ApplyCityName(); OnServerGamePressed(); };
         vbox.AddChild(serverBtn);
 
         // Quit button
@@ -216,6 +224,7 @@ public partial class MainMenu : Control
         ApplyButtonStyle(btn, new Color(0.15f, 0.30f, 0.15f));
         btn.Pressed += () =>
         {
+            ApplyCityName();
             World.PendingScenarioId = null; // sandbox = no scenario
             GetTree().ChangeSceneToFile("res://scenes/World.tscn");
         };
@@ -298,6 +307,7 @@ public partial class MainMenu : Control
         var scenarioId = scenario.Id; // capture for closure
         playBtn.Pressed += () =>
         {
+            ApplyCityName();
             World.PendingScenarioId = scenarioId;
             GetTree().ChangeSceneToFile("res://scenes/World.tscn");
         };
@@ -365,6 +375,57 @@ public partial class MainMenu : Control
             s.ContentMarginTop = s.ContentMarginBottom = 12;
             card.AddThemeStyleboxOverride("panel", s);
         };
+    }
+
+    // ── City name helpers ──────────────────────────────────────────────────
+
+    /// <summary>Builds the shared city-name LineEdit (created once in _Ready).</summary>
+    private static LineEdit BuildCityNameEdit()
+    {
+        var edit = new LineEdit();
+        edit.PlaceholderText = "My City";
+        edit.MaxLength = 24;
+        edit.CustomMinimumSize = new Vector2(200, 0);
+
+        var style = new StyleBoxFlat();
+        style.BgColor = new Color(0.10f, 0.10f, 0.16f);
+        style.BorderColor = new Color(0.4f, 0.4f, 0.6f);
+        style.BorderWidthBottom = style.BorderWidthTop =
+            style.BorderWidthLeft = style.BorderWidthRight = 2;
+        style.CornerRadiusTopLeft = style.CornerRadiusTopRight =
+            style.CornerRadiusBottomLeft = style.CornerRadiusBottomRight = 5;
+        style.ContentMarginLeft = style.ContentMarginRight = 10;
+        style.ContentMarginTop = style.ContentMarginBottom = 6;
+        edit.AddThemeStyleboxOverride("normal", style);
+        edit.AddThemeStyleboxOverride("focus", style);
+        edit.AddThemeColorOverride("font_color", new Color(0.95f, 0.95f, 0.95f));
+        edit.AddThemeColorOverride("font_placeholder_color", new Color(0.5f, 0.5f, 0.5f));
+        edit.AddThemeFontSizeOverride("font_size", 16);
+        return edit;
+    }
+
+    /// <summary>Wraps the shared LineEdit in a label+input HBox row.</summary>
+    private static HBoxContainer BuildCityNameRow(LineEdit edit)
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 10);
+
+        var lbl = new Label();
+        lbl.Text = "City Name:";
+        lbl.VerticalAlignment = VerticalAlignment.Center;
+        lbl.AddThemeColorOverride("font_color", new Color(0.8f, 0.8f, 0.8f));
+        lbl.AddThemeFontSizeOverride("font_size", 16);
+        row.AddChild(lbl);
+
+        row.AddChild(edit);
+        return row;
+    }
+
+    /// <summary>Reads the city name LineEdit and stores the result on World.CityName.</summary>
+    private void ApplyCityName()
+    {
+        var text = _cityNameEdit.Text.Trim();
+        World.CityName = string.IsNullOrEmpty(text) ? "My City" : text;
     }
 
     // ── Server mode ────────────────────────────────────────────────────────

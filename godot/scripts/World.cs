@@ -17,6 +17,12 @@ public partial class World : Node2D
 	/// Consumed (reset to null) when SetupStandaloneSimulation runs.
 	/// </summary>
 	public static string? PendingScenarioId { get; set; } = null;
+
+	/// <summary>
+	/// Player-chosen city name. Set from MainMenu before loading World.tscn.
+	/// Defaults to "My City" if the player leaves the name field empty.
+	/// </summary>
+	public static string CityName { get; set; } = "My City";
 	private CityGrid _grid = null!;
 	private SimulationEngine _engine = null!;
 	private double _tickTimer = 0;
@@ -515,7 +521,9 @@ public partial class World : Node2D
 
 			// Use the anchor tile for power/happiness context
 			var anchorTile = grid.GetTile(building.AnchorX, building.AnchorY);
-			_tooltip.ShowForBuilding(building, totalPop, anchorTile, GetViewport().GetMousePosition(), currentState);
+			var bldgHeight = _renderer.GetTileHeight(tileX, tileY);
+			var bldgForest = _renderer.GetTileForest(tileX, tileY);
+			_tooltip.ShowForBuilding(building, totalPop, anchorTile, GetViewport().GetMousePosition(), currentState, bldgHeight, bldgForest);
 			return;
 		}
 

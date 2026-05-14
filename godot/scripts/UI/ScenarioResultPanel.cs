@@ -119,7 +119,8 @@ public partial class ScenarioResultPanel : CanvasLayer
         _medalLabel.AddThemeColorOverride("font_color", medalColor);
 
         _statsLabel.Text =
-            $"{scenarioName}\n" +
+            $"{World.CityName} achieved {medal}!\n" +
+            $"Scenario: {scenarioName}\n" +
             $"Population: {population:N0} / {targetPop:N0}\n" +
             $"Completed in {ticksUsed:N0} ticks";
 
@@ -140,8 +141,8 @@ public partial class ScenarioResultPanel : CanvasLayer
         _medalLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
 
         _statsLabel.Text =
-            $"{scenarioName}\n" +
-            $"Ran out of time\n" +
+            $"{World.CityName} ran out of time.\n" +
+            $"Scenario: {scenarioName}\n" +
             $"Population: {population:N0} / {targetPop:N0}";
 
         _backdrop.Visible = true;

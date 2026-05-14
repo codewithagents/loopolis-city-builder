@@ -34,13 +34,30 @@ public partial class TileTooltip : CanvasLayer
     /// road/power connectivity lines because the building already exists and
     /// was road-connected when it grew.
     /// </summary>
-    public void ShowForBuilding(Building building, int totalPop, Tile anchorTile, Vector2 screenPos, SharedState? state = null)
+    public void ShowForBuilding(Building building, int totalPop, Tile anchorTile, Vector2 screenPos,
+        SharedState? state = null, int tileHeight = -1, bool tileForest = false)
     {
         foreach (Node child in _vbox.GetChildren())
             child.QueueFree();
 
-        // Pretty-print the TypeId, e.g. "res_townhouse_2x2" → "Townhouse 2×2"
-        var displayName = PrettifyTypeId(building.TypeId, building.Width, building.Height);
+        // Friendly name map — human-readable names for known building TypeIds
+        var friendlyName = building.TypeId switch
+        {
+            "res_house_1x1"      => "Cottage",
+            "res_townhouse_2x2"  => "Townhouse",
+            "res_villa_2x3"      => "Forest Villa",
+            "res_villa_3x2"      => "Forest Villa",
+            "res_apartment_4x4"  => "Apartment Block",
+            "com_shop_1x1"       => "Corner Shop",
+            "com_strip_1x3"      => "Strip Mall",
+            "com_strip_3x1"      => "Strip Mall",
+            "com_shopping_3x3"   => "Shopping Centre",
+            "ind_factory_1x1"    => "Factory",
+            "ind_warehouse_2x2"  => "Warehouse",
+            "ind_park_4x2"       => "Industrial Park",
+            "ind_park_2x4"       => "Industrial Park",
+            _                    => PrettifyTypeId(building.TypeId, building.Width, building.Height),
+        };
 
         var zoneColor = building.Zone switch
         {
@@ -50,7 +67,7 @@ public partial class TileTooltip : CanvasLayer
             _                    => new Color(0.9f, 0.9f, 0.9f),
         };
 
-        AddLine(displayName, 15, zoneColor);
+        AddLine(friendlyName, 15, zoneColor);
 
         var zoneLabel = building.Zone switch
         {
@@ -60,6 +77,23 @@ public partial class TileTooltip : CanvasLayer
             _                    => building.Zone.ToString(),
         };
         AddLine(zoneLabel, 12, zoneColor * 0.85f);
+
+        // Terrain line (height + forest) when non-trivial data is available
+        if (tileHeight >= 0)
+        {
+            var terrainDesc = tileHeight switch
+            {
+                <= 0 => "Water",
+                1    => "Lowland",
+                2    => "Midland",
+                3    => "Highland",
+                4    => "Upland",
+                _    => "Peak",
+            };
+            var terrainLine = tileForest ? $"{terrainDesc}, Forest" : terrainDesc;
+            if (tileHeight != 1 || tileForest) // skip boring "Lowland" with no forest
+                AddLine(terrainLine, 12, new Color(0.65f, 0.78f, 0.62f));
+        }
 
         var capacity = building.MaxPopulation;
 
@@ -78,6 +112,23 @@ public partial class TileTooltip : CanvasLayer
         var powerText  = anchorTile.HasPower ? "Power: ✓" : "Power: ✗";
         var powerColor = anchorTile.HasPower ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.3f, 0.3f);
         AddLine(powerText, 13, powerColor);
+
+        // Industrial-specific lines: pollution + jobs
+        if (building.Zone == ZoneType.Industrial)
+        {
+            if (anchorTile.PollutionLevel > 0.0)
+            {
+                var pollutionPct = (int)(anchorTile.PollutionLevel * 100);
+                var pollColor = pollutionPct >= 60 ? new Color(1f, 0.3f, 0.3f)
+                              : pollutionPct >= 30 ? new Color(1f, 0.65f, 0.1f)
+                                                   : new Color(0.9f, 0.85f, 0.4f);
+                AddLine($"Pollution: {pollutionPct}%", 13, pollColor);
+            }
+            // Jobs: approximate from building tile count (20 jobs per full tile, matching EmploymentSystem)
+            var tileCount = building.Width * building.Height;
+            var jobs = anchorTile.HasPower ? tileCount * 20 : tileCount * 2; // 2 placeholder jobs when unpowered
+            AddLine($"Jobs: ~{jobs}", 13, new Color(0.9f, 0.8f, 0.4f));
+        }
 
         // Growth / happiness notes for residential buildings
         if (building.Zone == ZoneType.Residential)
@@ -179,6 +230,12 @@ public partial class TileTooltip : CanvasLayer
                                                      : new Color(0.7f, 0.7f, 0.7f);
                     AddLine($"Traffic: {aLoadPct}%{(aLoadPct >= 100 ? " — OVERLOADED" : "")}", 12, aLoadColor);
                 }
+                break;
+
+            case ZoneType.Park:
+                AddLine("Park", 15, new Color(0.35f, 0.9f, 0.45f));
+                AddLine("Happiness bonus to nearby residential", 13, new Color(0.5f, 0.85f, 0.55f));
+                AddLine("Maint: $1.00/tick — no power or road required", 12, new Color(0.55f, 0.65f, 0.55f));
                 break;
 
             case ZoneType.PowerLine:

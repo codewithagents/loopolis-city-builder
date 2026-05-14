@@ -274,6 +274,10 @@ public partial class TopBar : CanvasLayer
     /// <summary>Update all labels from the latest SharedState.</summary>
     public void UpdateStats(SharedState state)
     {
+        // Window title: city name + live population
+        var cityName = World.CityName;
+        DisplayServer.WindowSetTitle($"Loopolis — {cityName}  ({state.Population:N0} pop)");
+
         // Balance + net income
         var netSign = state.NetPerTick >= 0 ? "+" : "";
         _balanceLabel.Text = $"💰 ${state.Balance:N0}  {netSign}${state.NetPerTick:F1}/tk";
@@ -281,16 +285,18 @@ public partial class TopBar : CanvasLayer
             state.NetPerTick >= 0 ? new Color(0.3f, 1f, 0.3f) : new Color(1f, 0.35f, 0.35f));
 
         // Population + milestone mini bar
+        // Include city name as prefix when the player chose a custom name
+        var popPrefix = cityName != "My City" ? $"{cityName}: " : "";
         if (!string.IsNullOrEmpty(state.NextMilestoneName) && state.NextMilestoneTarget > 0)
         {
             var pct  = Math.Clamp((int)((double)state.Population / state.NextMilestoneTarget * 100), 0, 100);
             var bar  = MakeBar8(pct);
-            _popLabel.Text = $"👥 {state.Population:N0}  →{state.NextMilestoneName}  [{bar}]  {pct}%";
+            _popLabel.Text = $"👥 {popPrefix}{state.Population:N0}  →{state.NextMilestoneName}  [{bar}]  {pct}%";
             _popLabel.AddThemeColorOverride("font_color", GetMilestoneColor(state.NextMilestoneName));
         }
         else
         {
-            _popLabel.Text = $"👥 {state.Population:N0}";
+            _popLabel.Text = $"👥 {popPrefix}{state.Population:N0}";
             _popLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
         }
 

@@ -97,11 +97,12 @@ public partial class GameOverPanel : CanvasLayer
         _titleLabel.AddThemeColorOverride("font_color", new Color(0.35f, 0.2f, 0.7f));
 
         _statsLabel.Text =
+            $"The citizens of {World.CityName} have abandoned the city.\n" +
             $"Final tick: {tick:N0}   |   " +
             $"Population: {population:N0}   |   " +
             $"Happiness: {(int)(happiness * 100)}%";
 
-        _hintLabel.Text = "Citizens fled — build Fire/Police/School to maintain happiness";
+        _hintLabel.Text = "Build Fire/Police/School to maintain happiness";
 
         _overlay.Visible = true;
     }
@@ -120,7 +121,8 @@ public partial class GameOverPanel : CanvasLayer
         _titleLabel.AddThemeFontSizeOverride("font_size", 52);
 
         _statsLabel.Text =
-            $"You built a Loopolis in {tick:N0} ticks!\n" +
+            $"{World.CityName} has become a Loopolis!\n" +
+            $"Built in {tick:N0} ticks   |   " +
             $"Population: {population:N0}   |   Balance: ${balance:N0}";
         _statsLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.95f, 0.85f));
 
@@ -140,6 +142,7 @@ public partial class GameOverPanel : CanvasLayer
     private void PopulateStats(int tick, double balance, int population)
     {
         _statsLabel.Text =
+            $"{World.CityName} has gone bankrupt.\n" +
             $"Final tick: {tick:N0}   |   " +
             $"Balance: ${balance:N0}   |   " +
             $"Population: {population:N0}";

@@ -15,7 +15,7 @@ public class PopulationSystem
     // Commercial constants
     private const int ActivityCapacity            = 50;
     private const double CommercialBaseGrowthRate  = 0.04;
-    private const double CommercialMinGrowthRate   = 0.005;
+    private const double CommercialMinGrowthRate   = 0.008;
     private const double CommercialMaxGrowthRate   = 0.06;
     private const double CommercialDeclineRate     = 0.02;
     private const double CommercialDeclineThreshold = 5.0;
