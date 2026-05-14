@@ -70,6 +70,11 @@ public partial class TilemapRenderer : Node2D
 	private static readonly Color ColorCottageUnpowered = new Color(0.6f, 0.7f, 0.6f);
 	private static readonly Color ColorCommercial   = new Color(0.2f,  0.4f,  0.9f);
 	private static readonly Color ColorIndustrial   = new Color(0.9f,  0.8f,  0.1f);
+	// Terrain-specific industrial variants
+	// Timber Mill (ind_mill_2x2): warm earthy green — suggests lumber/forest industry
+	private static readonly Color ColorIndustrialMill   = new Color(0.35f, 0.55f, 0.20f);
+	// Quarry/Coal Mine (ind_quarry_2x2): cool stone grey — suggests rock/mine extraction
+	private static readonly Color ColorIndustrialQuarry = new Color(0.50f, 0.48f, 0.45f);
 	private static readonly Color ColorRoad         = new Color(0.5f,  0.5f,  0.5f);
 	private static readonly Color ColorAvenue       = new Color(0.62f, 0.62f, 0.62f);
 	private static readonly Color ColorPowerPlant   = new Color(0.9f,  0.3f,  0.1f);
@@ -589,11 +594,21 @@ public partial class TilemapRenderer : Node2D
 						&& tile.BuildingId != null
 						&& _grid.Buildings.TryGetValue(tile.BuildingId, out var _thisBldg)
 						&& _thisBldg.TypeId == "res_house_1x1";
+
+					// Resolve the building TypeId for industrial specialisation.
+					// mill and quarry get distinct palette entries; all other industrial uses the default.
+					string? _indTypeId = null;
+					if (tile.Zone == ZoneType.Industrial && tile.BuildingId != null
+						&& _grid.Buildings.TryGetValue(tile.BuildingId, out var _indBldg))
+						_indTypeId = _indBldg.TypeId;
+
 					var baseColor = tile.Zone switch
 					{
 						ZoneType.Residential when isCottageUnpowered => ColorCottageUnpowered,
 						ZoneType.Residential => ColorResidential,
 						ZoneType.Commercial  => ColorCommercial,
+						ZoneType.Industrial  when _indTypeId == "ind_mill_2x2"   => ColorIndustrialMill,
+						ZoneType.Industrial  when _indTypeId == "ind_quarry_2x2" => ColorIndustrialQuarry,
 						_                    => ColorIndustrial,
 					};
 					// Apply subtle height-based brightness modifier before fill lerp
@@ -811,7 +826,10 @@ public partial class TilemapRenderer : Node2D
 				{
 					ZoneType.Residential => new Color(0.0f, 1.0f, 0.3f, 0.85f),   // bright green
 					ZoneType.Commercial  => new Color(0.3f, 0.7f, 1.0f, 0.85f),   // bright blue
-					ZoneType.Industrial  => new Color(1.0f, 0.9f, 0.0f, 0.85f),   // bright yellow
+					// Terrain-specific industrial outlines match the fill palette
+					ZoneType.Industrial when building.TypeId == "ind_mill_2x2"   => new Color(0.55f, 0.85f, 0.30f, 0.90f), // leafy green
+					ZoneType.Industrial when building.TypeId == "ind_quarry_2x2" => new Color(0.78f, 0.76f, 0.72f, 0.90f), // stone white
+					ZoneType.Industrial  => new Color(1.0f, 0.9f, 0.0f, 0.85f),   // bright yellow (default)
 					_                    => new Color(1.0f, 1.0f, 1.0f, 0.85f),
 				};
 
