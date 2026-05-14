@@ -65,8 +65,9 @@
 | PolicySystem (GreenCity/IndustrialHub/CommercialBoost/OpenCity) | ✅ Done | 29 new (PolicySystemTests) |
 | ScenarioEngine + ScenarioLibrary + ScenarioDefinition | ✅ Done | 14 new (ScenarioEngineTests) |
 | BuildingGrowthIntegration flaky fix | ✅ Done | FireStation added to test grid (prevents random fire demolition) |
+| 3 Challenge Scenarios (island_chain, narrow_valley, river_delta) | ✅ Done | 28 new (ScenarioLibraryExtendedTests) |
 
-**Total: 579 tests · 0 failures · ~0.71s runtime**
+**Total: 607 tests · 0 failures · ~0.73s runtime**
 
 ---
 
