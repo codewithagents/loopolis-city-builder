@@ -78,7 +78,7 @@
 | M11-P4 City era charters (InnovationHub/GreenCanopy/TradeCorridors) | ✅ Done | 26 new (CityCharterSystemTests) |
 | M11-P5 Metropolis era charters (NexusCity/GreenUtopia/EmpireOfSteel) | ✅ Done | 29 new (MetropolisCharterSystemTests) |
 
-**Total: 918 tests · 0 failures · ~9s runtime**
+**Total: 923 tests · 0 failures · ~9s runtime**
 
 ---
 
@@ -164,6 +164,10 @@
 | 2026-05-11 | default + services | M8 service tiers: PoliceHQ/FireHQ radius-10 confirmed, Hospital event penalty halving confirmed in tests. default survives 500t (+$2.24/tick), services bankrupt as pre-existing (layout issue). All 245 tests green. | Working correctly |
 | 2026-05-11 | default | M8 Phase 2 power variants: CoalPlant/NuclearPlant added. Legacy PowerPlant tiles continue to work (alias). default scenario: 500 ticks, pop 102, balance +$4,989, +$2.24/tick. PowerCapacitySystem: 500 MW supply / 19 MW demand = ratio 26x, no brownout. Legacy PowerPlant now emits pollution at 0.4 strength (avg 0.068 on default grid). Brownout correctly triggers when 102 industrial tiles (510 MW) exceed 1 coal plant (500 MW). NuclearPlant correctly blocked below 500 pop. All 272 tests green. | Working correctly |
 | 2026-05-14 | powered_start | BUG: Commercial zones never grew — C tiles stuck oscillating at 0-1 activity forever. Root cause: decline check in PopulationSystem (line 163) was a plain `if`, not `else if`. It ran unconditionally AFTER the growth branch, overwriting newPop with current*(1-0.02). For current=1, adj=0: growth set newPop=2, decline overwrote to 0. Oscillated 0→1→0 each tick pair. Fix: changed growth/decline to if/else-if so they are mutually exclusive. Commercial now grows to capacity in ~50 ticks at minimum rate. 2 regression tests added. 506 tests green. | Fixed — `if` → `else if` in commercial growth branch |
+| 2026-05-14 | deep audit | BUG (HIGH): HappinessSystem._neglect stale state — erasing a tile via fire damage left its neglect entry (up to -0.20 happiness) in the per-coordinate dict. A new zone at the same position inherited the full penalty from tick 1. Fixed: ClearNeglect(x,y) called from EraseTile. | Fixed |
+| 2026-05-14 | deep audit | BUG (HIGH): PopulationSystem._unhappyTicks stale state — same problem. A tile rebuilt where a distressed zone was demolished immediately entered distress mode, suppressing the minGrowth=1 floor and applying 1.5%/tick decay. Fixed: ClearUnhappyTicks(x,y) called from EraseTile. | Fixed |
+| 2026-05-14 | deep audit | BUG (MEDIUM): SimulationEngine.NotifyCharterMilestonesIfNeeded — if city population jumps Active/Town→Metropolis in one tick (tests, scenarios), MetropolisCharterPending was never set because guard required _previousMilestoneState==City exactly. Broadened to also cover Active and Town. | Fixed |
+| 2026-05-14 | deep audit | BUG (LOW doc): HappinessSystem docstring + GetNeglect XML comment said neglect cap is 0.3 but code caps at 0.20. Fixed both comments. | Fixed |
 
 ---
 
