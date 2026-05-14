@@ -42,6 +42,7 @@ public partial class World : Node2D
 	private ToastSystem _toastSystem = null!;
 	private Minimap _minimap = null!;
 	private AudioSystem _audio = null!;
+	private ShortcutsPanel _shortcutsPanel = null!;
 	private bool _viewerMode = false;
 	private string _sharedDir = "";
 	private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
@@ -177,6 +178,10 @@ public partial class World : Node2D
 			GetTree().ChangeSceneToFile("res://scenes/MainMenu.tscn");
 		};
 		AddChild(_scenarioResultPanel);
+
+		// Keyboard shortcuts panel (press '?' to toggle)
+		_shortcutsPanel = new ShortcutsPanel();
+		AddChild(_shortcutsPanel);
 
 		// Wire toolbar signals
 		_toolbar.ZoneSelected   += OnZoneSelected;
@@ -759,6 +764,10 @@ public partial class World : Node2D
 				Key.R => "Residential",
 				Key.C => "Commercial",
 				Key.I => "Industrial",
+				Key.P => "Park",
+				Key.W => "Road",
+				Key.A => "Avenue",
+				Key.E => "Erase",
 				_ => null
 			};
 			if (zone != null)
@@ -775,9 +784,32 @@ public partial class World : Node2D
 				}
 			}
 
-			// Escape: cancel in-progress rectangle painting, deselect tool, and resume if build-mode paused
+			// '?' (or Shift+/) toggles the keyboard shortcuts panel
+			if (key.Keycode == Key.Question || (key.Keycode == Key.Slash && key.ShiftPressed))
+			{
+				if (_shortcutsPanel.IsVisible) _shortcutsPanel.Hide();
+				else _shortcutsPanel.Show();
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
+			// H — toggle HUD detail stats panel
+			if (key.Keycode == Key.H)
+			{
+				_hud.Toggle();
+				return;
+			}
+
+			// Escape: close shortcuts panel first; otherwise cancel tool / go to main menu
 			if (key.Keycode == Key.Escape)
 			{
+				if (_shortcutsPanel.IsVisible)
+				{
+					_shortcutsPanel.Hide();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
 				CancelRectPainting();
 
 				// If a tool is selected, deselect it (this also auto-resumes via OnZoneSelected)

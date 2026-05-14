@@ -217,6 +217,17 @@ public partial class HudOverlay : CanvasLayer
 
         _eventLabel.AddThemeColorOverride("font_color", new Color(1f, 0.5f, 0.2f));
         _eventLabel.Visible = false;
+
+        // ── Shortcuts discovery hint — always visible, bottom-left ────────────
+        var shortcutsHintLabel = new Label();
+        shortcutsHintLabel.Text = "Press ? for shortcuts";
+        shortcutsHintLabel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        shortcutsHintLabel.GrowVertical = Control.GrowDirection.Begin;
+        shortcutsHintLabel.Position = new Vector2(8, -8);
+        shortcutsHintLabel.AddThemeColorOverride("font_color", new Color(0.45f, 0.45f, 0.50f));
+        shortcutsHintLabel.AddThemeFontSizeOverride("font_size", 10);
+        shortcutsHintLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        AddChild(shortcutsHintLabel);
     }
 
     public override void _Process(double delta)
