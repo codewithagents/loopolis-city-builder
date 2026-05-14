@@ -296,7 +296,7 @@ public partial class World : Node2D
 		var liveStateFile = forceStandalone ? null : FindLiveStateFile(_sharedDir);
 		if (liveStateFile != null)
 		{
-			GD.Print("[world] Viewer mode — SimulationRunner is driving the simulation.");
+			GodotLog.Info($"[world] VIEWER MODE — attaching to server state: {Path.GetFileName(liveStateFile)}");
 			_reader = new SharedStateReader();
 			_reader.BuildingBorn      += (typeId, ax, ay) =>
 			{
@@ -315,7 +315,11 @@ public partial class World : Node2D
 					}
 				}
 			};
-			_reader.BuildingDegraded  += (typeId, ax, ay) => SpawnBuildingCrumbleLabel(typeId, ax, ay);
+			_reader.BuildingDegraded  += (typeId, ax, ay) =>
+			{
+				SpawnBuildingCrumbleLabel(typeId, ax, ay);
+				GodotLog.Warn($"[degraded] {typeId} at ({ax},{ay}) [viewer]");
+			};
 			_reader.BuildingsBorn     += (typeIds, tick)  => FireBuildingBirthToasts(typeIds, tick);
 			_reader.PetitionsThisTick += state            => FirePetitionToasts(state);
 			_reader.FirstGridReady    += (w, h) => _camera.FitToMap(w, h);
@@ -325,7 +329,8 @@ public partial class World : Node2D
 		}
 
 		// Standalone mode — run own simulation
-		GD.Print("[world] Standalone mode — running own simulation.");
+		var scenarioNote = PendingScenarioId != null ? $" (scenario: {PendingScenarioId})" : "";
+		GodotLog.Info($"[world] STANDALONE MODE{scenarioNote} — running own simulation.");
 		SetupStandaloneSimulation();
 	}
 
@@ -616,6 +621,15 @@ public partial class World : Node2D
 			}
 			_standaloneTick++;
 
+			// ── Per-tick log (mirrors server's [tick N] lines) ─────────────────
+			{
+				var pop     = _population?.Population ?? 0;
+				var balance = _budget?.Balance ?? 0.0;
+				var net     = _budget?.NetIncomePerTick ?? 0.0;
+				var happy   = _engine!.HappinessSystem.AverageHappiness(_grid);
+				GodotLog.Info($"[tick {_standaloneTick,4}] pop={pop} happiness={happy:F2} balance=${balance:N0} net=${net:+0;-0;0}/tk");
+			}
+
 			// Detect new buildings spawned this tick
 			var newBuildingTypeIdsThisTick = new System.Collections.Generic.List<string>();
 			foreach (var kvp in _grid.Buildings)
@@ -631,7 +645,10 @@ public partial class World : Node2D
 				}
 			}
 			if (newBuildingTypeIdsThisTick.Count > 0)
+			{
 				FireBuildingBirthToasts(newBuildingTypeIdsThisTick, _standaloneTick);
+				GodotLog.Info($"[born ] {string.Join(", ", newBuildingTypeIdsThisTick)}");
+			}
 
 			// Detect buildings demolished by degradation this tick.
 			// Any building that existed before the tick but is now gone was degraded.
@@ -643,7 +660,10 @@ public partial class World : Node2D
 					hadDegradation = true;
 					_standaloneKnownBuildingIds.Remove(removedId);
 					if (priorBuildingTypes.TryGetValue(removedId, out var info))
+					{
 						SpawnBuildingCrumbleLabel(info.TypeId, info.AnchorX, info.AnchorY);
+						GodotLog.Warn($"[degraded] {info.TypeId} at ({info.AnchorX},{info.AnchorY})");
+					}
 				}
 			}
 			if (hadDegradation)
@@ -667,6 +687,7 @@ public partial class World : Node2D
 				_gameOverPanel.ShowBankrupt(_standaloneTick, _budget!.Balance, _population!.Population);
 				_hintOverlay.SetGameOver();
 				_toastSystem.SetGameOver();
+				GodotLog.Warn($"[game-over] BANKRUPT at tick {_standaloneTick} — balance ${_budget.Balance:N0} pop={_population!.Population}");
 			}
 
 			// Abandoned check
@@ -679,6 +700,7 @@ public partial class World : Node2D
 				_gameOverPanel.ShowAbandoned(_standaloneTick, _population!.Population, happiness);
 				_hintOverlay.SetGameOver();
 				_toastSystem.SetGameOver();
+				GodotLog.Warn($"[game-over] ABANDONED at tick {_standaloneTick} — happiness={happiness:F2} pop={_population!.Population}");
 			}
 
 			// Win condition — Loopolis (100k population)

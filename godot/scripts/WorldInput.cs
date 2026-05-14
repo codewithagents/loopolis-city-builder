@@ -400,16 +400,17 @@ public partial class World : Node2D
 				return;
 			}
 
-			// F9 dumps a debug summary to the Godot console (standalone mode only)
+			// F9 dumps a debug summary to the Godot console + log file (standalone mode only)
 			if (key.Keycode == Key.F9 && !_viewerMode)
 			{
 				var lastDegraded = _engine.LastDegradedBuildings.Count > 0
 					? string.Join(", ", _engine.LastDegradedBuildings)
 					: "none";
-				GD.Print($"[DEBUG] Tick: {_engine.TickCount} | Pop: {_population?.Population ?? 0} | Balance: ${_budget?.Balance:N0} | Happiness: {_engine.HappinessSystem.AverageHappiness(_grid):F2}");
-				GD.Print($"[DEBUG] Buildings: {_grid.Buildings.Count} | RoadNodes: {_engine.RoadGraph.NodeCount} | RoadEdges: {_engine.RoadGraph.EdgeCount}");
-				GD.Print($"[DEBUG] Jobs: {_engine.EmploymentSystem.AvailableJobs} available / {_engine.EmploymentSystem.RequiredJobs} required | EmploymentRatio: {_engine.EmploymentSystem.EmploymentRatio:F2}");
-				GD.Print($"[DEBUG] LastDegraded: {lastDegraded}");
+				GodotLog.Info($"[F9 dump] tick={_engine.TickCount} pop={_population?.Population ?? 0} balance=${_budget?.Balance:N0} happiness={_engine.HappinessSystem.AverageHappiness(_grid):F2}");
+				GodotLog.Info($"[F9 dump] buildings={_grid.Buildings.Count} roadNodes={_engine.RoadGraph.NodeCount} roadEdges={_engine.RoadGraph.EdgeCount}");
+				GodotLog.Info($"[F9 dump] jobs={_engine.EmploymentSystem.AvailableJobs}/{_engine.EmploymentSystem.RequiredJobs} ratio={_engine.EmploymentSystem.EmploymentRatio:F2}");
+				GodotLog.Info($"[F9 dump] lastDegraded={lastDegraded}");
+				GodotLog.Info($"[F9 dump] log → /tmp/loopolis-godot.log");
 				return;
 			}
 
@@ -530,9 +531,15 @@ public partial class World : Node2D
 
 			string cmd;
 			if (selectedZone == "Erase")
+			{
 				cmd = $"{{\"cmd\":\"erase\",\"x\":{tileX},\"y\":{tileY}}}";
+				GodotLog.Info($"[erase] ({tileX},{tileY}) [viewer→server]");
+			}
 			else
+			{
 				cmd = $"{{\"cmd\":\"place_zone\",\"x\":{tileX},\"y\":{tileY},\"zone\":\"{selectedZone}\"}}";
+				GodotLog.Info($"[place] ({tileX},{tileY}) => {selectedZone} [viewer→server]");
+			}
 			WriteCommand(cmd);
 
 			// Optimistic ripple for road/power zones (before server confirms)
@@ -571,8 +578,10 @@ public partial class World : Node2D
 
 			if (selectedZone == "Erase")
 			{
+				var erased = _grid.GetTile(tileX, tileY).Zone;
 				_grid.SetZone(tileX, tileY, ZoneType.Empty);
 				_audio.PlayErase();
+				GodotLog.Info($"[erase] ({tileX},{tileY}) was {erased}");
 			}
 			else
 			{
@@ -580,6 +589,7 @@ public partial class World : Node2D
 				if (System.Enum.TryParse<ZoneType>(selectedZone, out var checkZone) && !_engine.IsZoneAllowed(checkZone))
 				{
 					_toastSystem.AddToast($"⛔ {selectedZone} zones are disabled in this scenario", new Color(1f, 0.5f, 0.2f), 3f);
+					GodotLog.Warn($"[zone] {selectedZone} disabled by scenario at ({tileX},{tileY})");
 					return;
 				}
 
@@ -589,6 +599,7 @@ public partial class World : Node2D
 				{
 					// Flash the balance label red briefly to signal insufficient funds
 					_hud.FlashBalanceWarning();
+					GodotLog.Warn($"[zone] can't afford {selectedZone} at ({tileX},{tileY}) — cost ${placementCost} balance ${_budget.Balance:N0}");
 					return;
 				}
 				if (System.Enum.TryParse<ZoneType>(selectedZone, out var zoneType))
@@ -603,6 +614,7 @@ public partial class World : Node2D
 					// even when the simulation is paused (e.g. build mode).
 					_engine.RoadNetwork.Propagate(_grid);
 					Log($"[T:{_standaloneTick}] Placed {selectedZone} at ({tileX},{tileY})");
+					GodotLog.Info($"[place] ({tileX},{tileY}) => {selectedZone} (cost: ${placementCost})");
 
 					// Floating placement-score label — drifts upward and fades (standalone only)
 					if (placementScore != null)
