@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using Loopolis.Core.Grid;
 using Loopolis.Core.Persistence;
+using Loopolis.Core.Policies;
 using Loopolis.Core.Scenarios;
 using Loopolis.Core.Simulation;
 
@@ -43,6 +44,7 @@ public partial class World : Node2D
 	private Minimap _minimap = null!;
 	private AudioSystem _audio = null!;
 	private ShortcutsPanel _shortcutsPanel = null!;
+	private PolicyPanel _policyPanel = null!;
 	private bool _viewerMode = false;
 	private string _sharedDir = "";
 	private SharedStateReader? _reader; // viewer mode only, for optimistic rendering
@@ -109,6 +111,26 @@ public partial class World : Node2D
 
 	public static void SetServerPid(long pid) { _serverPid = pid; }
 
+	// Static instance reference — needed for Toolbar to call TogglePolicies() without a direct reference
+	private static World? _instance;
+
+	/// <summary>Toggles the policy panel open/closed. Called by Toolbar's Policies button.</summary>
+	public static void TogglePolicies()
+	{
+		if (_instance == null) return;
+		if (_instance._policyPanel.IsVisible)
+			_instance._policyPanel.Hide();
+		else
+		{
+			_instance._policyPanel.Show();
+			_instance._policyPanel.Update(
+				!_instance._viewerMode,
+				_instance._engine,
+				_instance._reader?.LastState,
+				_instance._reader?.SessionId);
+		}
+	}
+
 	public static void KillServerIfRunning()
 	{
 		if (_serverPid >= 0)
@@ -135,6 +157,7 @@ public partial class World : Node2D
 
 	public override void _Ready()
 	{
+		_instance = this;
 		_renderer      = GetNode<TilemapRenderer>("TilemapRenderer");
 		_camera        = GetNode<Camera>("Camera");
 		_hud           = GetNode<HudOverlay>("HudOverlay");
@@ -182,6 +205,10 @@ public partial class World : Node2D
 		// Keyboard shortcuts panel (press '?' to toggle)
 		_shortcutsPanel = new ShortcutsPanel();
 		AddChild(_shortcutsPanel);
+
+		// Policy panel (press 'O' to toggle)
+		_policyPanel = new PolicyPanel();
+		AddChild(_policyPanel);
 
 		// Wire toolbar signals
 		_toolbar.ZoneSelected   += OnZoneSelected;
@@ -393,8 +420,17 @@ public partial class World : Node2D
 			var viewerState = _reader?.LastState;
 			if (viewerGrid != null && viewerState != null)
 				_minimap.UpdateFromState(viewerState, viewerGrid);
+
+			// Keep policy panel live while open (server mode)
+			if (_policyPanel.IsVisible)
+				_policyPanel.Update(false, null, _reader?.LastState, _reader?.SessionId);
+
 			return;
 		}
+
+		// Keep policy panel live while open (standalone mode)
+		if (_policyPanel.IsVisible)
+			_policyPanel.Update(true, _engine, null, null);
 
 		// Tutorial: advance to next step after brief flash delay
 		if (_tutorialActive && _tutorialStepFlashTimer > 0f)
@@ -793,6 +829,20 @@ public partial class World : Node2D
 				return;
 			}
 
+			// 'O' toggles the city policies panel
+			if (key.Keycode == Key.O)
+			{
+				if (_policyPanel.IsVisible)
+					_policyPanel.Hide();
+				else
+				{
+					_policyPanel.Show();
+					_policyPanel.Update(!_viewerMode, _engine, _reader?.LastState, _reader?.SessionId);
+				}
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			// H — toggle HUD detail stats panel
 			if (key.Keycode == Key.H)
 			{
@@ -800,9 +850,16 @@ public partial class World : Node2D
 				return;
 			}
 
-			// Escape: close shortcuts panel first; otherwise cancel tool / go to main menu
+			// Escape: close policy panel, then shortcuts panel, then cancel tool
 			if (key.Keycode == Key.Escape)
 			{
+				if (_policyPanel.IsVisible)
+				{
+					_policyPanel.Hide();
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
 				if (_shortcutsPanel.IsVisible)
 				{
 					_shortcutsPanel.Hide();
@@ -1645,7 +1702,12 @@ public partial class World : Node2D
 			MedalEarned:               _engine.MedalEarned,
 			ScenarioFailed:            _engine.ScenarioFailed,
 			PersonalBestMedal:         GetPersonalBestMedal(_engine.ActiveScenario?.Id),
-			PersonalBestTick:          GetPersonalBestTick(_engine.ActiveScenario?.Id)
+			PersonalBestTick:          GetPersonalBestTick(_engine.ActiveScenario?.Id),
+			PolicyGreenCity:           _engine.PolicySystem.IsActive(PolicyType.GreenCity),
+			PolicyIndustrialHub:       _engine.PolicySystem.IsActive(PolicyType.IndustrialHub),
+			PolicyCommercialBoost:     _engine.PolicySystem.IsActive(PolicyType.CommercialBoost),
+			PolicyOpenCity:            _engine.PolicySystem.IsActive(PolicyType.OpenCity),
+			PolicyTotalCostPerTick:    _engine.PolicySystem.GetCostPerTick()
 		);
 		_lastState = state;
 		_hud.UpdateStats(state);

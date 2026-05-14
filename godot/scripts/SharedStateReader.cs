@@ -471,7 +471,13 @@ public record SharedState(
     bool ScenarioFailed = false,            // true when tick limit exceeded without goal
     // Personal best from leaderboard (populated by World.cs / Runner from leaderboard.json)
     string? PersonalBestMedal = null,       // e.g. "Gold", "Silver", "Bronze", or null
-    int PersonalBestTick = 0               // tick count of personal best run (0 = no entry)
+    int PersonalBestTick = 0,              // tick count of personal best run (0 = no entry)
+    // Policy system state (written by Runner, false/0 when no server or policy inactive)
+    bool PolicyGreenCity = false,
+    bool PolicyIndustrialHub = false,
+    bool PolicyCommercialBoost = false,
+    bool PolicyOpenCity = false,
+    int PolicyTotalCostPerTick = 0
 )
 {
     /// <summary>

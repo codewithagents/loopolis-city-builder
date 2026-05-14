@@ -254,6 +254,11 @@ public partial class Toolbar : CanvasLayer
         statsBtn.Pressed += () => EmitSignal(SignalName.StatsToggled);
         outerVBox.AddChild(statsBtn);
 
+        var policiesBtn = MakeActionButton("📋 Policies");
+        policiesBtn.TooltipText = "City Policies — press O to open";
+        policiesBtn.Pressed += () => World.TogglePolicies();
+        outerVBox.AddChild(policiesBtn);
+
         // Apply initial milestone locks and tab highlights
         UpdateMilestoneLocks(0);
         HighlightTabHeaders();

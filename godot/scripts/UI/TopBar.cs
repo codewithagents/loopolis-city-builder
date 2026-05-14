@@ -22,6 +22,7 @@ public partial class TopBar : CanvasLayer
     private Label _zonesLabel     = null!;
     private Label _happinessLabel = null!;
     private Label _tickLabel      = null!;
+    private Label _policyLabel    = null!;
 
     // ── Pause / build-mode banner ──────────────────────────────────────────
     private PanelContainer _pauseBanner = null!;
@@ -159,6 +160,7 @@ public partial class TopBar : CanvasLayer
         _zonesLabel     = MakeLabel("R:0  C:0  I:0");
         _happinessLabel = MakeLabel("😊 100%");
         _tickLabel      = MakeLabel("T:0");
+        _policyLabel    = MakeLabel("");
 
         // Balance — left aligned
         _balanceLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -187,6 +189,14 @@ public partial class TopBar : CanvasLayer
         // Happiness
         _happinessLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         hbox.AddChild(_happinessLabel);
+
+        AddSep(hbox);
+
+        // Policy cost indicator — only visible when policies are active
+        _policyLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
+        _policyLabel.AddThemeColorOverride("font_color", new Color(1.00f, 0.78f, 0.20f)); // amber
+        _policyLabel.Visible = false;
+        hbox.AddChild(_policyLabel);
 
         AddSep(hbox);
 
@@ -337,6 +347,17 @@ public partial class TopBar : CanvasLayer
 
         // Tick
         _tickLabel.Text = $"T:{state.Tick}";
+
+        // Policy cost indicator — shown when at least one policy is active
+        if (state.PolicyTotalCostPerTick > 0)
+        {
+            _policyLabel.Visible = true;
+            _policyLabel.Text = $"\U0001f4cb -${state.PolicyTotalCostPerTick}/tk";
+        }
+        else
+        {
+            _policyLabel.Visible = false;
+        }
 
         // ── Scenario strip ─────────────────────────────────────────────────────
         var scenarioActive = !string.IsNullOrEmpty(state.ActiveScenarioId);
