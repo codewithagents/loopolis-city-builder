@@ -1,3 +1,4 @@
+using Loopolis.Core.Buildings;
 using Loopolis.Core.Grid;
 
 namespace Loopolis.Core.Simulation;
@@ -5,7 +6,11 @@ namespace Loopolis.Core.Simulation;
 /// <summary>
 /// Propagates pollution from industrial zones and CoalPlant tiles to surrounding tiles.
 ///
-/// Industrial zones emit at full strength (strength factor 1.0).
+/// Industrial zones emit at a per-building-type strength (default 1.0).
+/// Terrain-conditional industrial buildings can override this:
+///   ind_mill_2x2   (Timber Mill) — PollutionStrength 0.55 (cleaner)
+///   ind_quarry_2x2 (Quarry)      — PollutionStrength 1.65 (dirtier)
+///   ind_warehouse_2x2            — PollutionStrength 1.0  (default)
 /// CoalPlant tiles emit at strength factor 0.4 — meaningful but less than full industrial.
 /// NuclearPlant emits zero pollution.
 /// Pollution radius is 3. Strength decays linearly with Euclidean distance.
@@ -30,7 +35,10 @@ public class PollutionSystem
             {
                 // Unpowered industrial: no production → no smoke, no pollution.
                 if (!tile.HasPower) continue;
-                emissionStrength = IndustrialStrength;
+
+                // Use per-building-type pollution strength when the tile has a known building.
+                // Falls back to IndustrialStrength (1.0) for raw zone tiles or unknown types.
+                emissionStrength = GetIndustrialStrength(grid, tile);
             }
             else if (tile.Zone == ZoneType.CoalPlant || tile.Zone == ZoneType.PowerPlant)
                 emissionStrength = CoalPlantStrength;
@@ -39,6 +47,20 @@ public class PollutionSystem
 
             EmitPollution(grid, tile.X, tile.Y, emissionStrength);
         }
+    }
+
+    /// <summary>
+    /// Returns the per-tile pollution emission strength for a powered industrial tile.
+    /// Looks up the building type via the tile's BuildingId; falls back to IndustrialStrength (1.0).
+    /// Only the anchor tile of a multi-tile building drives the lookup — the per-tile strength is
+    /// still applied once per industrial tile (not once per building), which is the existing model.
+    /// </summary>
+    private static double GetIndustrialStrength(CityGrid grid, Tile tile)
+    {
+        if (tile.BuildingId == null) return IndustrialStrength;
+        if (!grid.Buildings.TryGetValue(tile.BuildingId, out var building)) return IndustrialStrength;
+        var typeDef = BuildingCatalog.Find(building.TypeId);
+        return typeDef?.PollutionStrength ?? IndustrialStrength;
     }
 
     private static void EmitPollution(CityGrid grid, int srcX, int srcY, double emissionStrength)

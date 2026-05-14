@@ -13,7 +13,8 @@ public record BuildingTypeDefinition(
     int Width,
     int Height,
     GameState MinMilestone,
-    BuildingCondition[] Conditions
+    BuildingCondition[] Conditions,
+    double PollutionStrength = 1.0
 )
 {
     public int TilesCount => Width * Height;
@@ -48,10 +49,19 @@ public static class BuildingCatalog
         new("com_shop_1x1",       ZoneType.Commercial, 1, 1, GameState.Active, []),
 
         // Industrial
-        new("ind_park_4x2",       ZoneType.Industrial, 4, 2, GameState.City, []),
-        new("ind_park_2x4",       ZoneType.Industrial, 2, 4, GameState.City, []),
-        new("ind_warehouse_2x2",  ZoneType.Industrial, 2, 2, GameState.Town, []),
-        new("ind_factory_1x1",    ZoneType.Industrial, 1, 1, GameState.Active, []),
+        new("ind_park_4x2",       ZoneType.Industrial, 4, 2, GameState.City,   []),
+        new("ind_park_2x4",       ZoneType.Industrial, 2, 4, GameState.City,   []),
+        // Terrain-conditional 2×2 upgrades — checked before warehouse so terrain wins when available.
+        // ForestNearby(0) = forest tile must exist within the 2×2 footprint itself (radius 0).
+        // HillTerrain    = at least one footprint tile has HeightLevel >= 2.
+        new("ind_mill_2x2",       ZoneType.Industrial, 2, 2, GameState.Town,
+            [new(BuildingConditionType.ForestNearby, 0)],
+            PollutionStrength: 0.55),   // timber mill: cleaner than a generic warehouse (0.55 vs 1.0)
+        new("ind_quarry_2x2",     ZoneType.Industrial, 2, 2, GameState.Town,
+            [new(BuildingConditionType.HillTerrain)],
+            PollutionStrength: 1.65),   // quarry: dirty extraction, significantly more pollution than warehouse
+        new("ind_warehouse_2x2",  ZoneType.Industrial, 2, 2, GameState.Town,   []),   // default 2×2 (PollutionStrength 1.0)
+        new("ind_factory_1x1",    ZoneType.Industrial, 1, 1, GameState.Active,  []),
     ];
 
     public static BuildingTypeDefinition? Find(string typeId) =>

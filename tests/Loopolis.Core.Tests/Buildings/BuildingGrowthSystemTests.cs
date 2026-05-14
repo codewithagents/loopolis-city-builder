@@ -598,3 +598,166 @@ public class UnpoweredSystemsTests
             "TryGrow should not crash when a building has tiles partially out of bounds");
     }
 }
+
+/// <summary>
+/// Tests for terrain-conditional industrial building upgrades:
+/// forest tile → Timber Mill (ind_mill_2x2), elevated tile → Quarry (ind_quarry_2x2),
+/// plain flat tile → Warehouse (ind_warehouse_2x2, regression).
+/// </summary>
+[TestFixture]
+public class TerrainConditionalIndustrialTests
+{
+    private BuildingGrowthSystem _system = null!;
+
+    [SetUp]
+    public void SetUp() => _system = new BuildingGrowthSystem();
+
+    // Helper: a 2×2 industrial block at (ax,ay) that is fully powered, road-accessible,
+    // and has a 1×1 factory at (ax,ay) seeded to 80%+ capacity (41/50).
+    private static void SetUpIndustrialBlock(CityGrid grid, int ax, int ay)
+    {
+        for (var dx = 0; dx < 2; dx++)
+        for (var dy = 0; dy < 2; dy++)
+        {
+            grid.SetZone(ax + dx, ay + dy, ZoneType.Industrial);
+            grid.SetPower(ax + dx, ay + dy, true);
+            grid.SetRoadAccess(ax + dx, ay + dy, true);
+        }
+    }
+
+    // ── Test 1: Forest tile in footprint → Timber Mill ───────────────────────
+
+    [Test]
+    public void Industrial_ForestTile_GrowsTimberMill()
+    {
+        var grid = new CityGrid(10, 10);
+        SetUpIndustrialBlock(grid, 4, 4);
+
+        // Mark one footprint tile as forest
+        grid.SetForest(4, 4, true);
+
+        // Initialize creates the 1×1 factory; seed anchor tile to 82% capacity
+        _system.Initialize(grid);
+        grid.SetPopulation(4, 4, 41); // 41/50 = 82%
+
+        _system.TryGrow(grid, GameState.Town);
+
+        var mills = grid.Buildings.Values.Where(b => b.TypeId == "ind_mill_2x2").ToList();
+        Assert.That(mills.Count, Is.GreaterThanOrEqualTo(1),
+            "Industrial zone with forest tile in footprint should grow to Timber Mill (ind_mill_2x2)");
+        Assert.That(mills[0].Width, Is.EqualTo(2));
+        Assert.That(mills[0].Height, Is.EqualTo(2));
+    }
+
+    // ── Test 2: Elevated tile in footprint → Quarry ──────────────────────────
+
+    [Test]
+    public void Industrial_ElevatedTile_GrowsQuarry()
+    {
+        var grid = new CityGrid(10, 10);
+        SetUpIndustrialBlock(grid, 4, 4);
+
+        // No forest; mark one footprint tile as elevated (HeightLevel >= 2)
+        grid.SetHeightLevel(5, 5, 2); // bottom-right tile of the 2×2 footprint
+
+        _system.Initialize(grid);
+        grid.SetPopulation(4, 4, 41); // 82% capacity
+
+        _system.TryGrow(grid, GameState.Town);
+
+        var quarries = grid.Buildings.Values.Where(b => b.TypeId == "ind_quarry_2x2").ToList();
+        Assert.That(quarries.Count, Is.GreaterThanOrEqualTo(1),
+            "Industrial zone with elevated tile in footprint should grow to Quarry (ind_quarry_2x2)");
+        Assert.That(quarries[0].Width, Is.EqualTo(2));
+        Assert.That(quarries[0].Height, Is.EqualTo(2));
+    }
+
+    // ── Test 3: Flat non-forest tile → Warehouse (regression) ────────────────
+
+    [Test]
+    public void Industrial_FlatTile_GrowsWarehouse()
+    {
+        var grid = new CityGrid(10, 10);
+        SetUpIndustrialBlock(grid, 4, 4);
+
+        // Default terrain: flat, no forest, HeightLevel=1 (set by CityGrid constructor)
+        // No modifications needed — just verify the fallback behavior
+
+        _system.Initialize(grid);
+        grid.SetPopulation(4, 4, 41); // 82% capacity
+
+        _system.TryGrow(grid, GameState.Town);
+
+        var warehouses = grid.Buildings.Values.Where(b => b.TypeId == "ind_warehouse_2x2").ToList();
+        Assert.That(warehouses.Count, Is.GreaterThanOrEqualTo(1),
+            "Industrial zone on flat terrain with no forest should grow to Warehouse (ind_warehouse_2x2)");
+    }
+
+    // ── Test 4: Timber Mill has lower pollution than Warehouse ────────────────
+
+    [Test]
+    public void TimberMill_HasLowerPollutionThanWarehouse()
+    {
+        var mill      = BuildingCatalog.Find("ind_mill_2x2");
+        var warehouse = BuildingCatalog.Find("ind_warehouse_2x2");
+
+        Assert.That(mill,      Is.Not.Null, "ind_mill_2x2 must exist in catalog");
+        Assert.That(warehouse, Is.Not.Null, "ind_warehouse_2x2 must exist in catalog");
+
+        Assert.That(mill!.PollutionStrength, Is.LessThan(warehouse!.PollutionStrength),
+            "Timber Mill pollution strength should be lower than Warehouse (cleaner industry)");
+        Assert.That(mill.PollutionStrength,  Is.LessThan(1.0),
+            "Timber Mill pollution strength should be below the standard industrial baseline (1.0)");
+    }
+
+    // ── Test 5: Quarry has higher pollution than Warehouse ────────────────────
+
+    [Test]
+    public void Quarry_HasHigherPollutionThanWarehouse()
+    {
+        var quarry    = BuildingCatalog.Find("ind_quarry_2x2");
+        var warehouse = BuildingCatalog.Find("ind_warehouse_2x2");
+
+        Assert.That(quarry,    Is.Not.Null, "ind_quarry_2x2 must exist in catalog");
+        Assert.That(warehouse, Is.Not.Null, "ind_warehouse_2x2 must exist in catalog");
+
+        Assert.That(quarry!.PollutionStrength, Is.GreaterThan(warehouse!.PollutionStrength),
+            "Quarry pollution strength should be higher than Warehouse (dirty extraction)");
+        Assert.That(quarry.PollutionStrength,  Is.GreaterThan(1.0),
+            "Quarry pollution strength should be above the standard industrial baseline (1.0)");
+    }
+
+    // ── Test 6: PollutionSystem uses per-building strength for Timber Mill ────
+
+    [Test]
+    public void PollutionSystem_TimberMill_EmitsLessPollutionThanWarehouse()
+    {
+        // Set up two separate grids — one with a timber mill, one with a warehouse.
+        // Both should have a 2×2 building whose anchor tile emits pollution.
+        // The timber mill grid should have lower total pollution on its source tile.
+
+        var millGrid = new CityGrid(10, 10);
+        millGrid.SetZone(5, 5, ZoneType.Industrial);
+        millGrid.SetPower(5, 5, true);
+        var millId = "mill_test";
+        var millBuilding = new Building(millId, "ind_mill_2x2", ZoneType.Industrial, 5, 5, 1, 1);
+        millGrid.Buildings[millId] = millBuilding;
+        millGrid.SetBuildingId(5, 5, millId);
+
+        var warehouseGrid = new CityGrid(10, 10);
+        warehouseGrid.SetZone(5, 5, ZoneType.Industrial);
+        warehouseGrid.SetPower(5, 5, true);
+        var whId = "wh_test";
+        var whBuilding = new Building(whId, "ind_warehouse_2x2", ZoneType.Industrial, 5, 5, 1, 1);
+        warehouseGrid.Buildings[whId] = whBuilding;
+        warehouseGrid.SetBuildingId(5, 5, whId);
+
+        var pollution = new PollutionSystem();
+        pollution.Propagate(millGrid);
+        pollution.Propagate(warehouseGrid);
+
+        Assert.That(millGrid.GetTile(5, 5).PollutionLevel,
+            Is.LessThan(warehouseGrid.GetTile(5, 5).PollutionLevel),
+            "Timber Mill source tile should have lower pollution than Warehouse source tile");
+    }
+}
