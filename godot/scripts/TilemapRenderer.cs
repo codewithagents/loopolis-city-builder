@@ -43,6 +43,10 @@ public partial class TilemapRenderer : Node2D
 		return 1.0f + (1.0f - progress) / 0.3f * 0.15f;
 	}
 
+	// ── Time accumulator for animated effects ───────────────────────────────
+	private float _time = 0f;
+	private bool _hasWaterTiles = false; // set by Refresh(); drives continuous shimmer redraws
+
 	// ── Smoke particles ──────────────────────────────────────────────────────
 	private record SmokeParticle(Vector2 WorldPos, float Age, float MaxAge, float BaseRadius);
 	private readonly List<SmokeParticle> _smoke = new();
@@ -208,6 +212,11 @@ public partial class TilemapRenderer : Node2D
 		var dt = (float)delta;
 		var needsRedraw = false;
 
+		// ── Time accumulator (water shimmer) ─────────────────────────────────
+		_time += dt;
+		if (_hasWaterTiles && ActiveOverlay == OverlayMode.None)
+			needsRedraw = true;
+
 		// ── Road pulse ───────────────────────────────────────────────────────
 		if (_roadPulse.Count > 0)
 		{
@@ -323,11 +332,13 @@ public partial class TilemapRenderer : Node2D
 		var h = grid.Height;
 		_heightMap = new int[w, h];
 		_forestMap = new bool[w, h];
+		_hasWaterTiles = false;
 		for (var x = 0; x < w; x++)
 		for (var y = 0; y < h; y++)
 		{
 			_heightMap[x, y] = grid.GetHeightLevel(x, y);
 			_forestMap[x, y] = grid.HasForestAt(x, y);
+			if (_heightMap[x, y] <= 0) _hasWaterTiles = true;
 		}
 		RebuildChimneyPositions();
 		QueueRedraw();
@@ -341,6 +352,11 @@ public partial class TilemapRenderer : Node2D
 		_grid      = grid;
 		_heightMap = heightMap;
 		_forestMap = forestMap;
+		// Detect water tiles so shimmer animation keeps running
+		_hasWaterTiles = false;
+		for (var x = 0; x < heightMap.GetLength(0); x++)
+		for (var y = 0; y < heightMap.GetLength(1); y++)
+			if (heightMap[x, y] <= 0) { _hasWaterTiles = true; break; }
 		RebuildChimneyPositions();
 		QueueRedraw();
 	}
@@ -491,7 +507,20 @@ public partial class TilemapRenderer : Node2D
 			var depthSize = TileSize * 0.35f;
 			var depthOffset = (TileSize - depthSize) * 0.5f;
 			DrawRect(new Rect2(px + depthOffset, py + depthOffset, depthSize, depthSize), depthColor);
-			// No overlays for water tiles
+
+			// ── Water shimmer bands (only when no overlay active) ───────────
+			if (ActiveOverlay == OverlayMode.None)
+			{
+				// Band 1: slow ripple offset per tile column
+				var band1Y = py + 10 + (int)(Mathf.Sin(_time * 1.2f + tileX * 0.7f) * 3);
+				DrawRect(new Rect2(px, band1Y, TileSize, 3), new Color(0.35f, 0.55f, 0.80f, 0.25f));
+
+				// Band 2: slightly different frequency + phase for organic variation
+				var band2Y = py + 20 + (int)(Mathf.Sin(_time * 0.9f + tileX * 0.5f + 1.5f) * 4);
+				DrawRect(new Rect2(px, band2Y, TileSize, 2), new Color(0.45f, 0.65f, 0.90f, 0.18f));
+			}
+
+			// No further overlays for water tiles
 			return;
 		}
 
@@ -1520,9 +1549,57 @@ public partial class TilemapRenderer : Node2D
 					continue;
 				}
 				default:
+				{
 					// Empty tile: height-based gradient rendering with cliff edges, plateau highlight, forest overlay
 					DrawHeightTile(tile.X, tile.Y, px, py);
+
+					if (ActiveOverlay == OverlayMode.None)
+					{
+						var emptyHeight = GetHeight(tile.X, tile.Y);
+
+						// ── Tree sprites on forest tiles ────────────────────────────
+						var isForestTile = _forestMap != null
+							&& tile.X >= 0 && tile.X < _forestMap.GetLength(0)
+							&& tile.Y >= 0 && tile.Y < _forestMap.GetLength(1)
+							&& _forestMap[tile.X, tile.Y];
+
+						if (isForestTile && emptyHeight > 0)
+						{
+							// 3 deterministic tree positions within the tile
+							var tx = (int)px;
+							var ty = (int)py;
+							var positions = new[]
+							{
+								new Vector2(tx + 8,  ty + 20),  // bottom-left tree
+								new Vector2(tx + 24, ty + 22),  // bottom-right tree
+								new Vector2(tx + 16, ty + 10),  // top-center tree (back)
+							};
+
+							foreach (var pos in positions)
+							{
+								// Trunk: thin vertical line
+								DrawLine(pos, pos + new Vector2(0, 6), new Color(0.32f, 0.20f, 0.10f), 1f);
+								// Foliage: filled circle
+								DrawCircle(pos, 5f, new Color(0.22f, 0.52f, 0.18f));
+								// Highlight arc on foliage
+								DrawArc(pos, 5f, -2.5f, 0.5f, 6, new Color(0.38f, 0.68f, 0.28f, 0.7f), 1f);
+							}
+						}
+
+						// ── Rocky hatch on elevated tiles with no zone ──────────────
+						if (emptyHeight >= 2 && !isForestTile)
+						{
+							for (var i = 0; i < 4; i++)
+							{
+								var ox2 = px + 4 + i * 8;
+								DrawLine(new Vector2(ox2, py + 18), new Vector2(ox2 + 6, py + 26),
+									new Color(0.60f, 0.57f, 0.52f, 0.5f), 1f);
+							}
+						}
+					}
+
 					continue;
+				}
 			}
 
 			// Service buildings and utility tiles

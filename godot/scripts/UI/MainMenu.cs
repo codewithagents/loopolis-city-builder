@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using System.IO;
 using Loopolis.Core.Scenarios;
 
@@ -160,14 +161,43 @@ public partial class MainMenu : Control
         cardVbox.AddThemeConstantOverride("separation", 10);
         scroll.AddChild(cardVbox);
 
+        // Load personal bests once for all cards
+        var leaderboard = LoadLeaderboard();
+
         // Sandbox card first
         cardVbox.AddChild(BuildSandboxCard());
 
         // Scenario cards
         foreach (var scenario in ScenarioLibrary.All)
-            cardVbox.AddChild(BuildScenarioCard(scenario));
+        {
+            leaderboard.TryGetValue(scenario.Id, out var best);
+            cardVbox.AddChild(BuildScenarioCard(scenario, best));
+        }
 
         return root;
+    }
+
+    /// <summary>Loads the personal-best leaderboard using the same path logic as World.cs.</summary>
+    private static Dictionary<string, LeaderboardEntry> LoadLeaderboard()
+    {
+        try
+        {
+            string path;
+            try
+            {
+                path = System.IO.Path.Combine(OS.GetUserDataDir(), "leaderboard.json");
+            }
+            catch
+            {
+                var projectDir = ProjectSettings.GlobalizePath("res://");
+                path = System.IO.Path.Combine(projectDir, "saves", "leaderboard.json");
+            }
+            return LeaderboardSystem.Load(path);
+        }
+        catch
+        {
+            return new Dictionary<string, LeaderboardEntry>();
+        }
     }
 
     /// <summary>Sandbox card — no goal, no time limit, current default behavior.</summary>
@@ -236,8 +266,8 @@ public partial class MainMenu : Control
         return card;
     }
 
-    /// <summary>One scenario card showing name, description, goal, time limit, medal thresholds.</summary>
-    private Control BuildScenarioCard(ScenarioDefinition scenario)
+    /// <summary>One scenario card showing name, description, goal, time limit, medal thresholds, and personal best.</summary>
+    private Control BuildScenarioCard(ScenarioDefinition scenario, LeaderboardEntry? best)
     {
         var card = MakeCard();
         card.MouseFilter = Control.MouseFilterEnum.Stop;
@@ -271,6 +301,27 @@ public partial class MainMenu : Control
         medalsLabel.AddThemeColorOverride("font_color", new Color(0.80f, 0.75f, 0.55f));
         medalsLabel.AddThemeFontSizeOverride("font_size", 12);
         leftVbox.AddChild(medalsLabel);
+
+        // Personal best row
+        var pbLabel = new Label();
+        if (best != null)
+        {
+            var (medalEmoji, medalName, medalColor) = best.Medal switch
+            {
+                "Gold"   => ("🥇", "Gold",   new Color(1.0f, 0.82f, 0.15f)),
+                "Silver" => ("🥈", "Silver", new Color(0.80f, 0.82f, 0.88f)),
+                _        => ("🥉", "Bronze", new Color(0.80f, 0.55f, 0.25f)),
+            };
+            pbLabel.Text = $"{medalEmoji} {medalName} · T:{best.Tick}";
+            pbLabel.AddThemeColorOverride("font_color", medalColor);
+        }
+        else
+        {
+            pbLabel.Text = "Not yet played";
+            pbLabel.AddThemeColorOverride("font_color", new Color(0.45f, 0.45f, 0.45f));
+        }
+        pbLabel.AddThemeFontSizeOverride("font_size", 12);
+        leftVbox.AddChild(pbLabel);
 
         // Right column: goal, limit, play button
         var rightVbox = new VBoxContainer();
