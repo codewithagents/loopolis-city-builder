@@ -390,6 +390,11 @@ static class CommandHandler
 
                 case "select_charter":
                     // {"cmd":"select_charter","charter":"Merchant"}
+                    if (!engine.Charters.TownCharterPending)
+                    {
+                        Console.WriteLine("[select_charter] Rejected — Town milestone not reached yet.");
+                        break;
+                    }
                     if (root.TryGetProperty("charter", out var charterProp))
                     {
                         var charterName = charterProp.GetString() ?? "";
@@ -408,6 +413,11 @@ static class CommandHandler
                 case "select_city_charter":
                 {
                     // {"cmd":"select_city_charter","charter":"InnovationHub"}
+                    if (!engine.Charters.CityCharterPending)
+                    {
+                        Console.WriteLine("[select_city_charter] Rejected — City milestone not reached yet.");
+                        break;
+                    }
                     var cityCharterName = root.TryGetProperty("charter", out var ccProp)
                         ? ccProp.GetString() ?? ""
                         : "";
@@ -426,6 +436,11 @@ static class CommandHandler
                 case "select_metropolis_charter":
                 {
                     // {"cmd":"select_metropolis_charter","value":"NexusCity"}
+                    if (!engine.Charters.MetropolisCharterPending)
+                    {
+                        Console.WriteLine("[select_metropolis_charter] Rejected — Metropolis milestone not reached yet.");
+                        break;
+                    }
                     var metropolisCharterName = root.TryGetProperty("value", out var mcProp)
                         ? mcProp.GetString() ?? ""
                         : "";
