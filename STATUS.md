@@ -223,9 +223,9 @@ dotnet run --project src/Loopolis.Runner -- server default --speed 2  # persiste
 
 ```bash
 # Launch Godot editor (viewer mode if state.json exists, standalone otherwise)
-DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec \
+DOTNET_ROOT=$(dirname $(dirname $(which dotnet))) \
   /Applications/Godot_mono.app/Contents/MacOS/Godot \
-  --path /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/ \
+  --path /path/to/loopolis/godot/ \
   --editor
 # → Open scenes/World.tscn → Press F5
 ```

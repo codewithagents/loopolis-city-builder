@@ -136,9 +136,9 @@ export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
 dotnet run --project src/Loopolis.Runner -- server default --speed 2
 
 # Terminal 2 — launch Godot viewer
-DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec \
+DOTNET_ROOT=$(dirname $(dirname $(which dotnet))) \
   /Applications/Godot_mono.app/Contents/MacOS/Godot \
-  --path /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/ \
+  --path /path/to/loopolis/godot/ \
   --editor
 # → Open scenes/World.tscn → Press F5
 ```
@@ -146,9 +146,9 @@ DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec \
 ### Standalone mode (Godot runs its own simulation)
 ```bash
 # Don't run the server. Just open Godot — no state.json → standalone mode.
-DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec \
+DOTNET_ROOT=$(dirname $(dirname $(which dotnet))) \
   /Applications/Godot_mono.app/Contents/MacOS/Godot \
-  --path /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/ \
+  --path /path/to/loopolis/godot/ \
   --editor
 ```
 

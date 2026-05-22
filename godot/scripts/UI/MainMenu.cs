@@ -522,10 +522,10 @@ public partial class MainMenu : Control
 
     private void OnServerGamePressed()
     {
-        // Launch the dotnet server as a background process
-        var projectPath = "/Users/benjamin.eckstein/IdeaProjects/private/loopolis";
-        var cmd = $"export DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec && " +
-                  $"cd {projectPath} && " +
+        // Derive the repo root from the Godot project location (res:// == godot/, parent == repo root)
+        var projectPath = System.IO.Path.GetFullPath(
+            System.IO.Path.Combine(ProjectSettings.GlobalizePath("res://"), ".."));
+        var cmd = $"cd {projectPath} && " +
                   $"dotnet run --project src/Loopolis.Runner -- server default --speed 2 " +
                   $"> /tmp/loopolis-server.log 2>&1 &";
 
