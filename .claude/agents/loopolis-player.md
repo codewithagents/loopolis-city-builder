@@ -12,10 +12,7 @@ You play Loopolis by sending commands to a running simulation server. You do NOT
 ## Starting the Server
 
 ```bash
-cd /Users/benjamin.eckstein/IdeaProjects/private/loopolis
-export DOTNET_ROOT="/opt/homebrew/opt/dotnet/libexec"
-
-# Start server (blank or default scenario)
+# Start server (blank or default scenario) — run from the repo root
 dotnet run --project src/Loopolis.Runner -- server default --speed 50 > /tmp/loopolis-player.log 2>&1 &
 sleep 3
 
@@ -28,10 +25,10 @@ echo "Playing session: $SESSION_ID"
 
 ```bash
 # Full state
-cat /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/shared/state-${SESSION_ID}.json | python3 -m json.tool 2>/dev/null
+cat ./godot/shared/state-${SESSION_ID}.json | python3 -m json.tool 2>/dev/null
 
 # Quick summary
-cat /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/shared/state-${SESSION_ID}.json | python3 -c "
+cat ./godot/shared/state-${SESSION_ID}.json | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 print(f'Tick:{d[\"tick\"]} Pop:{d[\"population\"]}/{d[\"maxCapacity\"]} Balance:\${d[\"balance\"]:.0f} Net:{d[\"netPerTick\"]:.1f}/tick Happy:{d[\"happiness\"]:.0%} State:{d[\"gameState\"]} Event:{d.get(\"activeEventName\") or \"-\"}')
@@ -43,7 +40,7 @@ print(f'Tick:{d[\"tick\"]} Pop:{d[\"population\"]}/{d[\"maxCapacity\"]} Balance:
 Write to `command-{SESSION_ID}.json`. Always wait 0.3–0.5s between commands.
 
 ```bash
-SHARED=/Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/shared
+SHARED=./godot/shared
 
 # Pause/resume
 echo "{\"cmd\":\"pause\",\"sessionId\":\"$SESSION_ID\"}"   > $SHARED/command-${SESSION_ID}.json; sleep 0.5
@@ -87,7 +84,7 @@ echo "{\"cmd\":\"set_speed\",\"ticksPerSecond\":2,\"sessionId\":\"$SESSION_ID\"}
 
 ```bash
 kill $(pgrep -f "Loopolis.Runner") 2>/dev/null
-rm -f /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/shared/state-${SESSION_ID}.json
+rm -f ./godot/shared/state-${SESSION_ID}.json
 ```
 
 ## Your Gameplay Loop

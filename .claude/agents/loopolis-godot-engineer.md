@@ -63,7 +63,7 @@ godot/
    ```bash
    DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec \
      /Applications/Godot_mono.app/Contents/MacOS/Godot \
-     --path /Users/benjamin.eckstein/IdeaProjects/private/loopolis/godot/ \
+     --path /path/to/loopolis/godot/ \
      --editor
    ```
 5. Open `scenes/World.tscn` in the editor, then press **F5** to run.
