@@ -1,0 +1,43 @@
+name: Bug Report
+description: Something broke or behaves unexpectedly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1. Open the game
+        2. Place a residential zone
+        3. ...
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should have happened instead?
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Godot game window
+        - Headless runner / CLI
+        - Simulation logic (Core)
+        - Other
+
+  - type: input
+    id: version
+    attributes:
+      label: Loopolis version / commit
+      placeholder: "e.g. main@abc1234"
