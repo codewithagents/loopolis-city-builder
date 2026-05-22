@@ -47,12 +47,14 @@ jobs:
             | python3 -c "
           import sys, json
           d = json.load(sys.stdin)
+          ticks     = d.get('tick', d.get('TotalTicks', 0))
+          game_state = d.get('gameState', d.get('GameState', ''))
           print(f'Scenario : {d[\"Scenario\"]}')
-          print(f'Ticks    : {d[\"FinalTick\"]}')
+          print(f'Ticks    : {ticks}')
           print(f'Survived : {d[\"Survived\"]}')
-          print(f'GameState: {d[\"GameState\"]}')
+          print(f'GameState: {game_state}')
           assert d['Survived'] == True, 'Smoke test failed: city did not survive'
-          assert d['GameState'] not in ('Bankrupt', 'Abandoned'), f'Bad end state: {d[\"GameState\"]}'
+          assert game_state not in ('Bankrupt', 'Abandoned'), f'Bad end state: {game_state}'
           print('OK')
           "
 
